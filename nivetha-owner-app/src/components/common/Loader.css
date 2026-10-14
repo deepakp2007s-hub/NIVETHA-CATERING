@@ -1,0 +1,124 @@
+/* ========================================
+   NIVETHA OWNER APP - LOADER CSS
+   White + Gold Professional Theme
+======================================== */
+
+.page-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 220px;
+  padding: 32px 20px;
+  box-sizing: border-box;
+  color: #777267;
+  background: transparent;
+}
+
+/* Full-screen loader */
+
+.page-loading.app-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 24px;
+  box-sizing: border-box;
+  background: #fffdf8;
+  color: #28261f;
+}
+
+/* Loader card */
+
+.page-loading.app-loading > div {
+  width: min(90%, 360px);
+  padding: 36px 28px;
+  box-sizing: border-box;
+  text-align: center;
+  background: #ffffff;
+  border: 1px solid #eee3c8;
+  border-radius: 20px;
+  box-shadow: 0 12px 35px rgba(100, 75, 20, 0.08);
+}
+
+/* Spinner */
+
+.loading-spinner-icon {
+  display: block;
+  margin: 0 auto;
+  color: #c49a38;
+  animation: loader-spin 0.9s linear infinite;
+  filter: drop-shadow(0 2px 5px rgba(196, 154, 56, 0.15));
+}
+
+.page-loading.app-loading .loading-spinner-icon {
+  color: #c49a38;
+}
+
+/* Loading message */
+
+.page-loading p {
+  margin-top: 12px;
+  margin-bottom: 0;
+  color: #777267;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.6;
+  letter-spacing: 0.2px;
+}
+
+.page-loading.app-loading p {
+  margin-top: 16px !important;
+  margin-bottom: 0 !important;
+  color: #777267;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Spinner animation */
+
+@keyframes loader-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Accessibility */
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-spinner-icon {
+    animation: none;
+  }
+}
+
+/* Tablet */
+
+@media (max-width: 768px) {
+  .page-loading {
+    min-height: 200px;
+    padding: 24px 16px;
+  }
+}
+
+/* Mobile */
+
+@media (max-width: 480px) {
+  .page-loading.app-loading > div {
+    padding: 28px 20px;
+    border-radius: 16px;
+  }
+
+  .page-loading p,
+  .page-loading.app-loading p {
+    font-size: 13px;
+  }
+}

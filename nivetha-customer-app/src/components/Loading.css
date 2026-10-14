@@ -1,0 +1,41 @@
+.nv-loading {
+  min-height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 13px;
+  padding: 30px;
+  color: #176b52;
+  text-align: center;
+}
+
+.nv-loading-mark {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px 15px 15px 5px;
+  background: #176b52;
+  color: #fff;
+  font-family: Georgia, serif;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.nv-loading-spinner {
+  animation: nv-spin 0.9s linear infinite;
+  color: #b68a35;
+}
+
+.nv-loading p {
+  margin: 0;
+  color: #68746b;
+  font-size: 13px;
+}
+
+@keyframes nv-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

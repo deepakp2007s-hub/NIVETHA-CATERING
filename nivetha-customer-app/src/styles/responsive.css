@@ -1,0 +1,148 @@
+/* =========================================
+   NIVETHA CUSTOMER APP
+   RESPONSIVE DESIGN
+========================================= */
+
+/* Tablet and smaller laptops */
+@media (max-width: 1024px) {
+  .nv-container {
+    width: min(100% - 36px, 1200px);
+  }
+
+  .nv-section {
+    padding-block: 52px;
+  }
+
+  .service-grid {
+    gap: 18px;
+  }
+
+  .service-card {
+    padding: 24px;
+  }
+}
+
+/* Tablets */
+@media (max-width: 768px) {
+  .nv-container {
+    width: min(100% - 32px, 1200px);
+  }
+
+  .nv-section {
+    padding-block: 44px;
+  }
+
+  .nv-section-title {
+    font-size: 32px;
+  }
+
+  .service-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 34px;
+    padding: 54px 6%;
+  }
+
+  .hero-content {
+    width: 100%;
+    max-width: 620px;
+    margin-inline: auto;
+  }
+
+  .hero-visual {
+    width: 100%;
+    max-width: 520px;
+    margin-inline: auto;
+  }
+}
+
+/* Mobile */
+@media (max-width: 560px) {
+  .nv-container {
+    width: calc(100% - 28px);
+  }
+
+  .nv-section {
+    padding-block: 38px;
+  }
+
+  .nv-section-title {
+    font-size: 28px;
+  }
+
+  .hero {
+    padding: 42px 5%;
+  }
+
+  .hero h1 {
+    font-size: clamp(34px, 9vw, 43px);
+    line-height: 1.15;
+  }
+
+  .hero-content > p {
+    font-size: 14px;
+    line-height: 1.8;
+  }
+
+  .hero-actions {
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .hero-features {
+    gap: 18px;
+  }
+
+  .hero-visual {
+    min-height: 270px;
+  }
+
+  .service-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .service-card {
+    padding: 22px;
+  }
+
+  .nv-card-padding {
+    padding: 16px;
+  }
+
+  .nv-btn {
+    min-height: 43px;
+    padding: 10px 15px;
+  }
+
+  .nv-form-group {
+    margin-bottom: 15px;
+  }
+}
+
+/* Extra-small devices */
+@media (max-width: 360px) {
+  .nv-container {
+    width: calc(100% - 22px);
+  }
+
+  .nv-section-title {
+    font-size: 25px;
+  }
+
+  .hero h1 {
+    font-size: 33px;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+  }
+
+  .hero-actions .primary-btn,
+  .hero-actions .secondary-btn {
+    width: 100%;
+    text-align: center;
+  }
+}

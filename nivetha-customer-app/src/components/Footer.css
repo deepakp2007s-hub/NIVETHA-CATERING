@@ -1,0 +1,133 @@
+.nv-footer {
+  padding: 55px max(24px, calc((100% - 1180px) / 2)) 0;
+  background: #153d30;
+  color: #fff;
+}
+
+.nv-footer-main {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1.3fr;
+  gap: 35px;
+  padding-bottom: 42px;
+}
+
+.nv-footer-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #fff;
+  text-decoration: none;
+}
+
+.nv-footer-logo strong,
+.nv-footer-logo small {
+  display: block;
+}
+
+.nv-footer-logo strong {
+  font-size: 17px;
+  letter-spacing: 2px;
+}
+
+.nv-footer-logo small {
+  margin-top: 4px;
+  color: #e2c58b;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+}
+
+.nv-footer-brand > p {
+  max-width: 280px;
+  margin-top: 20px;
+  color: #c5d5ca;
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+.nv-footer-column {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nv-footer-column h3 {
+  margin: 5px 0 8px;
+  color: #e4c78d;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.nv-footer-column > a {
+  color: #d5e0d8;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.nv-footer-column > a:hover {
+  color: #e4c78d;
+}
+
+.nv-footer-column > p {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0;
+  color: #d5e0d8;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.nv-footer-column > p svg {
+  flex-shrink: 0;
+  color: #e4c78d;
+}
+
+.nv-footer-column .nv-footer-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 4px;
+  color: #e4c78d;
+  font-weight: 700;
+}
+
+.nv-footer-bottom {
+  min-height: 65px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  border-top: 1px solid #ffffff22;
+  color: #c5d5ca;
+  font-size: 11px;
+}
+
+.nv-footer-heart {
+  color: #e4c78d;
+}
+
+@media (max-width: 900px) {
+  .nv-footer-main {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 32px;
+  }
+}
+
+@media (max-width: 520px) {
+  .nv-footer {
+    padding: 40px 22px 0;
+  }
+
+  .nv-footer-main {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .nv-footer-bottom {
+    padding: 18px 0;
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: center;
+  }
+}

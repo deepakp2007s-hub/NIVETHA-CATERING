@@ -1,0 +1,71 @@
+.nv-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 11px 20px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.nv-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.nv-button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.nv-button-primary {
+  background: #176b52;
+  color: #fff;
+}
+
+.nv-button-primary:hover {
+  background: #10543f;
+}
+
+.nv-button-secondary {
+  border-color: #d6ad60;
+  background: #fffaf0;
+  color: #765624;
+}
+
+.nv-button-secondary:hover {
+  background: #f7edd8;
+}
+
+.nv-button-outline {
+  border-color: #dce5dd;
+  background: #fff;
+  color: #176b52;
+}
+
+.nv-button-outline:hover {
+  background: #f0f6f1;
+}
+
+.nv-button-danger {
+  background: #b83c3c;
+  color: #fff;
+}
+
+.nv-button-full {
+  width: 100%;
+}
+
+.nv-button-spinner {
+  animation: nv-spin 0.8s linear infinite;
+}
+
+@keyframes nv-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

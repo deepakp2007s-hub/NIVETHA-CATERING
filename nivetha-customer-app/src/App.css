@@ -1,0 +1,426 @@
+.home-page {
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.navbar {
+  min-height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 7%;
+  background: #fff;
+  border-bottom: 1px solid #eee9df;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #29251e;
+  text-decoration: none;
+}
+
+.brand-icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: #b68a35;
+  color: #fff;
+  font-family: Georgia, serif;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.brand strong,
+.brand small {
+  display: block;
+}
+
+.brand strong {
+  font-size: 17px;
+  letter-spacing: 2px;
+}
+
+.brand small {
+  margin-top: 4px;
+  color: #8c754b;
+  font-size: 9px;
+  letter-spacing: 2px;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+
+.nav-links a {
+  color: #5b564d;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.nav-links a:hover {
+  color: #b68a35;
+}
+
+.login-btn,
+.primary-btn {
+  border: 0;
+  border-radius: 9px;
+  background: #b68a35;
+  color: #fff;
+  padding: 13px 22px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-btn:hover,
+.primary-btn:hover {
+  background: #94702a;
+}
+
+.hero {
+  min-height: 590px;
+  padding: 80px 9%;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  align-items: center;
+  gap: 50px;
+  background: linear-gradient(120deg, #fffdf8, #f8f0df);
+}
+
+.hero-content {
+  max-width: 620px;
+}
+
+.eyebrow {
+  color: #a27a2d;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2.2px;
+}
+
+.hero h1 {
+  margin: 20px 0;
+  color: #29251e;
+  font-family: Georgia, serif;
+  font-size: clamp(42px, 5vw, 66px);
+  line-height: 1.12;
+  letter-spacing: -1.5px;
+}
+
+.hero h1 span {
+  color: #b68a35;
+  font-style: italic;
+}
+
+.hero-content > p {
+  max-width: 500px;
+  color: #70695d;
+  font-size: 16px;
+  line-height: 1.9;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 30px;
+}
+
+.primary-btn span {
+  margin-left: 12px;
+}
+
+.secondary-btn {
+  color: #4e473b;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.hero-features {
+  display: flex;
+  gap: 35px;
+  flex-wrap: wrap;
+  margin-top: 45px;
+}
+
+.hero-features strong,
+.hero-features small {
+  display: block;
+}
+
+.hero-features strong {
+  color: #3a3328;
+  font-size: 15px;
+}
+
+.hero-features small {
+  margin-top: 5px;
+  color: #847b6b;
+  font-size: 11px;
+}
+
+.hero-visual {
+  min-height: 390px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 48% 48% 25px 25px;
+  background: radial-gradient(circle at 50% 45%, #f0dfb5, #e6c783 55%, #d5b36c);
+}
+
+.food-circle {
+  width: min(70%, 290px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 12px solid rgba(255, 255, 255, 0.75);
+  border-radius: 50%;
+  background: #fff8e9;
+  box-shadow: 0 25px 65px #8c692d35;
+  font-size: clamp(90px, 12vw, 155px);
+}
+
+.floating-card {
+  position: absolute;
+  right: -15px;
+  bottom: 55px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 35px #5e4a261c;
+}
+
+.floating-card > span {
+  color: #b68a35;
+  font-size: 28px;
+}
+
+.floating-card strong,
+.floating-card small {
+  display: block;
+}
+
+.floating-card strong {
+  color: #342e24;
+  font-size: 13px;
+}
+
+.floating-card small {
+  margin-top: 5px;
+  color: #8b8376;
+  font-size: 11px;
+}
+
+.visual-caption {
+  position: absolute;
+  top: 28px;
+  color: #70531e;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.services-section {
+  padding: 85px 8%;
+  text-align: center;
+  background: #fff;
+}
+
+.services-section h2 {
+  margin: 14px 0;
+  color: #302a20;
+  font-family: Georgia, serif;
+  font-size: clamp(30px, 4vw, 42px);
+}
+
+.section-description {
+  color: #797164;
+  line-height: 1.7;
+}
+
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  max-width: 1100px;
+  margin: 42px auto 0;
+  text-align: left;
+}
+
+.service-card {
+  padding: 30px;
+  border: 1px solid #eee7d9;
+  border-radius: 16px;
+  background: #fffdf9;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.service-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 35px #65502b12;
+}
+
+.service-icon {
+  font-size: 35px;
+}
+
+.service-card h3 {
+  margin: 20px 0 10px;
+  color: #3b3428;
+  font-family: Georgia, serif;
+  font-size: 21px;
+}
+
+.service-card p {
+  color: #797164;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+footer {
+  padding: 35px 20px;
+  text-align: center;
+  background: #28251f;
+  color: #fff;
+}
+
+footer p {
+  color: #d0c8b8;
+  font-size: 14px;
+}
+
+footer small {
+  color: #b8ad98;
+}
+
+.simple-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  position: relative;
+  padding: 30px;
+  background: #faf6ec;
+}
+
+.back-link {
+  position: absolute;
+  top: 30px;
+  left: 30px;
+  color: #765b28;
+  text-decoration: none;
+}
+
+.simple-card {
+  width: min(100%, 420px);
+  padding: 45px 30px;
+  border: 1px solid #eee3ce;
+  border-radius: 20px;
+  background: #fff;
+  text-align: center;
+  box-shadow: 0 20px 60px #4a35100d;
+}
+
+.simple-card .brand-icon {
+  margin: auto;
+}
+
+.simple-card h1 {
+  margin-top: 24px;
+  color: #302a20;
+  font-family: Georgia, serif;
+}
+
+.simple-card p {
+  margin: 15px 0 25px;
+  color: #797164;
+  line-height: 1.7;
+}
+
+@media (max-width: 850px) {
+  .navbar {
+    padding: 16px 5%;
+  }
+
+  .nav-links {
+    gap: 15px;
+  }
+
+  .hero {
+    grid-template-columns: 1fr;
+    padding: 60px 7%;
+  }
+
+  .hero-content {
+    margin: auto;
+  }
+
+  .hero-visual {
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .navbar {
+    flex-wrap: wrap;
+  }
+
+  .nav-links {
+    order: 3;
+    width: 100%;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .nav-links a {
+    font-size: 12px;
+  }
+
+  .login-btn {
+    padding: 10px 16px;
+  }
+
+  .hero {
+    gap: 35px;
+    padding: 48px 6%;
+  }
+
+  .hero h1 {
+    font-size: 43px;
+  }
+
+  .hero-features {
+    gap: 20px;
+  }
+
+  .hero-visual {
+    min-height: 300px;
+  }
+
+  .floating-card {
+    right: -5px;
+    bottom: 25px;
+    padding: 12px;
+  }
+
+  .service-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .services-section {
+    padding: 60px 6%;
+  }
+}
