@@ -2,9 +2,9 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+
 const notFoundMiddleware = require("./middleware/notFoundMiddleware");
 const errorMiddleware = require("./middleware/errorMiddleware");
-
 
 const app = express();
 
@@ -15,11 +15,15 @@ const allowedOrigins = [
   "http://localhost:5174",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
+  ...(process.env.CLIENT_URL || "")
+    .split(",")
+    .map((url) => url.trim().replace(/\/$/, ""))
+    .filter(Boolean),
 ];
 
 app.use(
   cors({
-    origin(origin, callback) {
+    origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
@@ -28,6 +32,7 @@ app.use(
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
   })
 );
 
@@ -51,13 +56,9 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Existing owner authentication routes
 app.use("/api/auth", require("./routes/authRoutes"));
-
-// Customer authentication routes
 app.use("/api/customer-auth", require("./routes/customerAuthRoutes"));
 
-// Existing application routes
 app.use("/api/bookings", require("./routes/bookingRoutes"));
 app.use("/api/customers", require("./routes/customerRoutes"));
 app.use("/api/dashboard", require("./routes/dashboardRoutes"));
@@ -66,16 +67,11 @@ app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/reports", require("./routes/reportRoutes"));
 app.use("/api/reviews", require("./routes/reviewRoutes"));
 
-// Phase-2 modules
 app.use("/api/payments", require("./routes/paymentRoutes"));
 app.use("/api/materials", require("./routes/materialRoutes"));
 app.use("/api/staff", require("./routes/staffRoutes"));
 
-
-// 404 handler — must come after all routes
 app.use(notFoundMiddleware);
-
-// Centralised error handler — must be last, needs 4 args
 app.use(errorMiddleware);
 
 module.exports = app;
