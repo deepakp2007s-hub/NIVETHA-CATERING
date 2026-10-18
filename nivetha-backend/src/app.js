@@ -8,26 +8,49 @@ const errorMiddleware = require("./middleware/errorMiddleware");
 
 const app = express();
 
+// Security headers
 app.use(helmet());
 
-const allowedOrigins = [
+// Read frontend URLs from Render environment variables.
+// CLIENT_URL and OWNER_URL can contain comma-separated origins.
+const configuredOrigins = [
+  process.env.CLIENT_URL,
+  process.env.OWNER_URL,
+]
+  .filter(Boolean)
+  .flatMap((value) => value.split(","))
+  .map((url) => url.trim().replace(/^["']|["']$/g, "").replace(/\/+$/, ""))
+  .filter(Boolean);
+
+// Known production origins (exact origins only, no paths).
+// Add the Customer App Vercel URL here after it is deployed.
+const productionOrigins = [
+  "https://nivetha-catering.vercel.app",
+];
+
+const localOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
-  ...(process.env.CLIENT_URL || "")
-    .split(",")
-    .map((url) => url.trim().replace(/\/$/, ""))
-    .filter(Boolean),
 ];
+
+const allowedOrigins = [
+  ...new Set([...localOrigins, ...productionOrigins, ...configuredOrigins]),
+];
+
+console.log("CORS allowed origins:", allowedOrigins);
 
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Allow requests without an Origin header, such as server-to-server
+      // requests and direct health checks.
       if (!origin || allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
+      console.warn(`CORS blocked origin: ${origin}`);
       return callback(new Error("Origin not allowed by CORS"));
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -36,9 +59,11 @@ app.use(
   })
 );
 
+// Parse request bodies
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 
+// API rate limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
@@ -48,6 +73,7 @@ const apiLimiter = rateLimit({
 
 app.use("/api", apiLimiter);
 
+// Health check
 app.get("/api/health", (req, res) => {
   res.status(200).json({
     success: true,
@@ -56,21 +82,27 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// Authentication routes
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/customer-auth", require("./routes/customerAuthRoutes"));
 
+// Booking and customer routes
 app.use("/api/bookings", require("./routes/bookingRoutes"));
 app.use("/api/customers", require("./routes/customerRoutes"));
 app.use("/api/dashboard", require("./routes/dashboardRoutes"));
+
+// Food and notification routes
 app.use("/api/foods", require("./routes/foodRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/reports", require("./routes/reportRoutes"));
 app.use("/api/reviews", require("./routes/reviewRoutes"));
 
+// Owner management routes
 app.use("/api/payments", require("./routes/paymentRoutes"));
 app.use("/api/materials", require("./routes/materialRoutes"));
 app.use("/api/staff", require("./routes/staffRoutes"));
 
+// 404 and centralized error handling
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
 

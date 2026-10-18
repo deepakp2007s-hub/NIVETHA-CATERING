@@ -1,3 +1,4 @@
+
 require("dotenv").config();
 
 const app = require("./src/app");
@@ -12,7 +13,8 @@ const startServer = async () => {
 
     const server = app.listen(PORT, HOST, () => {
       console.log(`Nivetha Catering API running on ${HOST}:${PORT}`);
-      console.log(`Health check: http://localhost:${PORT}/api/health`);
+      console.log(`Health check: /api/health`);
+      console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
     });
 
     server.on("error", (error) => {

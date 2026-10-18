@@ -1,23 +1,29 @@
+
 import axios from "axios";
 
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost:5000/api"
+).replace(/\/+$/, "");
+
 const api = axios.create({
-  baseURL:
-    import.meta.env.VITE_API_BASE_URL ||
-    "http://localhost:5000/api",
+  baseURL: API_BASE_URL,
   timeout: 20000,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
+// Attach the Anna Owner authentication token.
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("ownerToken");
 
+    config.headers = config.headers || {};
+
     if (token) {
-      config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
-    } else if (config.headers) {
+    } else {
       delete config.headers.Authorization;
     }
 
@@ -26,6 +32,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Handle API errors.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -33,8 +40,8 @@ api.interceptors.response.use(
     const requestUrl = error.config?.url || "";
 
     const isLoginRequest =
-      requestUrl.includes("/auth/login") ||
-      requestUrl.includes("/login");
+      /\/auth\/login(?:[/?]|$)/.test(requestUrl) ||
+      /\/login(?:[/?]|$)/.test(requestUrl);
 
     if (status === 401 && !isLoginRequest) {
       localStorage.removeItem("ownerToken");
@@ -48,7 +55,7 @@ api.interceptors.response.use(
       error.message =
         error.code === "ECONNABORTED"
           ? "Request timed out. Please try again."
-          : "Cannot connect to the server. Check your internet connection.";
+          : "Cannot connect to the server. Check your connection.";
     } else if (status >= 500) {
       error.message =
         error.response.data?.message ||
