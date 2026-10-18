@@ -1,4 +1,4 @@
-
+// nivetha-owner-app/src/services/api.js
 import axios from "axios";
 
 const API_BASE_URL = (
@@ -8,7 +8,8 @@ const API_BASE_URL = (
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 20000,
+  // Render free plan can take up to ~60 seconds to wake up after sleeping.
+  timeout: 60000,
   headers: {
     "Content-Type": "application/json",
   },
