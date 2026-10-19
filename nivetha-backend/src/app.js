@@ -9,9 +9,27 @@ const errorMiddleware = require("./middleware/errorMiddleware");
 
 const app = express();
 
+// Render proxy configuration for correct client IP handling.
+app.set("trust proxy", 1);
+
 app.disable("x-powered-by");
 app.use(helmet());
 
+// Production frontend URLs.
+const productionOrigins = [
+  "https://nivetha-catering.vercel.app",
+  "https://nivetha-catering-kjh1.vercel.app",
+];
+
+// Local development frontend URLs.
+const localOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+];
+
+// Optional origins from Render environment variables.
 const configuredOrigins = [
   process.env.CLIENT_URL,
   process.env.OWNER_URL,
@@ -20,18 +38,6 @@ const configuredOrigins = [
   .flatMap((value) => value.split(","))
   .map((url) => url.trim().replace(/^["']|["']$/g, "").replace(/\/+$/, ""))
   .filter(Boolean);
-
-const productionOrigins = [
-  "https://nivetha-catering.vercel.app",
-  "https://nivetha-catering-kjh1.vercel.app",
-];
-
-const localOrigins = [
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "http://127.0.0.1:5173",
-  "http://127.0.0.1:5174",
-];
 
 const allowedOrigins = [
   ...new Set([
@@ -44,7 +50,14 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Requests without an Origin header (e.g. server-to-server/health checks).
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      const normalizedOrigin = origin.replace(/\/+$/, "");
+
+      if (allowedOrigins.includes(normalizedOrigin)) {
         return callback(null, true);
       }
 
@@ -60,6 +73,7 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
+// API rate limiter.
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 300,
@@ -73,35 +87,27 @@ const apiLimiter = rateLimit({
 
 app.use("/api", apiLimiter);
 
-// Health check
+// Health check.
 app.get("/api/health", (req, res) => {
-  return res.status(200).json({
+  res.status(200).json({
     success: true,
     message: "Nivetha Catering API is running",
     timestamp: new Date().toISOString(),
   });
 });
 
-// Authentication
+// API routes.
 app.use("/api/auth", require("./routes/authRoutes"));
-app.use("/api/customer-auth", require("./routes/customerAuthRoutes"));
-
-// Bookings and customers
 app.use("/api/bookings", require("./routes/bookingRoutes"));
 app.use("/api/customers", require("./routes/customerRoutes"));
 app.use("/api/dashboard", require("./routes/dashboardRoutes"));
-
-// Food and operations
 app.use("/api/foods", require("./routes/foodRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/reports", require("./routes/reportRoutes"));
 app.use("/api/reviews", require("./routes/reviewRoutes"));
 
-// Keep these routes only if their files exist.
-// app.use("/api/materials", require("./routes/materialRoutes"));
-// app.use("/api/staff", require("./routes/staffRoutes"));
+// Materials, Staff and Payment routes are intentionally not mounted.
 
-// 404 and error handlers must remain last
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
 
