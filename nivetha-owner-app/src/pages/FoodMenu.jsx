@@ -6,23 +6,26 @@ import "./FoodMenu.css";
 const emptyFood = {
   name: "",
   tamilName: "",
-  meal: "Lunch",
+  category: "Lunch",
   type: "Veg",
   description: "",
+  price: "",
   image: "",
-  isAvailable: true,
+  available: true,
 };
 
 const getFoodList = (response) => {
   const data = response?.data;
+
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.foods)) return data.foods;
   if (Array.isArray(data?.data)) return data.data;
   if (Array.isArray(data?.data?.foods)) return data.data.foods;
+
   return [];
 };
 
-const getFoodId = (food) => food._id || food.id;
+const getFoodId = (food) => food?._id || food?.id;
 
 function FoodMenu() {
   const [foods, setFoods] = useState([]);
@@ -35,7 +38,7 @@ function FoodMenu() {
   const [availabilityFilter, setAvailabilityFilter] = useState("All");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingFood, setEditingFood] = useState(null);
-  const [form, setForm] = useState(emptyFood);
+  const [form, setForm] = useState({ ...emptyFood });
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState("");
 
@@ -43,12 +46,13 @@ function FoodMenu() {
     try {
       setLoading(true);
       setError("");
+
       const response = await api.get("/foods");
       setFoods(getFoodList(response));
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Unable to load the food menu. Check the backend connection."
+          "Unable to load food menu. Check your login and backend connection."
       );
     } finally {
       setLoading(false);
@@ -69,16 +73,18 @@ function FoodMenu() {
 
   const openEditModal = (food) => {
     setEditingFood(food);
+
     setForm({
       name: food.name || "",
       tamilName: food.tamilName || "",
-      meal: food.meal || food.category || "Lunch",
+      category: food.category || food.meal || "Lunch",
       type: food.type || food.foodType || "Veg",
       description: food.description || "",
+      price: food.price === 0 ? "0" : String(food.price ?? ""),
       image: food.image || "",
-      isAvailable:
-        food.isAvailable ?? food.available ?? true,
+      available: food.available ?? food.isAvailable ?? true,
     });
+
     setError("");
     setNotice("");
     setModalOpen(true);
@@ -92,6 +98,7 @@ function FoodMenu() {
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target;
+
     setForm((current) => ({
       ...current,
       [name]: type === "checkbox" ? checked : value,
@@ -100,37 +107,76 @@ function FoodMenu() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    if (saving) return;
+
+    const name = form.name.trim();
+    const priceText = String(form.price).trim();
+    const price = Number(priceText);
+
+    if (!name) {
+      setError("Food name is required.");
+      return;
+    }
+
+    if (!form.category) {
+      setError("Please select a meal category.");
+      return;
+    }
+
+    if (
+      priceText === "" ||
+      !Number.isFinite(price) ||
+      price < 0
+    ) {
+      setError("Enter a valid price greater than or equal to ₹0.");
+      return;
+    }
+
+    const payload = {
+      name,
+      tamilName: form.tamilName.trim(),
+      category: form.category,
+      type: form.type,
+      description: form.description.trim(),
+      price,
+      image: form.image.trim(),
+      available: Boolean(form.available),
+    };
+
     setSaving(true);
     setError("");
     setNotice("");
 
-    const payload = {
-      name: form.name.trim(),
-      tamilName: form.tamilName.trim(),
-      meal: form.meal,
-      type: form.type,
-      description: form.description.trim(),
-      image: form.image.trim(),
-      isAvailable: form.isAvailable,
-    };
-
     try {
       if (editingFood) {
         const id = getFoodId(editingFood);
-        await api.put(`/foods/${id}`, payload);
-        setNotice("Food details updated successfully.");
+
+        if (!id) {
+          throw new Error("Food ID is missing. Reload the menu and try again.");
+        }
+
+        await api.patch(`/foods/${id}`, payload);
       } else {
         await api.post("/foods", payload);
-        setNotice("Food added successfully.");
       }
 
       setModalOpen(false);
       setEditingFood(null);
+      setForm({ ...emptyFood });
+
       await loadFoods();
+
+      setNotice(
+        editingFood
+          ? "Food details updated successfully."
+          : "Food added successfully."
+      );
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Could not save food. Please check the food API and required fields."
+          err.message ||
+          "Could not save food. Please try again."
       );
     } finally {
       setSaving(false);
@@ -139,26 +185,29 @@ function FoodMenu() {
 
   const toggleAvailability = async (food) => {
     const id = getFoodId(food);
-    if (!id) return;
+    if (!id || busyId) return;
 
     const currentAvailability =
-      food.isAvailable ?? food.available ?? true;
+      food.available ?? food.isAvailable ?? true;
 
     setBusyId(String(id));
     setError("");
     setNotice("");
 
     try {
-      await api.put(`/foods/${id}`, {
-        isAvailable: !currentAvailability,
+      const response = await api.patch(`/foods/${id}`, {
+        available: !currentAvailability,
       });
+
+      const updatedFood =
+        response?.data?.data || response?.data?.food || {};
 
       setFoods((current) =>
         current.map((item) =>
           String(getFoodId(item)) === String(id)
             ? {
                 ...item,
-                isAvailable: !currentAvailability,
+                ...updatedFood,
                 available: !currentAvailability,
               }
             : item
@@ -173,7 +222,7 @@ function FoodMenu() {
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Could not update availability. Please try again."
+          "Could not update food availability."
       );
     } finally {
       setBusyId("");
@@ -182,11 +231,12 @@ function FoodMenu() {
 
   const deleteFood = async (food) => {
     const id = getFoodId(food);
-    if (!id) return;
+    if (!id || busyId) return;
 
     const confirmed = window.confirm(
       `Delete "${food.name}" from the food menu?`
     );
+
     if (!confirmed) return;
 
     setBusyId(String(id));
@@ -195,11 +245,13 @@ function FoodMenu() {
 
     try {
       await api.delete(`/foods/${id}`);
+
       setFoods((current) =>
         current.filter(
           (item) => String(getFoodId(item)) !== String(id)
         )
       );
+
       setNotice("Food deleted successfully.");
     } catch (err) {
       setError(
@@ -213,18 +265,25 @@ function FoodMenu() {
 
   const filteredFoods = foods.filter((food) => {
     const query = search.trim().toLowerCase();
+
     const nameMatches =
       !query ||
       [food.name, food.tamilName, food.description]
         .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query));
+        .some((value) =>
+          String(value).toLowerCase().includes(query)
+        );
 
-    const meal = food.meal || food.category || "";
+    const category = food.category || food.meal || "";
     const type = food.type || food.foodType || "";
-    const available = food.isAvailable ?? food.available ?? true;
+    const available = food.available ?? food.isAvailable ?? true;
 
-    const mealMatches = mealFilter === "All" || meal === mealFilter;
-    const typeMatches = typeFilter === "All" || type === typeFilter;
+    const mealMatches =
+      mealFilter === "All" || category === mealFilter;
+
+    const typeMatches =
+      typeFilter === "All" || type === typeFilter;
+
     const availabilityMatches =
       availabilityFilter === "All" ||
       (availabilityFilter === "Available" && available) ||
@@ -239,18 +298,20 @@ function FoodMenu() {
   });
 
   const availableCount = foods.filter(
-    (food) => food.isAvailable ?? food.available ?? true
+    (food) => food.available ?? food.isAvailable ?? true
   ).length;
 
   return (
     <main className="food-menu-page page-enter">
       <section className="food-menu-hero">
         <div className="food-menu-hero-copy">
-          <span className="food-menu-eyebrow">NIVETHA CATERING SERVICE</span>
+          <span className="food-menu-eyebrow">
+            NIVETHA CATERING SERVICE
+          </span>
           <h1>Food Menu</h1>
           <p>
-            Manage your dishes, organize meal categories, and control what
-            customers can see in the menu.
+            Manage your dishes, organize meal categories, and control
+            what customers can see in the menu.
           </p>
         </div>
 
@@ -289,7 +350,9 @@ function FoodMenu() {
       <section className="food-menu-toolbar">
         <div className="food-toolbar-heading">
           <div>
-            <span className="food-menu-section-label">YOUR COLLECTION</span>
+            <span className="food-menu-section-label">
+              YOUR COLLECTION
+            </span>
             <h2>Manage Dishes</h2>
           </div>
 
@@ -338,7 +401,9 @@ function FoodMenu() {
 
           <select
             value={availabilityFilter}
-            onChange={(event) => setAvailabilityFilter(event.target.value)}
+            onChange={(event) =>
+              setAvailabilityFilter(event.target.value)
+            }
             aria-label="Filter by availability"
           >
             <option value="All">All Status</option>
@@ -387,12 +452,15 @@ function FoodMenu() {
         ) : filteredFoods.length === 0 ? (
           <div className="food-menu-empty">
             <div className="food-empty-icon">♨</div>
-            <h3>{foods.length ? "No matching dishes" : "Your menu is empty"}</h3>
+            <h3>
+              {foods.length ? "No matching dishes" : "Your menu is empty"}
+            </h3>
             <p>
               {foods.length
                 ? "Try changing your search or filters."
                 : "Add your first dish to start building the menu."}
             </p>
+
             {foods.length === 0 && (
               <button
                 type="button"
@@ -408,16 +476,20 @@ function FoodMenu() {
             {filteredFoods.map((food, index) => {
               const id = getFoodId(food);
               const available =
-                food.isAvailable ?? food.available ?? true;
-              const meal = food.meal || food.category || "Other";
+                food.available ?? food.isAvailable ?? true;
+              const category = food.category || food.meal || "Other";
               const type = food.type || food.foodType || "Veg";
               const busy = String(id) === busyId;
 
               return (
                 <article
-                  className={`food-menu-card ${!available ? "food-unavailable" : ""}`}
+                  className={`food-menu-card ${
+                    !available ? "food-unavailable" : ""
+                  }`}
                   key={id || `${food.name}-${index}`}
-                  style={{ animationDelay: `${Math.min(index, 8) * 55}ms` }}
+                  style={{
+                    animationDelay: `${Math.min(index, 8) * 55}ms`,
+                  }}
                 >
                   <div className="food-card-image-wrap">
                     {food.image ? (
@@ -428,13 +500,20 @@ function FoodMenu() {
                         loading="lazy"
                       />
                     ) : (
-                      <div className="food-image-placeholder" aria-hidden="true">
+                      <div
+                        className="food-image-placeholder"
+                        aria-hidden="true"
+                      >
                         <span>♨</span>
                         <small>NIVETHA</small>
                       </div>
                     )}
 
-                    <span className={`food-type-badge ${type === "Non-Veg" ? "non-veg" : "veg"}`}>
+                    <span
+                      className={`food-type-badge ${
+                        type === "Non-Veg" ? "non-veg" : "veg"
+                      }`}
+                    >
                       <span />
                       {type}
                     </span>
@@ -449,20 +528,34 @@ function FoodMenu() {
                   <div className="food-card-content">
                     <div className="food-card-title-row">
                       <div>
-                        <span className="food-meal-label">{meal}</span>
+                        <span className="food-meal-label">
+                          {category}
+                        </span>
                         <h3>{food.name || "Untitled Dish"}</h3>
+
                         {food.tamilName && (
-                          <p className="food-tamil-name">{food.tamilName}</p>
+                          <p className="food-tamil-name">
+                            {food.tamilName}
+                          </p>
                         )}
                       </div>
                     </div>
 
                     {food.description && (
-                      <p className="food-description">{food.description}</p>
+                      <p className="food-description">
+                        {food.description}
+                      </p>
                     )}
 
                     <div className="food-card-status-row">
-                      <span className={`food-availability ${available ? "is-available" : "is-unavailable"}`}>
+                      <strong>
+                        ₹{Number(food.price || 0).toLocaleString("en-IN")}
+                      </strong>
+                      <span
+                        className={`food-availability ${
+                          available ? "is-available" : "is-unavailable"
+                        }`}
+                      >
                         <span />
                         {available ? "Available" : "Unavailable"}
                       </span>
@@ -473,16 +566,18 @@ function FoodMenu() {
                         type="button"
                         className="food-edit-button"
                         onClick={() => openEditModal(food)}
-                        disabled={busy}
+                        disabled={busy || Boolean(busyId)}
                       >
                         ✎ Edit
                       </button>
 
                       <button
                         type="button"
-                        className={`food-toggle-button ${available ? "toggle-disable" : "toggle-enable"}`}
+                        className={`food-toggle-button ${
+                          available ? "toggle-disable" : "toggle-enable"
+                        }`}
                         onClick={() => toggleAvailability(food)}
-                        disabled={busy}
+                        disabled={busy || Boolean(busyId)}
                       >
                         {busy
                           ? "Please wait..."
@@ -495,7 +590,7 @@ function FoodMenu() {
                         type="button"
                         className="food-delete-button"
                         onClick={() => deleteFood(food)}
-                        disabled={busy}
+                        disabled={busy || Boolean(busyId)}
                         aria-label={`Delete ${food.name}`}
                         title="Delete food"
                       >
@@ -525,7 +620,9 @@ function FoodMenu() {
           >
             <div className="food-modal-header">
               <div>
-                <span className="food-menu-section-label">MENU MANAGEMENT</span>
+                <span className="food-menu-section-label">
+                  MENU MANAGEMENT
+                </span>
                 <h2 id="food-modal-title">
                   {editingFood ? "Edit Food" : "Add New Food"}
                 </h2>
@@ -571,8 +668,8 @@ function FoodMenu() {
                 <label>
                   Meal Category <span>*</span>
                   <select
-                    name="meal"
-                    value={form.meal}
+                    name="category"
+                    value={form.category}
                     onChange={handleChange}
                     required
                   >
@@ -594,6 +691,20 @@ function FoodMenu() {
                     <option value="Veg">Vegetarian</option>
                     <option value="Non-Veg">Non-Vegetarian</option>
                   </select>
+                </label>
+
+                <label>
+                  Price (₹) <span>*</span>
+                  <input
+                    name="price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.price}
+                    onChange={handleChange}
+                    placeholder="Enter price"
+                    required
+                  />
                 </label>
 
                 <label className="food-form-full">
@@ -622,13 +733,15 @@ function FoodMenu() {
                 <label className="food-availability-checkbox food-form-full">
                   <input
                     type="checkbox"
-                    name="isAvailable"
-                    checked={form.isAvailable}
+                    name="available"
+                    checked={form.available}
                     onChange={handleChange}
                   />
                   <span>
                     <strong>Available for customers</strong>
-                    <small>Turn this off to hide the dish from available menu items.</small>
+                    <small>
+                      Turn this off to hide the dish from available menu items.
+                    </small>
                   </span>
                 </label>
               </div>

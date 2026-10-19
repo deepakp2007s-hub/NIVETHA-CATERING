@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -10,7 +11,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
-import "./AuthPages.css";
+import "./PageStyles.css";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -38,6 +39,9 @@ export default function Register() {
 
   async function handleSubmit(event) {
     event.preventDefault();
+
+    if (loading) return;
+
     setError("");
 
     const name = form.name.trim();
@@ -47,6 +51,11 @@ export default function Register() {
 
     if (!name) {
       setError("Please enter your full name.");
+      return;
+    }
+
+    if (name.length > 100) {
+      setError("Name must not exceed 100 characters.");
       return;
     }
 
@@ -75,9 +84,15 @@ export default function Register() {
         password,
       });
 
+      // Registration successful → Customer Home Page
       navigate("/", { replace: true });
     } catch (err) {
-      setError(err.message || "Registration failed. Please try again.");
+      setError(
+        err.response?.data?.message ||
+          err.response?.data?.error ||
+          err.message ||
+          "Registration failed. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -105,7 +120,6 @@ export default function Register() {
 
           <div className="auth-input-wrap">
             <UserRound size={18} />
-
             <input
               id="register-name"
               type="text"
@@ -123,7 +137,6 @@ export default function Register() {
 
           <div className="auth-input-wrap">
             <Mail size={18} />
-
             <input
               id="register-email"
               type="email"
@@ -132,6 +145,7 @@ export default function Register() {
               onChange={handleChange}
               placeholder="Enter your email"
               autoComplete="email"
+              maxLength={254}
               required
             />
           </div>
@@ -140,9 +154,7 @@ export default function Register() {
 
           <div className="auth-input-wrap">
             <Phone size={18} />
-
             <span className="login-country-code">+91</span>
-
             <input
               id="register-phone"
               type="tel"
@@ -161,7 +173,6 @@ export default function Register() {
 
           <div className="auth-input-wrap">
             <LockKeyhole size={18} />
-
             <input
               id="register-password"
               type={showPassword ? "text" : "password"}
@@ -177,8 +188,12 @@ export default function Register() {
             <button
               type="button"
               className="auth-icon-button"
-              onClick={() => setShowPassword((previous) => !previous)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              onClick={() =>
+                setShowPassword((previous) => !previous)
+              }
+              aria-label={
+                showPassword ? "Hide password" : "Show password"
+              }
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>

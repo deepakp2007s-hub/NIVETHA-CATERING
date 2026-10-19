@@ -7,13 +7,15 @@ const getPagination = (query) => {
   const parsedPage = Number.parseInt(query.page, 10);
   const parsedLimit = Number.parseInt(query.limit, 10);
 
-  const page = Number.isSafeInteger(parsedPage) && parsedPage > 0
-    ? parsedPage
-    : 1;
+  const page =
+    Number.isSafeInteger(parsedPage) && parsedPage > 0
+      ? parsedPage
+      : 1;
 
-  const limit = Number.isSafeInteger(parsedLimit) && parsedLimit > 0
-    ? Math.min(parsedLimit, 100)
-    : 20;
+  const limit =
+    Number.isSafeInteger(parsedLimit) && parsedLimit > 0
+      ? Math.min(parsedLimit, 100)
+      : 20;
 
   return { page, limit, skip: (page - 1) * limit };
 };
@@ -109,7 +111,9 @@ const createNotification = async (req, res, next) => {
       });
     }
 
-    const customerExists = await Customer.exists({ _id: recipient });
+    const customerExists = await Customer.exists({
+      _id: recipient,
+    });
 
     if (!customerExists) {
       return res.status(404).json({
@@ -146,8 +150,6 @@ const markNotificationRead = async (req, res, next) => {
       });
     }
 
-    // Customers can only update their own notifications.
-    // Owners can update any notification.
     const filter = { _id: id };
 
     if (req.user.role !== "owner") {
@@ -176,8 +178,67 @@ const markNotificationRead = async (req, res, next) => {
   }
 };
 
+const markAllNotificationsRead = async (req, res, next) => {
+  try {
+    const filter =
+      req.user.role === "owner"
+        ? {}
+        : { recipient: req.user.id };
+
+    const result = await Notification.updateMany(
+      filter,
+      { $set: { isRead: true } }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Notifications marked as read",
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const deleteNotification = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid notification ID",
+      });
+    }
+
+    const filter = { _id: id };
+
+    if (req.user.role !== "owner") {
+      filter.recipient = req.user.id;
+    }
+
+    const notification = await Notification.findOneAndDelete(filter);
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: "Notification not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Notification deleted successfully",
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
   getNotifications,
   createNotification,
   markNotificationRead,
+  markAllNotificationsRead,
+  deleteNotification,
 };

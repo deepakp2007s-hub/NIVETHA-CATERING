@@ -1,15 +1,30 @@
+
 import api from "./api";
 
 const notificationService = {
   getAll: async () => {
     const response = await api.get("/notifications");
-    return response.data;
+    const result = response.data;
+
+    if (Array.isArray(result)) return result;
+    if (Array.isArray(result?.notifications)) return result.notifications;
+    if (Array.isArray(result?.data)) return result.data;
+    if (Array.isArray(result?.data?.notifications)) {
+      return result.data.notifications;
+    }
+
+    return [];
   },
 
   markAsRead: async (notificationId) => {
+    if (!notificationId) {
+      throw new Error("Notification ID is required.");
+    }
+
     const response = await api.patch(
-      `/notifications/${notificationId}/read`
+      `/notifications/${encodeURIComponent(notificationId)}/read`
     );
+
     return response.data;
   },
 
@@ -19,9 +34,14 @@ const notificationService = {
   },
 
   delete: async (notificationId) => {
+    if (!notificationId) {
+      throw new Error("Notification ID is required.");
+    }
+
     const response = await api.delete(
-      `/notifications/${notificationId}`
+      `/notifications/${encodeURIComponent(notificationId)}`
     );
+
     return response.data;
   },
 };

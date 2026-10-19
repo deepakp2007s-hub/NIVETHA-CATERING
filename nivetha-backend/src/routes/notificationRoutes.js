@@ -6,6 +6,8 @@ const {
   getNotifications,
   createNotification,
   markNotificationRead,
+  markAllNotificationsRead,
+  deleteNotification,
 } = require("../controllers/notificationController");
 
 const {
@@ -16,18 +18,19 @@ const {
 // All notification routes require authentication.
 router.use(protect);
 
-// Customers and owners can view their own notifications.
-// Controller must filter results by the authenticated user.
+// View notifications belonging to the authenticated user.
 router.get("/", getNotifications);
 
-// Only the owner can create notifications.
-router.post(
-  "/",
-  allowRoles("owner"),
-  createNotification
-);
+// Owner can create notifications.
+router.post("/", allowRoles("owner"), createNotification);
 
-// Controller must verify notification ownership before marking it read.
+// Mark one notification as read.
 router.patch("/:id/read", markNotificationRead);
+
+// Mark all notifications as read.
+router.patch("/read-all", markAllNotificationsRead);
+
+// Delete one notification.
+router.delete("/:id", deleteNotification);
 
 module.exports = router;

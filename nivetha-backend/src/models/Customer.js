@@ -53,7 +53,6 @@ const customerSchema = new mongoose.Schema(
   }
 );
 
-// Support sorting customer records by creation date.
 customerSchema.index({ createdAt: -1 });
 
 module.exports =

@@ -1,8 +1,9 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Phone, LockKeyhole, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import "./AuthPages.css";
+import "./PageStyles.css";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -28,6 +29,8 @@ export default function Login() {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (loading) return;
+
     setError("");
 
     const phone = form.phone.trim();
@@ -37,7 +40,7 @@ export default function Login() {
       return;
     }
 
-    if (!form.password.trim()) {
+    if (!form.password) {
       setError("Please enter your password.");
       return;
     }
@@ -50,11 +53,13 @@ export default function Login() {
         password: form.password,
       });
 
-      // Successful login → Home page
+      // Login successful → Customer Home Page
       navigate("/", { replace: true });
     } catch (err) {
       setError(
-        err.message ||
+        err.response?.data?.message ||
+          err.response?.data?.error ||
+          err.message ||
           "Login failed. Check your phone number and password."
       );
     } finally {
@@ -72,7 +77,6 @@ export default function Login() {
 
       <div className="auth-panel">
         <span className="auth-kicker">WELCOME BACK</span>
-
         <h1>Customer Login</h1>
 
         <p className="auth-subtitle">
@@ -84,7 +88,6 @@ export default function Login() {
 
           <div className="auth-input-wrap">
             <Phone size={18} />
-
             <span className="login-country-code">+91</span>
 
             <input
@@ -120,8 +123,12 @@ export default function Login() {
             <button
               type="button"
               className="auth-icon-button"
-              onClick={() => setShowPassword((previous) => !previous)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              onClick={() =>
+                setShowPassword((previous) => !previous)
+              }
+              aria-label={
+                showPassword ? "Hide password" : "Show password"
+              }
             >
               {showPassword ? (
                 <EyeOff size={18} />

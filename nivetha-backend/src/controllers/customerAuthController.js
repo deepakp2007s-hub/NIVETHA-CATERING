@@ -2,6 +2,7 @@
 const Customer = require("../models/Customer");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 
 const createToken = (customerId) => {
   const secret = process.env.JWT_SECRET;
@@ -11,7 +12,10 @@ const createToken = (customerId) => {
   }
 
   return jwt.sign(
-    { id: customerId.toString(), role: "customer" },
+    {
+      id: customerId.toString(),
+      role: "customer",
+    },
     secret,
     {
       expiresIn: "7d",
@@ -21,7 +25,7 @@ const createToken = (customerId) => {
 };
 
 const formatCustomer = (customer) => ({
-  id: customer._id,
+  id: customer._id.toString(),
   name: customer.name,
   email: customer.email || "",
   phone: customer.phone,
@@ -34,34 +38,35 @@ const normalizeEmail = (email) =>
 const isValidEmail = (email) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
+// Customer registration
 exports.register = async (req, res) => {
   try {
     const body = req.body || {};
     const { password, address } = body;
 
-    const cleanName =
+    const name =
       typeof body.name === "string" ? body.name.trim() : "";
 
-    const cleanPhone =
+    const phone =
       typeof body.phone === "string" ? body.phone.trim() : "";
 
     const email = normalizeEmail(body.email);
 
-    if (!cleanName || !cleanPhone || typeof password !== "string" || !password) {
+    if (!name || !phone || typeof password !== "string" || !password) {
       return res.status(400).json({
         success: false,
         message: "Name, phone number and password are required.",
       });
     }
 
-    if (cleanName.length > 100) {
+    if (name.length > 100) {
       return res.status(400).json({
         success: false,
         message: "Name must not exceed 100 characters.",
       });
     }
 
-    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+    if (!/^[6-9]\d{9}$/.test(phone)) {
       return res.status(400).json({
         success: false,
         message: "Enter a valid 10-digit Indian mobile number.",
@@ -89,14 +94,14 @@ exports.register = async (req, res) => {
       });
     }
 
-    const existingConditions = [{ phone: cleanPhone }];
+    const conditions = [{ phone }];
 
     if (email) {
-      existingConditions.push({ email });
+      conditions.push({ email });
     }
 
     const existingCustomer = await Customer.findOne({
-      $or: existingConditions,
+      $or: conditions,
     }).select("_id");
 
     if (existingCustomer) {
@@ -109,8 +114,8 @@ exports.register = async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 12);
 
     const customer = await Customer.create({
-      name: cleanName,
-      phone: cleanPhone,
+      name,
+      phone,
       ...(email ? { email } : {}),
       address: typeof address === "string" ? address.trim() : "",
       passwordHash,
@@ -141,34 +146,32 @@ exports.register = async (req, res) => {
   }
 };
 
+// Customer login
 exports.login = async (req, res) => {
   try {
     const body = req.body || {};
     const password = body.password;
 
-    const cleanPhone =
+    const phone =
       typeof body.phone === "string" ? body.phone.trim() : "";
 
-    if (!cleanPhone || typeof password !== "string" || !password) {
+    if (!phone || typeof password !== "string" || !password) {
       return res.status(400).json({
         success: false,
         message: "Phone number and password are required.",
       });
     }
 
-    if (
-      !/^[6-9]\d{9}$/.test(cleanPhone) ||
-      password.length > 128
-    ) {
+    if (!/^[6-9]\d{9}$/.test(phone) || password.length > 128) {
       return res.status(401).json({
         success: false,
         message: "Invalid phone number or password.",
       });
     }
 
-    const customer = await Customer.findOne({
-      phone: cleanPhone,
-    }).select("+passwordHash");
+    const customer = await Customer.findOne({ phone }).select(
+      "+passwordHash"
+    );
 
     if (!customer || !customer.passwordHash) {
       return res.status(401).json({
@@ -207,11 +210,12 @@ exports.login = async (req, res) => {
   }
 };
 
+// Get logged-in customer profile
 exports.getMe = async (req, res) => {
   try {
     const customerId = req.user?.id;
 
-    if (!customerId) {
+    if (!customerId || !mongoose.isValidObjectId(customerId)) {
       return res.status(401).json({
         success: false,
         message: "Authentication required.",

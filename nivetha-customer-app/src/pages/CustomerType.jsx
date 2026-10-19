@@ -1,6 +1,15 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Heart, Cake, Users, Building2, GraduationCap, Church } from "lucide-react";
+import {
+  ArrowRight,
+  Heart,
+  Cake,
+  Users,
+  Building2,
+  GraduationCap,
+  Church,
+} from "lucide-react";
 import { useBooking } from "../context/BookingContext";
 import "./PageStyles.css";
 
@@ -18,10 +27,18 @@ const events = [
 export default function CustomerType() {
   const navigate = useNavigate();
   const { booking, updateBooking } = useBooking();
-  const [selected, setSelected] = useState(booking.eventType || "");
+
+  const [selected, setSelected] = useState(
+    booking.eventType || ""
+  );
+  const [error, setError] = useState("");
 
   function continueBooking() {
-    if (!selected) return;
+    if (!selected) {
+      setError("Please select your occasion to continue.");
+      return;
+    }
+
     updateBooking({ eventType: selected });
     navigate("/event-details");
   }
@@ -39,18 +56,37 @@ export default function CustomerType() {
           <button
             type="button"
             key={name}
-            className={`selection-card ${selected === name ? "selected" : ""}`}
-            onClick={() => setSelected(name)}
+            className={`selection-card ${
+              selected === name ? "selected" : ""
+            }`}
+            onClick={() => {
+              setSelected(name);
+              setError("");
+            }}
+            aria-pressed={selected === name}
           >
             <Icon size={28} />
             <strong>{name}</strong>
-            <span>{selected === name ? "Selected ✓" : "Choose event"}</span>
+            <span>
+              {selected === name ? "Selected ✓" : "Choose event"}
+            </span>
           </button>
         ))}
       </div>
 
+      {error && (
+        <p className="page-error" role="alert">
+          {error}
+        </p>
+      )}
+
       <div className="page-actions">
-        <button className="page-btn" onClick={continueBooking} disabled={!selected}>
+        <button
+          type="button"
+          className="page-btn"
+          onClick={continueBooking}
+          disabled={!selected}
+        >
           Continue <ArrowRight size={18} />
         </button>
       </div>

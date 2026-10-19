@@ -1,3 +1,4 @@
+
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -15,17 +16,20 @@ const services = [
   {
     icon: <Utensils size={28} />,
     title: "Wedding Catering",
-    description: "Make your special day memorable with delicious food.",
+    description:
+      "Make your special day memorable with delicious food.",
   },
   {
     icon: <ChefHat size={28} />,
     title: "Traditional Cooking",
-    description: "Authentic meals prepared by experienced cooks.",
+    description:
+      "Authentic meals prepared by experienced cooks.",
   },
   {
     icon: <Users size={28} />,
     title: "Serving Staff",
-    description: "Professional service for your guests and family.",
+    description:
+      "Professional service for your guests and family.",
   },
 ];
 
@@ -42,7 +46,8 @@ export default function Home() {
       <section className="home-hero">
         <div className="home-hero-content">
           <span className="home-eyebrow">
-            <Sparkles size={16} /> Nivetha Catering Service
+            <Sparkles size={16} />
+            Nivetha Catering Service
           </span>
 
           <h1>
@@ -67,13 +72,20 @@ export default function Home() {
           </div>
 
           <div className="home-trust-row">
-            <span><ShieldCheck size={17} /> Quality Service</span>
-            <span><Clock size={17} /> Easy Booking</span>
+            <span>
+              <ShieldCheck size={17} /> Quality Service
+            </span>
+            <span>
+              <Clock size={17} /> Easy Booking
+            </span>
           </div>
         </div>
 
-        <div className="home-hero-art">
-          <div className="home-food-emoji">🍛</div>
+        <div className="home-hero-art" aria-label="Traditional catering food">
+          <div className="home-food-emoji" role="img" aria-label="Indian meal">
+            🍛
+          </div>
+
           <div className="home-art-caption">
             <span>Made for your celebrations</span>
             <strong>Fresh • Tasty • Traditional</strong>
@@ -90,10 +102,17 @@ export default function Home() {
 
         <div className="home-service-grid">
           {services.map((service) => (
-            <article className="home-service-card" key={service.title}>
-              <div className="home-service-icon">{service.icon}</div>
+            <article
+              className="home-service-card"
+              key={service.title}
+            >
+              <div className="home-service-icon">
+                {service.icon}
+              </div>
+
               <h3>{service.title}</h3>
               <p>{service.description}</p>
+
               <Link to="/customer-type">
                 Book this service <ArrowRight size={16} />
               </Link>
@@ -108,8 +127,12 @@ export default function Home() {
         </div>
 
         <div>
-          <span className="home-about-label">YOUR EVENT, YOUR MENU</span>
+          <span className="home-about-label">
+            YOUR EVENT, YOUR MENU
+          </span>
+
           <h2>Planning your function is simple.</h2>
+
           <p>
             Select your event, share the date and guest count, choose
             your catering preferences and submit your booking request.
@@ -131,7 +154,10 @@ export default function Home() {
 
       <section className="home-contact" id="contact">
         <h2>Let's make your celebration special.</h2>
-        <p>Tell us about your event and plan your catering with Nivetha.</p>
+        <p>
+          Tell us about your event and plan your catering with Nivetha.
+        </p>
+
         <Link to="/customer-type" className="home-contact-btn">
           Plan Your Event
         </Link>

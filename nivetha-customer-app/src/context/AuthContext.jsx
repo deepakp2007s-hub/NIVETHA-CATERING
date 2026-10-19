@@ -1,3 +1,4 @@
+
 import {
   createContext,
   useCallback,
@@ -19,6 +20,31 @@ export function AuthProvider({ children }) {
     setCustomer(null);
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    const data = await authService.getProfile();
+    const currentCustomer = data?.customer || data?.data?.customer || null;
+
+    if (!currentCustomer) {
+      throw new Error("Customer profile was not returned.");
+    }
+
+    setCustomer(currentCustomer);
+    return currentCustomer;
+  }, []);
+
+  const updateProfile = useCallback(async (profileData) => {
+    const data = await authService.updateProfile(profileData);
+    const updatedCustomer =
+      data?.customer || data?.data?.customer || data?.data || null;
+
+    if (!updatedCustomer || !updatedCustomer.id && !updatedCustomer._id) {
+      throw new Error("Updated customer profile was not returned.");
+    }
+
+    setCustomer(updatedCustomer);
+    return updatedCustomer;
+  }, []);
+
   useEffect(() => {
     let active = true;
 
@@ -32,16 +58,22 @@ export function AuthProvider({ children }) {
 
       try {
         const data = await authService.getProfile();
+        const currentCustomer =
+          data?.customer || data?.data?.customer || null;
 
         if (active) {
-          setCustomer(data.customer || data.user || null);
+          setCustomer(currentCustomer);
         }
       } catch (error) {
-        if (error.response?.status === 401 || error.response?.status === 403) {
+        if (
+          error.response?.status === 401 ||
+          error.response?.status === 403
+        ) {
           authService.logout();
-        }
 
-        if (active) {
+          if (active) setCustomer(null);
+        } else if (active) {
+          // Do not discard a valid token for temporary server/network errors.
           setCustomer(null);
         }
       } finally {
@@ -56,31 +88,31 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  const login = async (credentials) => {
+  const login = useCallback(async (credentials) => {
     const data = await authService.login(credentials);
 
-    if (!data.token) {
-      throw new Error(data.message || "Login token was not returned.");
+    if (!data?.token || !data?.customer) {
+      throw new Error(data?.message || "Login response is incomplete.");
     }
 
     localStorage.setItem("customerToken", data.token);
-    setCustomer(data.customer || data.user || null);
+    setCustomer(data.customer);
 
     return data;
-  };
+  }, []);
 
-  const register = async (details) => {
+  const register = useCallback(async (details) => {
     const data = await authService.register(details);
 
-    if (!data.token) {
-      throw new Error(data.message || "Registration token was not returned.");
+    if (!data?.token || !data?.customer) {
+      throw new Error(data?.message || "Registration response is incomplete.");
     }
 
     localStorage.setItem("customerToken", data.token);
-    setCustomer(data.customer || data.user || null);
+    setCustomer(data.customer);
 
     return data;
-  };
+  }, []);
 
   const value = {
     customer,
@@ -93,6 +125,8 @@ export function AuthProvider({ children }) {
     register,
     logout,
     setCustomer,
+    refreshProfile,
+    updateProfile,
   };
 
   return (

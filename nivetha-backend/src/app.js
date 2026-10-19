@@ -9,19 +9,16 @@ const errorMiddleware = require("./middleware/errorMiddleware");
 
 const app = express();
 
-// Render proxy configuration.
 app.set("trust proxy", 1);
-
 app.disable("x-powered-by");
+
 app.use(helmet());
 
-// Production frontend URLs.
 const productionOrigins = [
   "https://nivetha-catering.vercel.app",
   "https://nivetha-catering-kjh1.vercel.app",
 ];
 
-// Local development frontend URLs.
 const localOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
@@ -29,34 +26,27 @@ const localOrigins = [
   "http://127.0.0.1:5174",
 ];
 
-// Optional origins from environment variables.
 const configuredOrigins = [
   process.env.CLIENT_URL,
   process.env.OWNER_URL,
 ]
   .filter(Boolean)
   .flatMap((value) => value.split(","))
-  .map((url) => url.trim().replace(/^["']|["']$/g, "").replace(/\/+$/, ""))
+  .map((value) =>
+    value.trim().replace(/^["']|["']$/g, "").replace(/\/+$/, "")
+  )
   .filter(Boolean);
 
-const allowedOrigins = [
-  ...new Set([
-    ...localOrigins,
-    ...productionOrigins,
-    ...configuredOrigins,
-  ]),
-];
+const allowedOrigins = new Set([
+  ...localOrigins,
+  ...productionOrigins,
+  ...configuredOrigins,
+]);
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      const normalizedOrigin = origin.replace(/\/+$/, "");
-
-      if (allowedOrigins.includes(normalizedOrigin)) {
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.has(origin.replace(/\/+$/, ""))) {
         return callback(null, true);
       }
 
@@ -72,7 +62,6 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
-// API rate limiter.
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 300,
@@ -86,7 +75,6 @@ const apiLimiter = rateLimit({
 
 app.use("/api", apiLimiter);
 
-// Health check.
 app.get("/api/health", (req, res) => {
   res.status(200).json({
     success: true,
@@ -95,14 +83,11 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Authentication routes.
+// Authentication
 app.use("/api/auth", require("./routes/authRoutes"));
-app.use(
-  "/api/customer-auth",
-  require("./routes/customerAuthRoutes")
-);
+app.use("/api/customer-auth", require("./routes/customerAuthRoutes"));
 
-// Other API routes.
+// Main APIs
 app.use("/api/bookings", require("./routes/bookingRoutes"));
 app.use("/api/customers", require("./routes/customerRoutes"));
 app.use("/api/dashboard", require("./routes/dashboardRoutes"));
@@ -111,9 +96,8 @@ app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/reports", require("./routes/reportRoutes"));
 app.use("/api/reviews", require("./routes/reviewRoutes"));
 
-// Materials, Staff and Payment routes are intentionally not mounted.
+// Materials, Staff and Payment routes remain intentionally unmounted.
 
-// Error handling.
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
 

@@ -1,24 +1,47 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChefHat, Users, ArrowLeft, ArrowRight } from "lucide-react";
+import {
+  ChefHat,
+  Users,
+  ArrowLeft,
+  ArrowRight,
+} from "lucide-react";
 import { useBooking } from "../context/BookingContext";
 import "./PageStyles.css";
 
 const options = [
-  { id: "cooking", title: "Cooking Service", text: "Experienced cooks prepare food at your venue.", icon: ChefHat },
-  { id: "serving", title: "Serving Staff", text: "Staff help serve food to your guests.", icon: Users },
+  {
+    id: "cooking",
+    title: "Cooking Service",
+    text: "Experienced cooks prepare food at your venue.",
+    icon: ChefHat,
+  },
+  {
+    id: "serving",
+    title: "Serving Staff",
+    text: "Staff help serve food to your guests.",
+    icon: Users,
+  },
 ];
 
 export default function Catering() {
   const navigate = useNavigate();
   const { booking, updateBooking } = useBooking();
-  const [selected, setSelected] = useState(booking.cateringServices || []);
+
+  const [selected, setSelected] = useState(
+    booking.cateringServices || []
+  );
   const [error, setError] = useState("");
 
   function toggle(id) {
     setSelected((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id]
     );
+
+    setError("");
   }
 
   function continueNext() {
@@ -26,8 +49,11 @@ export default function Catering() {
       setError("Select at least one catering service to continue.");
       return;
     }
-    setError("");
-    updateBooking({ cateringServices: selected });
+
+    updateBooking({
+      cateringServices: selected,
+    });
+
     navigate("/food-menu");
   }
 
@@ -40,28 +66,50 @@ export default function Catering() {
       </div>
 
       <div className="selection-grid">
-        {options.map(({ id, title, text, icon: Icon }) => (
-          <button
-            type="button"
-            key={id}
-            className={`selection-card ${selected.includes(id) ? "selected" : ""}`}
-            onClick={() => toggle(id)}
-          >
-            <Icon size={30} />
-            <strong>{title}</strong>
-            <span>{text}</span>
-            <small>{selected.includes(id) ? "✓ Selected" : "Tap to select"}</small>
-          </button>
-        ))}
+        {options.map(({ id, title, text, icon: Icon }) => {
+          const isSelected = selected.includes(id);
+
+          return (
+            <button
+              type="button"
+              key={id}
+              className={`selection-card ${
+                isSelected ? "selected" : ""
+              }`}
+              onClick={() => toggle(id)}
+              aria-pressed={isSelected}
+            >
+              <Icon size={30} />
+              <strong>{title}</strong>
+              <span>{text}</span>
+              <small>
+                {isSelected ? "✓ Selected" : "Tap to select"}
+              </small>
+            </button>
+          );
+        })}
       </div>
 
-      {error && <p className="page-error" role="alert">{error}</p>}
+      {error && (
+        <p className="page-error" role="alert">
+          {error}
+        </p>
+      )}
 
       <div className="page-actions">
-        <button className="page-btn page-btn-light" onClick={() => navigate("/event-details")}>
+        <button
+          type="button"
+          className="page-btn page-btn-light"
+          onClick={() => navigate("/event-details")}
+        >
           <ArrowLeft size={18} /> Back
         </button>
-        <button className="page-btn" onClick={continueNext}>
+
+        <button
+          type="button"
+          className="page-btn"
+          onClick={continueNext}
+        >
           Continue <ArrowRight size={18} />
         </button>
       </div>

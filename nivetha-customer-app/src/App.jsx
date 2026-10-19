@@ -1,3 +1,4 @@
+
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 
 import Navbar from "./components/Navbar.jsx";
@@ -22,7 +23,16 @@ import Profile from "./pages/Profile.jsx";
 import Review from "./pages/Review.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
+import { useAuth } from "./context/AuthContext.jsx";
 import "./App.css";
+
+function GuestRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) return null;
+
+  return isAuthenticated ? <Navigate to="/" replace /> : children;
+}
 
 function AppLayout() {
   const location = useLocation();
@@ -34,86 +44,44 @@ function AppLayout() {
 
       <main className="app-main">
         <Routes>
-          {/* 1. Splash Screen */}
           <Route path="/splash" element={<Splash />} />
 
-          {/* 2. Login and Register */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-
-          {/* 3. Home Page */}
-          <Route path="/" element={<Home />} />
           <Route
-            path="/home"
-            element={<Navigate to="/" replace />}
+            path="/login"
+            element={
+              <GuestRoute>
+                <Login />
+              </GuestRoute>
+            }
           />
 
-          {/* 4–10. Customer Booking Workflow */}
+          <Route
+            path="/register"
+            element={
+              <GuestRoute>
+                <Register />
+              </GuestRoute>
+            }
+          />
+
+          <Route path="/" element={<Home />} />
+          <Route path="/home" element={<Navigate to="/" replace />} />
+
           <Route element={<ProtectedRoute />}>
-            <Route
-              path="/customer-type"
-              element={<CustomerType />}
-            />
-
-            <Route
-              path="/event-details"
-              element={<EventDetails />}
-            />
-
-            <Route
-              path="/catering"
-              element={<Catering />}
-            />
-
-            <Route
-              path="/food-menu"
-              element={<FoodMenu />}
-            />
-
-            <Route
-              path="/booking"
-              element={<Booking />}
-            />
-
-            <Route
-              path="/booking-confirmation"
-              element={<BookingConfirmation />}
-            />
-
-            {/* 11. My Bookings */}
-            <Route
-              path="/my-bookings"
-              element={<MyBookings />}
-            />
-
-            <Route
-              path="/my-bookings/:id"
-              element={<BookingDetails />}
-            />
-
-            <Route
-              path="/my-bookings/:id/edit"
-              element={<EditBooking />}
-            />
-
-            {/* Other Customer Pages */}
-            <Route
-              path="/profile"
-              element={<Profile />}
-            />
-
-            <Route
-              path="/notifications"
-              element={<Notifications />}
-            />
-
-            <Route
-              path="/review"
-              element={<Review />}
-            />
+            <Route path="/customer-type" element={<CustomerType />} />
+            <Route path="/event-details" element={<EventDetails />} />
+            <Route path="/catering" element={<Catering />} />
+            <Route path="/food-menu" element={<FoodMenu />} />
+            <Route path="/booking" element={<Booking />} />
+            <Route path="/booking-confirmation" element={<BookingConfirmation />} />
+            <Route path="/my-bookings" element={<MyBookings />} />
+            <Route path="/my-bookings/:id" element={<BookingDetails />} />
+            <Route path="/my-bookings/:id/edit" element={<EditBooking />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/review" element={<Review />} />
           </Route>
 
-          {/* Unknown Page */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

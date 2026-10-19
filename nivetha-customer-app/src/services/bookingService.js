@@ -1,3 +1,4 @@
+
 import api from "./api";
 
 const bookingService = {
@@ -8,26 +9,52 @@ const bookingService = {
 
   getMyBookings: async () => {
     const response = await api.get("/bookings/my-bookings");
-    return response.data?.data || response.data;
+    const result = response.data;
+
+    if (Array.isArray(result)) return result;
+    if (Array.isArray(result?.bookings)) return result.bookings;
+    if (Array.isArray(result?.data)) return result.data;
+    if (Array.isArray(result?.data?.bookings)) {
+      return result.data.bookings;
+    }
+
+    return [];
   },
 
   getById: async (bookingId) => {
-    const response = await api.get(`/bookings/${bookingId}`);
-    return response.data?.data || response.data;
+    if (!bookingId) {
+      throw new Error("Booking ID is required.");
+    }
+
+    const response = await api.get(
+      `/bookings/${encodeURIComponent(bookingId)}`
+    );
+
+    return response.data;
   },
 
   update: async (bookingId, bookingData) => {
+    if (!bookingId) {
+      throw new Error("Booking ID is required.");
+    }
+
     const response = await api.patch(
-      `/bookings/${bookingId}`,
+      `/bookings/${encodeURIComponent(bookingId)}`,
       bookingData
     );
-    return response.data?.data || response.data;
+
+    return response.data;
   },
 
   cancel: async (bookingId) => {
+    if (!bookingId) {
+      throw new Error("Booking ID is required.");
+    }
+
     const response = await api.patch(
-      `/bookings/${bookingId}/cancel`
+      `/bookings/${encodeURIComponent(bookingId)}/cancel`
     );
+
     return response.data;
   },
 };

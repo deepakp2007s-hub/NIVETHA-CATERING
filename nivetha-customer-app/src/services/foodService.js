@@ -1,14 +1,19 @@
+
 import api from "./api";
 
 const foodService = {
   getAll: async (params = {}) => {
-    const response = await api.get("/foods", { params });
-    return response.data;
-  },
+    const response = await api.get("/foods/customer", { params });
+    const result = response.data;
 
-  getById: async (foodId) => {
-    const response = await api.get(`/foods/${foodId}`);
-    return response.data;
+    if (Array.isArray(result)) return result;
+    if (Array.isArray(result?.foods)) return result.foods;
+    if (Array.isArray(result?.data)) return result.data;
+    if (Array.isArray(result?.data?.foods)) {
+      return result.data.foods;
+    }
+
+    return [];
   },
 };
 
