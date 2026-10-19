@@ -9,7 +9,7 @@ const errorMiddleware = require("./middleware/errorMiddleware");
 
 const app = express();
 
-// Render proxy configuration for correct client IP handling.
+// Render proxy configuration.
 app.set("trust proxy", 1);
 
 app.disable("x-powered-by");
@@ -29,7 +29,7 @@ const localOrigins = [
   "http://127.0.0.1:5174",
 ];
 
-// Optional origins from Render environment variables.
+// Optional origins from environment variables.
 const configuredOrigins = [
   process.env.CLIENT_URL,
   process.env.OWNER_URL,
@@ -50,7 +50,6 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Requests without an Origin header (e.g. server-to-server/health checks).
       if (!origin) {
         return callback(null, true);
       }
@@ -96,8 +95,14 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// API routes.
+// Authentication routes.
 app.use("/api/auth", require("./routes/authRoutes"));
+app.use(
+  "/api/customer-auth",
+  require("./routes/customerAuthRoutes")
+);
+
+// Other API routes.
 app.use("/api/bookings", require("./routes/bookingRoutes"));
 app.use("/api/customers", require("./routes/customerRoutes"));
 app.use("/api/dashboard", require("./routes/dashboardRoutes"));
@@ -108,6 +113,7 @@ app.use("/api/reviews", require("./routes/reviewRoutes"));
 
 // Materials, Staff and Payment routes are intentionally not mounted.
 
+// Error handling.
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
 
