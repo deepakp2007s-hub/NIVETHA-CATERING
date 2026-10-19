@@ -1,3 +1,4 @@
+
 const Booking = require("../models/Booking");
 const Customer = require("../models/Customer");
 const Food = require("../models/Food");
@@ -11,16 +12,18 @@ const getDashboard = async (req, res, next) => {
       completedBookings,
       totalCustomers,
       totalFoods,
+      availableFoods,
     ] = await Promise.all([
-      Booking.countDocuments(),
-      Booking.countDocuments({ status: "pending" }),
-      Booking.countDocuments({ status: "confirmed" }),
-      Booking.countDocuments({ status: "completed" }),
-      Customer.countDocuments(),
-      Food.countDocuments(),
+      Booking.countDocuments().exec(),
+      Booking.countDocuments({ status: "pending" }).exec(),
+      Booking.countDocuments({ status: "confirmed" }).exec(),
+      Booking.countDocuments({ status: "completed" }).exec(),
+      Customer.countDocuments().exec(),
+      Food.countDocuments().exec(),
+      Food.countDocuments({ available: true }).exec(),
     ]);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: {
         totalBookings,
@@ -29,10 +32,11 @@ const getDashboard = async (req, res, next) => {
         completedBookings,
         totalCustomers,
         totalFoods,
+        availableFoods,
       },
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 

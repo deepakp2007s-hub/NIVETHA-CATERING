@@ -7,19 +7,23 @@ const errorMiddleware = (err, req, res, next) => {
   let statusCode = err.statusCode || err.status || 500;
   let message = err.message || "Internal server error";
 
-  // Invalid JSON body
-  if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
+  // Invalid JSON request body
+  if (
+    err instanceof SyntaxError &&
+    err.status === 400 &&
+    Object.prototype.hasOwnProperty.call(err, "body")
+  ) {
     statusCode = 400;
-    message = "Invalid JSON request body";
+    message = "Invalid JSON request body.";
   }
 
-  // Mongoose invalid ObjectId
+  // Invalid MongoDB ObjectId
   if (err.name === "CastError") {
     statusCode = 400;
-    message = "Invalid resource ID";
+    message = "Invalid resource ID.";
   }
 
-  // Mongoose schema validation
+  // Mongoose schema validation errors
   if (err.name === "ValidationError") {
     statusCode = 400;
     message = Object.values(err.errors)
@@ -27,20 +31,23 @@ const errorMiddleware = (err, req, res, next) => {
       .join(", ");
   }
 
-  // MongoDB duplicate key
+  // MongoDB duplicate key errors
   if (err.code === 11000) {
     statusCode = 409;
 
     const field = Object.keys(err.keyPattern || {})[0];
+
     message = field
-      ? `${field} already exists`
-      : "Duplicate record already exists";
+      ? `${field} already exists.`
+      : "Duplicate record already exists.";
   }
 
-  // Avoid exposing internal server details
-  if (statusCode >= 500) {
+  // Never expose internal server details in production
+  if (statusCode >= 500 || statusCode < 400 || statusCode > 599) {
+    statusCode = 500;
+    message = "Internal server error.";
+
     console.error("Server error:", err);
-    message = "Internal server error";
   }
 
   return res.status(statusCode).json({

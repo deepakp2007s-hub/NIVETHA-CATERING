@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 
 const reviewSchema = new mongoose.Schema(
@@ -12,14 +13,30 @@ const reviewSchema = new mongoose.Schema(
       required: true,
       min: 1,
       max: 5,
+      validate: {
+        validator: Number.isInteger,
+        message: "Rating must be an integer between 1 and 5",
+      },
     },
     comment: {
       type: String,
+      trim: true,
       default: "",
+      maxlength: 2000,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    versionKey: false,
+  }
 );
 
+// Helps sort reviews efficiently by newest first.
+reviewSchema.index({ createdAt: -1, _id: -1 });
+
+// Helps retrieve a customer's reviews.
+reviewSchema.index({ customer: 1, createdAt: -1 });
+
 module.exports =
-  mongoose.models.Review || mongoose.model("Review", reviewSchema);
+  mongoose.models.Review ||
+  mongoose.model("Review", reviewSchema);

@@ -1,17 +1,17 @@
+
 const express = require("express");
 const router = express.Router();
 
-const { getDashboard } = require("../controllers/dashboardController");
-const { protect } = require("../middleware/authMiddleware");
+const {
+  getDashboard,
+} = require("../controllers/dashboardController");
 
-router.get("/", protect, (req, res, next) => {
-  if (req.user?.role !== "owner") {
-    return res.status(403).json({
-      success: false,
-      message: "Owner access required",
-    });
-  }
-  next();
-}, getDashboard);
+const {
+  protect,
+  allowRoles,
+} = require("../middleware/authMiddleware");
+
+// Owner-only dashboard
+router.get("/", protect, allowRoles("owner"), getDashboard);
 
 module.exports = router;

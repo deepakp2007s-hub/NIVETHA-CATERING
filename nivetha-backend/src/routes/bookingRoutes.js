@@ -1,3 +1,4 @@
+
 const express = require("express");
 const router = express.Router();
 
@@ -11,35 +12,56 @@ const {
   cancelBooking,
 } = require("../controllers/bookingController");
 
-const { protect } = require("../middleware/authMiddleware");
+const {
+  protect,
+  allowRoles,
+} = require("../middleware/authMiddleware");
 
-const ownerOnly = (req, res, next) => {
-  if (req.user?.role !== "owner") {
-    return res.status(403).json({
-      success: false,
-      message: "Owner access required",
-    });
-  }
-  next();
-};
+// Customer routes
+router.post(
+  "/",
+  protect,
+  allowRoles("customer"),
+  createBooking
+);
 
-const customerOnly = (req, res, next) => {
-  if (req.user?.role !== "customer") {
-    return res.status(403).json({
-      success: false,
-      message: "Customer access required",
-    });
-  }
-  next();
-};
+router.get(
+  "/my-bookings",
+  protect,
+  allowRoles("customer"),
+  getMyBookings
+);
 
-router.post("/", protect, customerOnly, createBooking);
-router.get("/my-bookings", protect, customerOnly, getMyBookings);
-router.patch("/:id/cancel", protect, customerOnly, cancelBooking);
-router.patch("/:id", protect, customerOnly, updateMyBooking);
+router.patch(
+  "/:id/cancel",
+  protect,
+  allowRoles("customer"),
+  cancelBooking
+);
+
+router.patch(
+  "/:id",
+  protect,
+  allowRoles("customer"),
+  updateMyBooking
+);
+
+// View booking — controller must verify customer ownership
 router.get("/:id", protect, getBookingById);
 
-router.get("/", protect, ownerOnly, getBookings);
-router.patch("/:id/status", protect, ownerOnly, updateBooking);
+// Owner-only routes
+router.get(
+  "/",
+  protect,
+  allowRoles("owner"),
+  getBookings
+);
+
+router.patch(
+  "/:id/status",
+  protect,
+  allowRoles("owner"),
+  updateBooking
+);
 
 module.exports = router;

@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 const Booking = require("../models/Booking");
 
@@ -16,38 +17,107 @@ const bookingFields = [
   "extraRequirements",
 ];
 
-function normalizeBookingInput(body) {
+const allowedStatuses = [
+  "pending",
+  "confirmed",
+  "rejected",
+  "cancelled",
+  "completed",
+];
+
+function normalizeBookingInput(body = {}) {
   const input = {};
+
   for (const field of bookingFields) {
-    if (Object.prototype.hasOwnProperty.call(body, field)) input[field] = body[field];
+    if (Object.prototype.hasOwnProperty.call(body, field)) {
+      input[field] = body[field];
+    }
   }
 
-  for (const field of ["eventType", "functionTime", "location", "extraRequirements"]) {
-    if (typeof input[field] === "string") input[field] = input[field].trim();
+  for (const field of [
+    "eventType",
+    "functionTime",
+    "location",
+    "extraRequirements",
+    "mealType",
+    "foodType",
+    "cateringService",
+  ]) {
+    if (typeof input[field] === "string") {
+      input[field] = input[field].trim();
+    }
   }
 
-  // Preserve the legacy singular field while accepting the customer app's list.
-  if (Array.isArray(input.cateringServices)) {
-    input.cateringServices = input.cateringServices
-      .filter((item) => typeof item === "string")
-      .map((item) => item.trim())
-      .filter(Boolean);
+  if (Object.hasOwn(input, "cateringServices")) {
+    if (!Array.isArray(input.cateringServices)) {
+      return { error: "Catering services must be an array." };
+    }
+
+    if (input.cateringServices.some((item) => typeof item !== "string")) {
+      return { error: "Each catering service must be a string." };
+    }
+
+    input.cateringServices = [
+      ...new Set(
+        input.cateringServices
+          .map((item) => item.trim())
+          .filter(Boolean)
+      ),
+    ];
+
     if (!input.cateringService && input.cateringServices.length) {
       input.cateringService = input.cateringServices.join(", ");
     }
   }
 
-  // The menu UI can select live Food documents or offline/sample entries.
-  // Keep only valid references and separately persist display names for every choice.
-  const selectedFoods = Array.isArray(input.selectedFoods) ? input.selectedFoods : [];
-  input.selectedFoodNames = selectedFoods
-    .map((food) => (typeof food === "string" ? food : food?.name))
-    .filter((name) => typeof name === "string")
-    .map((name) => name.trim())
-    .filter(Boolean);
-  input.selectedFoods = selectedFoods
-    .map((food) => (typeof food === "string" ? food : food?._id || food?.id))
-    .filter((id) => typeof id === "string" && mongoose.isValidObjectId(id));
+  if (Object.hasOwn(input, "selectedFoodNames")) {
+    if (
+      !Array.isArray(input.selectedFoodNames) ||
+      input.selectedFoodNames.some((name) => typeof name !== "string")
+    ) {
+      return { error: "Selected food names must be an array of strings." };
+    }
+
+    input.selectedFoodNames = input.selectedFoodNames
+      .map((name) => name.trim())
+      .filter(Boolean);
+  }
+
+  if (Object.hasOwn(input, "selectedFoods")) {
+    if (!Array.isArray(input.selectedFoods)) {
+      return { error: "Selected foods must be an array." };
+    }
+
+    const foods = input.selectedFoods;
+    const ids = [];
+    const names = [];
+
+    for (const food of foods) {
+      if (typeof food === "string") {
+        if (mongoose.isValidObjectId(food)) {
+          ids.push(food);
+        } else if (food.trim()) {
+          names.push(food.trim());
+        }
+      } else if (food && typeof food === "object") {
+        const id = food._id || food.id;
+
+        if (id && mongoose.isValidObjectId(String(id))) {
+          ids.push(String(id));
+        }
+
+        if (typeof food.name === "string" && food.name.trim()) {
+          names.push(food.name.trim());
+        }
+      } else {
+        return { error: "Invalid selected food item." };
+      }
+    }
+
+    input.selectedFoods = [...new Set(ids)];
+    input.selectedFoodNames = [...new Set(names)];
+  }
+
   return input;
 }
 
@@ -56,96 +126,194 @@ function getCalendarDate(value) {
     const year = value.getFullYear();
     const month = String(value.getMonth() + 1).padStart(2, "0");
     const day = String(value.getDate()).padStart(2, "0");
+
     return `${year}-${month}-${day}`;
   }
+
   if (typeof value !== "string") return null;
 
   const match = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(value);
+
   if (!match) return null;
+
   const [, yearText, monthText, dayText] = match;
   const year = Number(yearText);
   const month = Number(monthText);
   const day = Number(dayText);
+
   const check = new Date(Date.UTC(year, month - 1, day));
+
   if (
     check.getUTCFullYear() !== year ||
     check.getUTCMonth() + 1 !== month ||
     check.getUTCDate() !== day
-  ) return null;
-  if (value.includes("T") && Number.isNaN(new Date(value).getTime())) return null;
+  ) {
+    return null;
+  }
+
+  if (value.includes("T") && Number.isNaN(new Date(value).getTime())) {
+    return null;
+  }
+
   return `${yearText}-${monthText}-${dayText}`;
 }
 
-function validateNewBooking(input, { requireCateringServices = false } = {}) {
-  if (typeof input.eventType !== "string" || !input.eventType.trim()) return "Event type is required.";
+function validateBooking(input, requireCateringServices = false) {
+  if (
+    typeof input.eventType !== "string" ||
+    !input.eventType.trim() ||
+    input.eventType.length > 100
+  ) {
+    return "A valid event type is required.";
+  }
+
   const eventDate = getCalendarDate(input.functionDate);
+
   if (!eventDate) {
     return "A valid function date is required.";
   }
-  if (typeof input.location !== "string" || !input.location.trim()) return "Event location is required.";
-  if (typeof input.functionTime !== "string" || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(input.functionTime)) {
+
+  if (
+    typeof input.location !== "string" ||
+    !input.location.trim() ||
+    input.location.length > 500
+  ) {
+    return "A valid event location is required.";
+  }
+
+  if (
+    typeof input.functionTime !== "string" ||
+    !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(input.functionTime)
+  ) {
     return "A valid function time (HH:mm) is required.";
   }
-  const personsType = typeof input.numberOfPersons;
+
   const persons = Number(input.numberOfPersons);
+
   if (
-    !["number", "string"].includes(personsType) ||
-    (personsType === "string" && !input.numberOfPersons.trim()) ||
-    !Number.isInteger(persons) ||
-    !Number.isFinite(persons) ||
-    persons < 1
+    !["number", "string"].includes(typeof input.numberOfPersons) ||
+    (typeof input.numberOfPersons === "string" &&
+      !input.numberOfPersons.trim()) ||
+    !Number.isSafeInteger(persons) ||
+    persons < 1 ||
+    persons > 1000000
   ) {
-    return "Number of persons must be a positive whole number.";
+    return "Enter a valid number of persons.";
   }
-  // Convert to Date object for proper comparison (today inclusive)
+
+  if (
+    input.extraRequirements !== undefined &&
+    (typeof input.extraRequirements !== "string" ||
+      input.extraRequirements.length > 2000)
+  ) {
+    return "Extra requirements must not exceed 2000 characters.";
+  }
+
+  if (
+    input.foodType !== undefined &&
+    !["veg", "non-veg", "both"].includes(input.foodType)
+  ) {
+    return "Invalid food type.";
+  }
+
+  const [year, month, day] = eventDate.split("-").map(Number);
+  const functionDate = new Date(year, month - 1, day);
   const today = new Date();
+
   today.setHours(0, 0, 0, 0);
-  // Parse as LOCAL midnight (not UTC) to avoid timezone-offset rejecting today
-  const [yy, mm, dd] = eventDate.split("-").map(Number);
-  const funcDate = new Date(yy, mm - 1, dd);
-  if (isNaN(funcDate.getTime())) {
-    return "A valid function date is required.";
-  }
-  funcDate.setHours(0, 0, 0, 0);
-  if (funcDate < today) {
+  functionDate.setHours(0, 0, 0, 0);
+
+  if (functionDate < today) {
     return "Function date cannot be in the past.";
   }
+
   if (
     requireCateringServices &&
-    !(Array.isArray(input.cateringServices) && input.cateringServices.length > 0) &&
-    !(typeof input.cateringService === "string" && input.cateringService.trim())
-  ) return "Select at least one catering service.";
+    !(Array.isArray(input.cateringServices) &&
+      input.cateringServices.length) &&
+    !(typeof input.cateringService === "string" &&
+      input.cateringService.trim())
+  ) {
+    return "Select at least one catering service.";
+  }
+
   return null;
 }
 
+function getPagination(query = {}) {
+  const requestedPage = Number.parseInt(query.page, 10) || 1;
+  const requestedLimit = Number.parseInt(query.limit, 10) || 20;
+
+  return {
+    page: Math.max(1, requestedPage),
+    limit: Math.min(100, Math.max(1, requestedLimit)),
+  };
+}
+
+// Owner: get all bookings with pagination
 const getBookings = async (req, res, next) => {
   try {
-    const bookings = await Booking.find()
-      .sort({ createdAt: -1 })
-      .populate("customer", "name phone email")
-      .populate("selectedFoods", "name category type");
-    return res.json({ success: true, count: bookings.length, data: bookings });
+    const { page, limit } = getPagination(req.query);
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      Booking.find()
+        .sort({ createdAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate("customer", "name phone email")
+        .populate("selectedFoods", "name category type")
+        .lean(),
+
+      Booking.countDocuments(),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     next(error);
   }
 };
 
+// Customer: create a booking
 const createBooking = async (req, res, next) => {
   try {
     const input = normalizeBookingInput(req.body || {});
-    const validationError = validateNewBooking(input, { requireCateringServices: true });
-    if (validationError) {
-      return res.status(400).json({ success: false, message: validationError });
+
+    if (input.error) {
+      return res.status(400).json({
+        success: false,
+        message: input.error,
+      });
     }
+
+    const validationError = validateBooking(input, true);
+
+    if (validationError) {
+      return res.status(400).json({
+        success: false,
+        message: validationError,
+      });
+    }
+
     const booking = await Booking.create({
       ...input,
       customer: req.user.id,
       numberOfPersons: Number(input.numberOfPersons),
       status: "pending",
     });
+
     return res.status(201).json({
       success: true,
-      message: "Booking created successfully",
+      message: "Booking created successfully.",
       data: booking,
     });
   } catch (error) {
@@ -153,106 +321,224 @@ const createBooking = async (req, res, next) => {
   }
 };
 
+// Customer: get own bookings with pagination
 const getMyBookings = async (req, res, next) => {
   try {
-    const bookings = await Booking.find({ customer: req.user.id })
-      .sort({ createdAt: -1 })
-      .populate("selectedFoods", "name category type");
-    return res.json({ success: true, count: bookings.length, data: bookings });
+    const { page, limit } = getPagination(req.query);
+    const filter = { customer: req.user.id };
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      Booking.find(filter)
+        .sort({ createdAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate("selectedFoods", "name category type")
+        .lean(),
+
+      Booking.countDocuments(filter),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     next(error);
   }
 };
 
+// Owner or booking-owning customer: view one booking
 const getBookingById = async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
-      return res.status(400).json({ success: false, message: "Invalid booking ID" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking ID.",
+      });
     }
-    const query = { _id: req.params.id };
-    if (req.user.role === "customer") query.customer = req.user.id;
-    const booking = await Booking.findOne(query)
+
+    const filter = { _id: req.params.id };
+
+    if (req.user.role === "customer") {
+      filter.customer = req.user.id;
+    }
+
+    const booking = await Booking.findOne(filter)
       .populate("customer", "name phone email")
-      .populate("selectedFoods", "name category type");
+      .populate("selectedFoods", "name category type")
+      .lean();
+
     if (!booking) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found.",
+      });
     }
-    return res.json({ success: true, data: booking });
+
+    return res.status(200).json({
+      success: true,
+      data: booking,
+    });
   } catch (error) {
     next(error);
   }
 };
 
+// Customer: update own pending booking
 const updateMyBooking = async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
-      return res.status(400).json({ success: false, message: "Invalid booking ID" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking ID.",
+      });
     }
+
     const booking = await Booking.findOne({
       _id: req.params.id,
       customer: req.user.id,
       status: "pending",
     });
+
     if (!booking) {
-      return res.status(404).json({ success: false, message: "Pending booking not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Pending booking not found.",
+      });
     }
+
     const updates = normalizeBookingInput(req.body || {});
-    const merged = { ...booking.toObject(), ...updates };
-    const validationError = validateNewBooking(merged);
+
+    if (updates.error) {
+      return res.status(400).json({
+        success: false,
+        message: updates.error,
+      });
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid booking fields provided.",
+      });
+    }
+
+    const merged = {
+      ...booking.toObject(),
+      ...updates,
+    };
+
+    const validationError = validateBooking(merged);
+
     if (validationError) {
-      return res.status(400).json({ success: false, message: validationError });
+      return res.status(400).json({
+        success: false,
+        message: validationError,
+      });
     }
-    for (const field of ["functionDate", "functionTime", "location", "numberOfPersons", "extraRequirements"]) {
-      if (Object.prototype.hasOwnProperty.call(updates, field)) booking[field] = updates[field];
+
+    for (const field of bookingFields) {
+      if (Object.hasOwn(updates, field)) {
+        booking[field] =
+          field === "numberOfPersons"
+            ? Number(updates[field])
+            : updates[field];
+      }
     }
-    if (Object.prototype.hasOwnProperty.call(updates, "numberOfPersons")) {
-      booking.numberOfPersons = Number(updates.numberOfPersons);
-    }
+
     await booking.save();
-    return res.json({ success: true, message: "Booking updated successfully", data: booking });
+
+    return res.status(200).json({
+      success: true,
+      message: "Booking updated successfully.",
+      data: booking,
+    });
   } catch (error) {
     next(error);
   }
 };
 
+// Owner: update booking status
 const updateBooking = async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
-      return res.status(400).json({ success: false, message: "Invalid booking ID" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking ID.",
+      });
     }
-    const allowedStatuses = ["pending", "confirmed", "rejected", "cancelled", "completed"];
+
     const { status } = req.body || {};
+
     if (!allowedStatuses.includes(status)) {
-      return res.status(400).json({ success: false, message: "Invalid booking status" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking status.",
+      });
     }
+
     const booking = await Booking.findByIdAndUpdate(
       req.params.id,
-      { status },
+      { $set: { status } },
       { new: true, runValidators: true }
     );
+
     if (!booking) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found.",
+      });
     }
-    return res.json({ success: true, message: "Booking updated successfully", data: booking });
+
+    return res.status(200).json({
+      success: true,
+      message: "Booking status updated successfully.",
+      data: booking,
+    });
   } catch (error) {
     next(error);
   }
 };
 
+// Customer: cancel own pending booking
 const cancelBooking = async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
-      return res.status(400).json({ success: false, message: "Invalid booking ID" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid booking ID.",
+      });
     }
+
     const booking = await Booking.findOneAndUpdate(
-      { _id: req.params.id, customer: req.user.id, status: "pending" },
-      { status: "cancelled" },
+      {
+        _id: req.params.id,
+        customer: req.user.id,
+        status: "pending",
+      },
+      { $set: { status: "cancelled" } },
       { new: true, runValidators: true }
     );
+
     if (!booking) {
-      return res.status(404).json({ success: false, message: "Pending booking not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Pending booking not found.",
+      });
     }
-    return res.json({ success: true, message: "Booking cancelled successfully", data: booking });
+
+    return res.status(200).json({
+      success: true,
+      message: "Booking cancelled successfully.",
+      data: booking,
+    });
   } catch (error) {
     next(error);
   }

@@ -1,3 +1,4 @@
+
 const express = require("express");
 const router = express.Router();
 
@@ -6,26 +7,25 @@ const {
   createReview,
 } = require("../controllers/reviewController");
 
-const { protect } = require("../middleware/authMiddleware");
+const {
+  protect,
+  allowRoles,
+} = require("../middleware/authMiddleware");
 
-router.get("/", protect, (req, res, next) => {
-  if (req.user?.role !== "owner") {
-    return res.status(403).json({
-      success: false,
-      message: "Owner access required",
-    });
-  }
-  next();
-}, getReviews);
+// Owner can view reviews
+router.get(
+  "/",
+  protect,
+  allowRoles("owner"),
+  getReviews
+);
 
-router.post("/", protect, (req, res, next) => {
-  if (req.user?.role !== "customer") {
-    return res.status(403).json({
-      success: false,
-      message: "Customer access required",
-    });
-  }
-  next();
-}, createReview);
+// Customer can submit a review
+router.post(
+  "/",
+  protect,
+  allowRoles("customer"),
+  createReview
+);
 
 module.exports = router;

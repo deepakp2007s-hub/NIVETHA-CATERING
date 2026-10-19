@@ -1,3 +1,4 @@
+
 const express = require("express");
 const router = express.Router();
 
@@ -7,22 +8,26 @@ const {
   markNotificationRead,
 } = require("../controllers/notificationController");
 
-const { protect } = require("../middleware/authMiddleware");
+const {
+  protect,
+  allowRoles,
+} = require("../middleware/authMiddleware");
 
+// All notification routes require authentication.
 router.use(protect);
 
+// Customers and owners can view their own notifications.
+// Controller must filter results by the authenticated user.
 router.get("/", getNotifications);
 
-router.post("/", (req, res, next) => {
-  if (req.user?.role !== "owner") {
-    return res.status(403).json({
-      success: false,
-      message: "Owner access required",
-    });
-  }
-  next();
-}, createNotification);
+// Only the owner can create notifications.
+router.post(
+  "/",
+  allowRoles("owner"),
+  createNotification
+);
 
+// Controller must verify notification ownership before marking it read.
 router.patch("/:id/read", markNotificationRead);
 
 module.exports = router;

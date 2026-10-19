@@ -3,28 +3,69 @@ require("dotenv").config();
 
 const app = require("./src/app");
 const connectDB = require("./src/config/db");
+const mongoose = require("mongoose");
 
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT) || 5000;
 const HOST = "0.0.0.0";
+
+let server;
+let isShuttingDown = false;
 
 const startServer = async () => {
   try {
     await connectDB();
 
-    const server = app.listen(PORT, HOST, () => {
+    server = app.listen(PORT, HOST, () => {
       console.log(`Nivetha Catering API running on ${HOST}:${PORT}`);
-      console.log(`Health check: /api/health`);
+      console.log("Health check: /api/health");
       console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
     });
 
     server.on("error", (error) => {
-      console.error("Server error:", error.message);
-      process.exit(1);
+      console.error("HTTP server error:", error.message);
+      process.exitCode = 1;
+      shutdown("server-error");
     });
   } catch (error) {
     console.error("Server startup failed:", error.message);
-    process.exit(1);
+    process.exitCode = 1;
+    await shutdown("startup-error");
   }
 };
+
+const shutdown = async (reason) => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  console.log(`Shutting down server: ${reason}`);
+
+  if (server?.listening) {
+    await new Promise((resolve) => {
+      server.close((error) => {
+        if (error) {
+          console.error("HTTP server shutdown error:", error.message);
+          process.exitCode = 1;
+        }
+        resolve();
+      });
+    });
+  }
+
+  try {
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.disconnect();
+    }
+  } catch (error) {
+    console.error("MongoDB shutdown error:", error.message);
+    process.exitCode = 1;
+  }
+
+  if (reason !== "server-error" && reason !== "startup-error") {
+    process.exit(process.exitCode || 0);
+  }
+};
+
+process.once("SIGTERM", () => shutdown("SIGTERM"));
+process.once("SIGINT", () => shutdown("SIGINT"));
 
 startServer();

@@ -1,4 +1,4 @@
-// nivetha-backend/src/app.js
+
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -9,11 +9,9 @@ const errorMiddleware = require("./middleware/errorMiddleware");
 
 const app = express();
 
-// Security headers
+app.disable("x-powered-by");
 app.use(helmet());
 
-// Read frontend URLs from Render environment variables.
-// CLIENT_URL and OWNER_URL can contain comma-separated origins.
 const configuredOrigins = [
   process.env.CLIENT_URL,
   process.env.OWNER_URL,
@@ -23,10 +21,9 @@ const configuredOrigins = [
   .map((url) => url.trim().replace(/^["']|["']$/g, "").replace(/\/+$/, ""))
   .filter(Boolean);
 
-// Known production origins (exact origins only, no paths).
-// Add the Customer App Vercel URL here after it is deployed.
 const productionOrigins = [
   "https://nivetha-catering.vercel.app",
+  "https://nivetha-catering-kjh1.vercel.app",
 ];
 
 const localOrigins = [
@@ -37,16 +34,16 @@ const localOrigins = [
 ];
 
 const allowedOrigins = [
-  ...new Set([...localOrigins, ...productionOrigins, ...configuredOrigins]),
+  ...new Set([
+    ...localOrigins,
+    ...productionOrigins,
+    ...configuredOrigins,
+  ]),
 ];
-
-console.log("CORS allowed origins:", allowedOrigins);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests without an Origin header, such as server-to-server
-      // requests and direct health checks.
       if (!origin || allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
@@ -60,50 +57,51 @@ app.use(
   })
 );
 
-// Parse request bodies
 app.use(express.json({ limit: "1mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
-// API rate limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
-  standardHeaders: true,
+  limit: 300,
+  standardHeaders: "draft-8",
   legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many requests. Please try again later.",
+  },
 });
 
 app.use("/api", apiLimiter);
 
 // Health check
 app.get("/api/health", (req, res) => {
-  res.status(200).json({
+  return res.status(200).json({
     success: true,
     message: "Nivetha Catering API is running",
     timestamp: new Date().toISOString(),
   });
 });
 
-// Authentication routes
+// Authentication
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/customer-auth", require("./routes/customerAuthRoutes"));
 
-// Booking and customer routes
+// Bookings and customers
 app.use("/api/bookings", require("./routes/bookingRoutes"));
 app.use("/api/customers", require("./routes/customerRoutes"));
 app.use("/api/dashboard", require("./routes/dashboardRoutes"));
 
-// Food and notification routes
+// Food and operations
 app.use("/api/foods", require("./routes/foodRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/reports", require("./routes/reportRoutes"));
 app.use("/api/reviews", require("./routes/reviewRoutes"));
 
-// Owner management routes
-app.use("/api/payments", require("./routes/paymentRoutes"));
-app.use("/api/materials", require("./routes/materialRoutes"));
-app.use("/api/staff", require("./routes/staffRoutes"));
+// Keep these routes only if their files exist.
+// app.use("/api/materials", require("./routes/materialRoutes"));
+// app.use("/api/staff", require("./routes/staffRoutes"));
 
-// 404 and centralized error handling
+// 404 and error handlers must remain last
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
 
