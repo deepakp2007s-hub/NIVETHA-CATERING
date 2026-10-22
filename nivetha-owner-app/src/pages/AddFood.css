@@ -1,50 +1,74 @@
 
 .add-food-page {
-  --green: #086443;
-  --dark-green: #043d2a;
-  --gold: #ffc928;
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 28px;
-  color: #17231d;
+  --add-green: #315b3b;
+  --add-green-dark: #24452d;
+  --add-gold: #c59643;
+  --add-text: #252b24;
+  --add-muted: #747b70;
+  --add-border: #e4e8de;
+
+  width: 100%;
+  min-height: 100%;
+  padding: 30px;
+  color: var(--add-text);
+  background: #f6f8f2;
+  box-sizing: border-box;
+}
+
+.add-food-page *,
+.add-food-page *::before,
+.add-food-page *::after {
+  box-sizing: border-box;
 }
 
 .add-food-heading {
-  margin-bottom: 24px;
-  padding: 30px;
-  color: white;
-  background: linear-gradient(120deg, #043d2a, #086443);
-  border: 1px solid #d9b52a;
-  border-radius: 20px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 26px;
+  padding: 35px;
+  border-radius: 22px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 90% 10%, #52764d 0, transparent 35%),
+    linear-gradient(125deg, #203e2b, #3d6742);
+  box-shadow: 0 12px 30px rgb(35 65 42 / 12%);
 }
 
 .add-food-heading > span {
-  color: #ffe58a;
+  display: inline-block;
+  margin-bottom: 12px;
+  color: #e7c88d;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 2px;
 }
 
 .add-food-heading h1 {
-  margin: 12px 0 8px;
-  font-size: clamp(28px, 4vw, 38px);
+  margin: 0;
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 800;
+  letter-spacing: -1px;
+  line-height: 1.2;
 }
 
 .add-food-heading p {
-  margin: 0;
-  color: #e1f1e7;
+  margin: 12px 0 0;
+  color: #e1e9df;
   font-size: 14px;
+  line-height: 1.7;
 }
 
 .add-food-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
-  padding: 28px;
+  gap: 22px;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 30px;
+  border: 1px solid var(--add-border);
+  border-radius: 22px;
   background: #fff;
-  border: 1px solid #e1eae1;
-  border-radius: 20px;
-  box-shadow: 0 10px 30px rgba(4, 61, 42, 0.06);
+  box-shadow: 0 8px 28px rgb(32 52 30 / 5%);
 }
 
 .add-food-form > label {
@@ -52,59 +76,81 @@
   min-width: 0;
   flex-direction: column;
   gap: 9px;
-  color: #254435;
+  color: #394337;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 750;
 }
 
 .add-food-form input:not([type="checkbox"]),
 .add-food-form select,
 .add-food-form textarea {
+  display: block;
   width: 100%;
   min-width: 0;
   padding: 13px 14px;
-  color: #17231d;
-  background: #fffdf7;
-  border: 1px solid #dce6dc;
-  border-radius: 10px;
+  border: 1px solid #dfe4d9;
+  border-radius: 11px;
   outline: none;
-  font: inherit;
-  font-size: 13px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  color: #2b332a;
+  background: #fcfdfb;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.add-food-form input:not([type="checkbox"]),
+.add-food-form select {
+  min-height: 47px;
+}
+
+.add-food-form textarea {
+  min-height: 115px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.add-food-form input::placeholder,
+.add-food-form textarea::placeholder {
+  color: #a0a69a;
 }
 
 .add-food-form input:focus,
 .add-food-form select:focus,
 .add-food-form textarea:focus {
-  border-color: var(--green);
-  box-shadow: 0 0 0 3px rgba(8, 100, 67, 0.1);
-}
-
-.add-food-form textarea {
-  resize: vertical;
+  border-color: var(--add-green);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgb(49 91 59 / 10%);
 }
 
 .add-food-full {
   grid-column: 1 / -1;
 }
 
-.add-food-form .add-food-checkbox {
+.add-food-form > .add-food-checkbox {
   display: flex;
   grid-column: 1 / -1;
   flex-direction: row;
   align-items: center;
-  gap: 10px;
-  padding: 14px;
-  color: var(--green);
-  background: #e8f3ec;
-  border-radius: 10px;
+  gap: 11px;
+  padding: 15px 16px;
+  border: 1px solid #e1e9dc;
+  border-radius: 12px;
+  color: #36543a;
+  background: #f5f8f1;
   cursor: pointer;
+  font-size: 13px;
 }
 
-.add-food-checkbox input {
-  width: 17px;
-  height: 17px;
-  accent-color: var(--green);
+.add-food-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--add-green);
+  cursor: pointer;
 }
 
 .add-food-actions {
@@ -112,68 +158,168 @@
   grid-column: 1 / -1;
   justify-content: flex-end;
   gap: 12px;
-  padding-top: 8px;
+  margin-top: 5px;
+  padding-top: 22px;
+  border-top: 1px solid #edf0e9;
 }
 
 .add-food-actions button {
+  display: inline-flex;
   min-width: 125px;
-  min-height: 44px;
-  padding: 10px 18px;
-  border-radius: 10px;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 22px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  cursor: pointer;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 800;
-  cursor: pointer;
-  transition: transform 0.2s, opacity 0.2s;
+  transition:
+    background 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
 }
 
-.add-food-actions button:hover:not(:disabled) {
+.add-food-actions button:first-child {
+  border-color: #dfe4d9;
+  color: #4d5649;
+  background: #fff;
+}
+
+.add-food-actions button:first-child:hover:not(:disabled) {
+  background: #f3f5ef;
+}
+
+.add-food-actions button:last-child {
+  border-color: var(--add-green);
+  color: #fff;
+  background: var(--add-green);
+  box-shadow: 0 5px 12px rgb(49 91 59 / 12%);
+}
+
+.add-food-actions button:last-child:hover:not(:disabled) {
   transform: translateY(-1px);
+  background: var(--add-green-dark);
+  box-shadow: 0 7px 16px rgb(49 91 59 / 20%);
 }
 
 .add-food-actions button:disabled {
-  opacity: 0.55;
   cursor: not-allowed;
+  opacity: 0.6;
 }
 
-.add-food-actions button[type="button"] {
-  color: var(--green);
-  background: white;
-  border: 1px solid #bfd6c5;
-}
-
-.add-food-actions button[type="submit"] {
-  color: #043d2a;
-  background: var(--gold);
-  border: 1px solid #e4b51b;
+.add-food-actions button:focus-visible {
+  outline: 3px solid rgb(197 150 67 / 55%);
+  outline-offset: 3px;
 }
 
 .food-error,
 .food-success {
-  margin: 0 0 18px;
-  padding: 13px 16px;
-  border-radius: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 1000px;
+  margin: 0 auto 18px;
+  padding: 15px 18px;
+  border-radius: 12px;
+  overflow-wrap: anywhere;
   font-size: 13px;
+  line-height: 1.6;
 }
 
 .food-error {
-  color: #9e2929;
-  background: #fff0ee;
-  border: 1px solid #f2c8c2;
+  border: 1px solid #f0caca;
+  color: #9a3030;
+  background: #fff2f1;
 }
 
 .food-success {
-  color: #17613a;
-  background: #e7f6eb;
-  border: 1px solid #bfe5c9;
+  border: 1px solid #cce7d1;
+  color: #246a3b;
+  background: #eff9f0;
 }
 
-@media (max-width: 600px) {
-  .add-food-page { padding: 14px; }
-  .add-food-heading { padding: 22px; }
-  .add-food-form { grid-template-columns: 1fr; padding: 18px; gap: 16px; }
+@media (max-width: 768px) {
+  .add-food-page {
+    padding: 20px;
+  }
+
+  .add-food-heading {
+    padding: 27px 24px;
+    border-radius: 17px;
+  }
+
+  .add-food-form {
+    gap: 18px;
+    padding: 23px;
+    border-radius: 17px;
+  }
+}
+
+@media (max-width: 540px) {
+  .add-food-page {
+    padding: 12px;
+  }
+
+  .add-food-heading {
+    margin-bottom: 17px;
+    padding: 24px 19px;
+  }
+
+  .add-food-heading > span {
+    font-size: 9px;
+    letter-spacing: 1.2px;
+  }
+
+  .add-food-heading h1 {
+    font-size: 29px;
+  }
+
+  .add-food-heading p {
+    font-size: 12px;
+  }
+
+  .add-food-form {
+    grid-template-columns: 1fr;
+    gap: 17px;
+    padding: 18px;
+    border-radius: 15px;
+  }
+
   .add-food-full,
-  .add-food-form .add-food-checkbox,
-  .add-food-actions { grid-column: 1; }
-  .add-food-actions { flex-direction: column-reverse; }
-  .add-food-actions button { width: 100%; }
+  .add-food-form > .add-food-checkbox,
+  .add-food-actions {
+    grid-column: 1;
+  }
+
+  .add-food-form input:not([type="checkbox"]),
+  .add-food-form select {
+    min-height: 45px;
+    font-size: 13px;
+  }
+
+  .add-food-form textarea {
+    font-size: 13px;
+  }
+
+  .add-food-actions {
+    flex-direction: column-reverse;
+    gap: 10px;
+  }
+
+  .add-food-actions button {
+    width: 100%;
+    min-height: 46px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .add-food-page *,
+  .add-food-page *::before,
+  .add-food-page *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

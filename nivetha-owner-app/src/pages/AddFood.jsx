@@ -4,25 +4,27 @@ import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import "./AddFood.css";
 
+const INITIAL_FORM = {
+  name: "",
+  tamilName: "",
+  category: "Lunch",
+  type: "Veg",
+  description: "",
+  image: "",
+  available: true,
+};
+
 export default function AddFood() {
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({
-    name: "",
-    tamilName: "",
-    category: "Lunch",
-    type: "Veg",
-    description: "",
-    image: "",
-    available: true,
-  });
-
+  const [form, setForm] = useState(INITIAL_FORM);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target;
+
     setForm((previous) => ({
       ...previous,
       [name]: type === "checkbox" ? checked : value,
@@ -53,7 +55,12 @@ export default function AddFood() {
       });
 
       setSuccess("Food added successfully!");
-      window.setTimeout(() => navigate("/foods"), 700);
+
+      // Redirect to the correct Food Menu route.
+      navigate("/food-menu", {
+        replace: true,
+        state: { foodAdded: true },
+      });
     } catch (err) {
       setError(
         err.response?.data?.message ||
@@ -73,8 +80,17 @@ export default function AddFood() {
         <p>Add a dish to your catering menu.</p>
       </header>
 
-      {error && <p role="alert" className="food-error">{error}</p>}
-      {success && <p role="status" className="food-success">{success}</p>}
+      {error && (
+        <p role="alert" className="food-error">
+          {error}
+        </p>
+      )}
+
+      {success && (
+        <p role="status" className="food-success">
+          {success}
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} className="add-food-form">
         <label>
@@ -102,7 +118,12 @@ export default function AddFood() {
 
         <label>
           Category *
-          <select name="category" value={form.category} onChange={handleChange} required>
+          <select
+            name="category"
+            value={form.category}
+            onChange={handleChange}
+            required
+          >
             <option value="Breakfast">Breakfast</option>
             <option value="Lunch">Lunch</option>
             <option value="Dinner">Dinner</option>
@@ -114,7 +135,12 @@ export default function AddFood() {
 
         <label>
           Food Type *
-          <select name="type" value={form.type} onChange={handleChange} required>
+          <select
+            name="type"
+            value={form.type}
+            onChange={handleChange}
+            required
+          >
             <option value="Veg">Veg</option>
             <option value="Non-Veg">Non-Veg</option>
           </select>
@@ -154,9 +180,14 @@ export default function AddFood() {
         </label>
 
         <div className="add-food-actions">
-          <button type="button" onClick={() => navigate(-1)} disabled={loading}>
+          <button
+            type="button"
+            onClick={() => navigate("/food-menu")}
+            disabled={loading}
+          >
             Cancel
           </button>
+
           <button type="submit" disabled={loading}>
             {loading ? "Saving..." : "Add Food"}
           </button>

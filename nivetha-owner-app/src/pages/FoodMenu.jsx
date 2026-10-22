@@ -26,6 +26,11 @@ const getFoodList = (response) => {
 
 const getFoodId = (food) => food?._id || food?.id;
 
+const getFoodType = (food) => {
+  const value = String(food?.type || food?.foodType || "Veg").toLowerCase();
+  return value === "non-veg" || value === "nonveg" ? "Non-Veg" : "Veg";
+};
+
 export default function FoodMenu() {
   const navigate = useNavigate();
 
@@ -134,16 +139,12 @@ export default function FoodMenu() {
         !query ||
         [food.name, food.tamilName, food.description]
           .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(query));
+          .some((value) =>
+            String(value).toLowerCase().includes(query)
+          );
 
       const category = food.category || food.meal || "Other";
-      const rawType = food.type || food.foodType || "Veg";
-      const type =
-        rawType.toLowerCase() === "non-veg" ||
-        rawType.toLowerCase() === "nonveg"
-          ? "Non-Veg"
-          : rawType;
-
+      const type = getFoodType(food);
       const available = food.available ?? food.isAvailable ?? true;
 
       return (
@@ -155,17 +156,27 @@ export default function FoodMenu() {
           (availabilityFilter === "Unavailable" && !available))
       );
     });
-  }, [foods, search, categoryFilter, typeFilter, availabilityFilter]);
+  }, [
+    foods,
+    search,
+    categoryFilter,
+    typeFilter,
+    availabilityFilter,
+  ]);
 
   const availableCount = foods.filter(
     (food) => food.available ?? food.isAvailable ?? true
   ).length;
 
+  const openAddFood = () => navigate("/add-food");
+
   return (
     <main className="food-menu-page">
       <section className="food-menu-hero">
-        <div>
-          <span className="food-menu-eyebrow">✦ NIVETHA CATERING SERVICE</span>
+        <div className="food-hero-copy">
+          <span className="food-menu-eyebrow">
+            ✦ NIVETHA CATERING SERVICE
+          </span>
           <h1>Food Menu</h1>
           <p>Manage your dishes and control what customers can order.</p>
         </div>
@@ -206,7 +217,9 @@ export default function FoodMenu() {
       <section className="food-menu-toolbar">
         <div className="food-toolbar-heading">
           <div>
-            <span className="food-menu-section-label">YOUR COLLECTION</span>
+            <span className="food-menu-section-label">
+              YOUR COLLECTION
+            </span>
             <h2>Manage Dishes</h2>
             <p>Organise your catering menu in one place.</p>
           </div>
@@ -214,7 +227,7 @@ export default function FoodMenu() {
           <button
             type="button"
             className="food-add-button"
-            onClick={() => navigate("/foods/add")}
+            onClick={openAddFood}
           >
             <span>＋</span> Add New Food
           </button>
@@ -257,7 +270,9 @@ export default function FoodMenu() {
 
           <select
             value={availabilityFilter}
-            onChange={(event) => setAvailabilityFilter(event.target.value)}
+            onChange={(event) =>
+              setAvailabilityFilter(event.target.value)
+            }
             aria-label="Filter availability"
           >
             <option value="All">All Status</option>
@@ -270,8 +285,12 @@ export default function FoodMenu() {
       {notice && (
         <div className="food-menu-notice" role="status">
           <span>✓</span>
-          {notice}
-          <button type="button" onClick={() => setNotice("")}>
+          <p>{notice}</p>
+          <button
+            type="button"
+            onClick={() => setNotice("")}
+            aria-label="Dismiss message"
+          >
             ×
           </button>
         </div>
@@ -290,9 +309,12 @@ export default function FoodMenu() {
       <section className="food-menu-results">
         <div className="food-results-heading">
           <div>
-            <span className="food-menu-section-label">MENU OVERVIEW</span>
+            <span className="food-menu-section-label">
+              MENU OVERVIEW
+            </span>
             <h2>Food Collection</h2>
           </div>
+
           <span className="food-results-count">
             {loading ? "Loading..." : `${filteredFoods.length} dishes`}
           </span>
@@ -306,19 +328,22 @@ export default function FoodMenu() {
         ) : filteredFoods.length === 0 ? (
           <div className="food-menu-empty">
             <div className="food-empty-icon">♨</div>
-            <h3>{foods.length ? "No matching dishes" : "Your menu is empty"}</h3>
+            <h3>
+              {foods.length ? "No matching dishes" : "Your menu is empty"}
+            </h3>
             <p>
               {foods.length
                 ? "Try another search term or change the filters."
                 : "Add your first dish to start building the menu."}
             </p>
+
             {foods.length === 0 && (
               <button
                 type="button"
                 className="food-add-button"
-                onClick={() => navigate("/foods/add")}
+                onClick={openAddFood}
               >
-                ＋ Add First Food
+                <span>＋</span> Add First Food
               </button>
             )}
           </div>
@@ -328,12 +353,7 @@ export default function FoodMenu() {
               const id = getFoodId(food);
               const available = food.available ?? food.isAvailable ?? true;
               const category = food.category || food.meal || "Other";
-              const rawType = food.type || food.foodType || "Veg";
-              const type =
-                rawType.toLowerCase() === "non-veg" ||
-                rawType.toLowerCase() === "nonveg"
-                  ? "Non-Veg"
-                  : rawType;
+              const type = getFoodType(food);
               const busy = String(id) === busyId;
 
               return (
@@ -383,7 +403,9 @@ export default function FoodMenu() {
                     )}
 
                     {food.description && (
-                      <p className="food-description">{food.description}</p>
+                      <p className="food-description">
+                        {food.description}
+                      </p>
                     )}
 
                     <div className="food-card-status-row">
