@@ -3,6 +3,7 @@ const Booking = require("../models/Booking");
 const Customer = require("../models/Customer");
 const Food = require("../models/Food");
 
+// Owner: Get business reports
 const getReports = async (req, res, next) => {
   try {
     const [
@@ -27,6 +28,8 @@ const getReports = async (req, res, next) => {
       Food.countDocuments({ available: true }).exec(),
     ]);
 
+    const unavailableFoods = totalFoods - availableFoods;
+
     return res.status(200).json({
       success: true,
       data: {
@@ -44,8 +47,9 @@ const getReports = async (req, res, next) => {
         foods: {
           total: totalFoods,
           available: availableFoods,
-          unavailable: totalFoods - availableFoods,
+          unavailable: unavailableFoods,
         },
+        generatedAt: new Date().toISOString(),
       },
     });
   } catch (error) {
@@ -53,4 +57,6 @@ const getReports = async (req, res, next) => {
   }
 };
 
-module.exports = { getReports };
+module.exports = {
+  getReports,
+};

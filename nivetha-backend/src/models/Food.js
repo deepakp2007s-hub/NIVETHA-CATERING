@@ -29,6 +29,8 @@ const foodSchema = new mongoose.Schema(
       enum: ["veg", "non-veg", "both"],
       default: "veg",
       required: true,
+      lowercase: true,
+      trim: true,
     },
 
     description: {
@@ -38,14 +40,11 @@ const foodSchema = new mongoose.Schema(
       maxlength: 1000,
     },
 
+    // Owner-only food price management
     price: {
       type: Number,
-      required: true,
-      min: 0,
-      validate: {
-        validator: Number.isFinite,
-        message: "Price must be a valid number.",
-      },
+      min: [0, "Price cannot be negative."],
+      default: 0,
     },
 
     image: {
@@ -67,7 +66,6 @@ const foodSchema = new mongoose.Schema(
   }
 );
 
-// Indexes for menu sorting and filtering
 foodSchema.index({ available: 1, category: 1, name: 1 });
 foodSchema.index({ createdAt: -1 });
 

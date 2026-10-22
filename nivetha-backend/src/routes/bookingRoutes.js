@@ -17,7 +17,12 @@ const {
   allowRoles,
 } = require("../middleware/authMiddleware");
 
-// Customer routes
+// ======================================
+// CUSTOMER BOOKING ROUTES
+// ======================================
+
+// Create a booking
+// POST /api/bookings
 router.post(
   "/",
   protect,
@@ -25,6 +30,8 @@ router.post(
   createBooking
 );
 
+// Get logged-in customer's bookings
+// GET /api/bookings/my-bookings
 router.get(
   "/my-bookings",
   protect,
@@ -32,6 +39,8 @@ router.get(
   getMyBookings
 );
 
+// Cancel own booking
+// PATCH /api/bookings/:id/cancel
 router.patch(
   "/:id/cancel",
   protect,
@@ -39,6 +48,8 @@ router.patch(
   cancelBooking
 );
 
+// Update own booking
+// PATCH /api/bookings/:id
 router.patch(
   "/:id",
   protect,
@@ -46,10 +57,21 @@ router.patch(
   updateMyBooking
 );
 
-// View booking — controller must verify customer ownership
-router.get("/:id", protect, getBookingById);
+// View a single booking
+// Controller must verify customer ownership or owner role.
+router.get(
+  "/:id",
+  protect,
+  allowRoles("customer", "owner"),
+  getBookingById
+);
 
-// Owner-only routes
+// ======================================
+// OWNER BOOKING ROUTES
+// ======================================
+
+// Get all bookings
+// GET /api/bookings
 router.get(
   "/",
   protect,
@@ -57,6 +79,8 @@ router.get(
   getBookings
 );
 
+// Update booking status
+// PATCH /api/bookings/:id/status
 router.patch(
   "/:id/status",
   protect,

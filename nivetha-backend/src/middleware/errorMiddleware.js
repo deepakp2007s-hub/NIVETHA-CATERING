@@ -4,8 +4,8 @@ const errorMiddleware = (err, req, res, next) => {
     return next(err);
   }
 
-  let statusCode = err.statusCode || err.status || 500;
-  let message = err.message || "Internal server error";
+  let statusCode = Number(err.statusCode || err.status) || 500;
+  let message = err.message || "Internal server error.";
 
   // Invalid JSON request body
   if (
@@ -26,7 +26,7 @@ const errorMiddleware = (err, req, res, next) => {
   // Mongoose schema validation errors
   if (err.name === "ValidationError") {
     statusCode = 400;
-    message = Object.values(err.errors)
+    message = Object.values(err.errors || {})
       .map((item) => item.message)
       .join(", ");
   }
@@ -42,21 +42,32 @@ const errorMiddleware = (err, req, res, next) => {
       : "Duplicate record already exists.";
   }
 
-  // Never expose internal server details in production
-  if (statusCode >= 500 || statusCode < 400 || statusCode > 599) {
+  // Normalize invalid HTTP status codes
+  if (
+    !Number.isInteger(statusCode) ||
+    statusCode < 400 ||
+    statusCode > 599
+  ) {
     statusCode = 500;
-    message = "Internal server error.";
+  }
 
+  // Hide internal server details in production
+  if (statusCode >= 500) {
+    message = "Internal server error.";
     console.error("Server error:", err);
   }
 
-  return res.status(statusCode).json({
+  const response = {
     success: false,
     message,
-    ...(process.env.NODE_ENV === "development" && statusCode < 500
-      ? { details: err.message }
-      : {}),
-  });
+  };
+
+  // Extra debugging details only in development
+  if (process.env.NODE_ENV === "development") {
+    response.details = err.message;
+  }
+
+  return res.status(statusCode).json(response);
 };
 
 module.exports = errorMiddleware;

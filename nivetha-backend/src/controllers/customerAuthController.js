@@ -87,10 +87,13 @@ exports.register = async (req, res) => {
       });
     }
 
-    if (address !== undefined && typeof address !== "string") {
+    if (
+      address !== undefined &&
+      (typeof address !== "string" || address.length > 500)
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Address must be a string.",
+        message: "Address must be a string of at most 500 characters.",
       });
     }
 

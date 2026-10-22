@@ -11,7 +11,12 @@ const {
   allowRoles,
 } = require("../middleware/authMiddleware");
 
-// Owner-only dashboard
-router.get("/", protect, allowRoles("owner"), getDashboard);
+// Owner-only dashboard access
+router.get(
+  "/",
+  protect,
+  allowRoles("owner"),
+  getDashboard
+);
 
 module.exports = router;

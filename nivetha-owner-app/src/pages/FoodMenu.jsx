@@ -1,18 +1,17 @@
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import "./FoodMenu.css";
 
-const emptyFood = {
-  name: "",
-  tamilName: "",
-  category: "Lunch",
-  type: "Veg",
-  description: "",
-  price: "",
-  image: "",
-  available: true,
-};
+const CATEGORIES = [
+  "Breakfast",
+  "Lunch",
+  "Dinner",
+  "Snacks",
+  "Desserts",
+  "Drinks",
+];
 
 const getFoodList = (response) => {
   const data = response?.data;
@@ -27,19 +26,17 @@ const getFoodList = (response) => {
 
 const getFoodId = (food) => food?._id || food?.id;
 
-function FoodMenu() {
+export default function FoodMenu() {
+  const navigate = useNavigate();
+
   const [foods, setFoods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
-  const [mealFilter, setMealFilter] = useState("All");
+  const [categoryFilter, setCategoryFilter] = useState("All");
   const [typeFilter, setTypeFilter] = useState("All");
   const [availabilityFilter, setAvailabilityFilter] = useState("All");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingFood, setEditingFood] = useState(null);
-  const [form, setForm] = useState({ ...emptyFood });
-  const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState("");
 
   const loadFoods = useCallback(async () => {
@@ -52,7 +49,7 @@ function FoodMenu() {
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Unable to load food menu. Check your login and backend connection."
+          "Unable to load foods. Check owner login and backend connection."
       );
     } finally {
       setLoading(false);
@@ -63,153 +60,23 @@ function FoodMenu() {
     loadFoods();
   }, [loadFoods]);
 
-  const openAddModal = () => {
-    setEditingFood(null);
-    setForm({ ...emptyFood });
-    setError("");
-    setNotice("");
-    setModalOpen(true);
-  };
-
-  const openEditModal = (food) => {
-    setEditingFood(food);
-
-    setForm({
-      name: food.name || "",
-      tamilName: food.tamilName || "",
-      category: food.category || food.meal || "Lunch",
-      type: food.type || food.foodType || "Veg",
-      description: food.description || "",
-      price: food.price === 0 ? "0" : String(food.price ?? ""),
-      image: food.image || "",
-      available: food.available ?? food.isAvailable ?? true,
-    });
-
-    setError("");
-    setNotice("");
-    setModalOpen(true);
-  };
-
-  const closeModal = () => {
-    if (saving) return;
-    setModalOpen(false);
-    setEditingFood(null);
-  };
-
-  const handleChange = (event) => {
-    const { name, value, type, checked } = event.target;
-
-    setForm((current) => ({
-      ...current,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-
-    if (saving) return;
-
-    const name = form.name.trim();
-    const priceText = String(form.price).trim();
-    const price = Number(priceText);
-
-    if (!name) {
-      setError("Food name is required.");
-      return;
-    }
-
-    if (!form.category) {
-      setError("Please select a meal category.");
-      return;
-    }
-
-    if (
-      priceText === "" ||
-      !Number.isFinite(price) ||
-      price < 0
-    ) {
-      setError("Enter a valid price greater than or equal to ₹0.");
-      return;
-    }
-
-    const payload = {
-      name,
-      tamilName: form.tamilName.trim(),
-      category: form.category,
-      type: form.type,
-      description: form.description.trim(),
-      price,
-      image: form.image.trim(),
-      available: Boolean(form.available),
-    };
-
-    setSaving(true);
-    setError("");
-    setNotice("");
-
-    try {
-      if (editingFood) {
-        const id = getFoodId(editingFood);
-
-        if (!id) {
-          throw new Error("Food ID is missing. Reload the menu and try again.");
-        }
-
-        await api.patch(`/foods/${id}`, payload);
-      } else {
-        await api.post("/foods", payload);
-      }
-
-      setModalOpen(false);
-      setEditingFood(null);
-      setForm({ ...emptyFood });
-
-      await loadFoods();
-
-      setNotice(
-        editingFood
-          ? "Food details updated successfully."
-          : "Food added successfully."
-      );
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          "Could not save food. Please try again."
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const toggleAvailability = async (food) => {
     const id = getFoodId(food);
     if (!id || busyId) return;
 
-    const currentAvailability =
-      food.available ?? food.isAvailable ?? true;
-
-    setBusyId(String(id));
-    setError("");
-    setNotice("");
+    const currentAvailability = food.available ?? food.isAvailable ?? true;
 
     try {
-      const response = await api.patch(`/foods/${id}`, {
-        available: !currentAvailability,
-      });
+      setBusyId(String(id));
+      setError("");
+      setNotice("");
 
-      const updatedFood =
-        response?.data?.data || response?.data?.food || {};
+      await api.patch(`/foods/${id}/availability`);
 
       setFoods((current) =>
         current.map((item) =>
           String(getFoodId(item)) === String(id)
-            ? {
-                ...item,
-                ...updatedFood,
-                available: !currentAvailability,
-              }
+            ? { ...item, available: !currentAvailability }
             : item
         )
       );
@@ -233,23 +100,19 @@ function FoodMenu() {
     const id = getFoodId(food);
     if (!id || busyId) return;
 
-    const confirmed = window.confirm(
-      `Delete "${food.name}" from the food menu?`
-    );
-
-    if (!confirmed) return;
-
-    setBusyId(String(id));
-    setError("");
-    setNotice("");
+    if (!window.confirm(`Delete "${food.name}" from the food menu?`)) {
+      return;
+    }
 
     try {
+      setBusyId(String(id));
+      setError("");
+      setNotice("");
+
       await api.delete(`/foods/${id}`);
 
       setFoods((current) =>
-        current.filter(
-          (item) => String(getFoodId(item)) !== String(id)
-        )
+        current.filter((item) => String(getFoodId(item)) !== String(id))
       );
 
       setNotice("Food deleted successfully.");
@@ -263,67 +126,60 @@ function FoodMenu() {
     }
   };
 
-  const filteredFoods = foods.filter((food) => {
+  const filteredFoods = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    const nameMatches =
-      !query ||
-      [food.name, food.tamilName, food.description]
-        .filter(Boolean)
-        .some((value) =>
-          String(value).toLowerCase().includes(query)
-        );
+    return foods.filter((food) => {
+      const nameMatches =
+        !query ||
+        [food.name, food.tamilName, food.description]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query));
 
-    const category = food.category || food.meal || "";
-    const type = food.type || food.foodType || "";
-    const available = food.available ?? food.isAvailable ?? true;
+      const category = food.category || food.meal || "Other";
+      const rawType = food.type || food.foodType || "Veg";
+      const type =
+        rawType.toLowerCase() === "non-veg" ||
+        rawType.toLowerCase() === "nonveg"
+          ? "Non-Veg"
+          : rawType;
 
-    const mealMatches =
-      mealFilter === "All" || category === mealFilter;
+      const available = food.available ?? food.isAvailable ?? true;
 
-    const typeMatches =
-      typeFilter === "All" || type === typeFilter;
-
-    const availabilityMatches =
-      availabilityFilter === "All" ||
-      (availabilityFilter === "Available" && available) ||
-      (availabilityFilter === "Unavailable" && !available);
-
-    return (
-      nameMatches &&
-      mealMatches &&
-      typeMatches &&
-      availabilityMatches
-    );
-  });
+      return (
+        nameMatches &&
+        (categoryFilter === "All" || category === categoryFilter) &&
+        (typeFilter === "All" || type === typeFilter) &&
+        (availabilityFilter === "All" ||
+          (availabilityFilter === "Available" && available) ||
+          (availabilityFilter === "Unavailable" && !available))
+      );
+    });
+  }, [foods, search, categoryFilter, typeFilter, availabilityFilter]);
 
   const availableCount = foods.filter(
     (food) => food.available ?? food.isAvailable ?? true
   ).length;
 
   return (
-    <main className="food-menu-page page-enter">
+    <main className="food-menu-page">
       <section className="food-menu-hero">
-        <div className="food-menu-hero-copy">
-          <span className="food-menu-eyebrow">
-            NIVETHA CATERING SERVICE
-          </span>
+        <div>
+          <span className="food-menu-eyebrow">✦ NIVETHA CATERING SERVICE</span>
           <h1>Food Menu</h1>
-          <p>
-            Manage your dishes, organize meal categories, and control
-            what customers can see in the menu.
-          </p>
+          <p>Manage your dishes and control what customers can order.</p>
         </div>
 
-        <div className="food-menu-hero-mark" aria-hidden="true">
+        <div className="food-hero-emblem" aria-hidden="true">
           <span>✦</span>
-          <div>N</div>
+          <strong>N</strong>
+          <small>EST. NIVETHA</small>
         </div>
       </section>
 
       <section className="food-menu-summary">
         <article className="food-summary-card">
-          <span className="food-summary-icon">▤</span>
+          <span className="summary-icon">▤</span>
           <div>
             <p>Total Dishes</p>
             <strong>{loading ? "—" : foods.length}</strong>
@@ -331,18 +187,18 @@ function FoodMenu() {
         </article>
 
         <article className="food-summary-card">
-          <span className="food-summary-icon available-icon">✓</span>
+          <span className="summary-icon summary-icon-green">✓</span>
           <div>
-            <p>Available Dishes</p>
+            <p>Available</p>
             <strong>{loading ? "—" : availableCount}</strong>
           </div>
         </article>
 
         <article className="food-summary-card">
-          <span className="food-summary-icon category-icon">◈</span>
+          <span className="summary-icon summary-icon-gold">◈</span>
           <div>
-            <p>Meal Categories</p>
-            <strong>4</strong>
+            <p>Categories</p>
+            <strong>{CATEGORIES.length}</strong>
           </div>
         </article>
       </section>
@@ -350,16 +206,15 @@ function FoodMenu() {
       <section className="food-menu-toolbar">
         <div className="food-toolbar-heading">
           <div>
-            <span className="food-menu-section-label">
-              YOUR COLLECTION
-            </span>
+            <span className="food-menu-section-label">YOUR COLLECTION</span>
             <h2>Manage Dishes</h2>
+            <p>Organise your catering menu in one place.</p>
           </div>
 
           <button
             type="button"
             className="food-add-button"
-            onClick={openAddModal}
+            onClick={() => navigate("/foods/add")}
           >
             <span>＋</span> Add New Food
           </button>
@@ -370,7 +225,7 @@ function FoodMenu() {
             <span aria-hidden="true">⌕</span>
             <input
               type="search"
-              placeholder="Search food name..."
+              placeholder="Search English or Tamil name..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               aria-label="Search food menu"
@@ -378,33 +233,32 @@ function FoodMenu() {
           </label>
 
           <select
-            value={mealFilter}
-            onChange={(event) => setMealFilter(event.target.value)}
-            aria-label="Filter by meal"
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value)}
+            aria-label="Filter category"
           >
-            <option value="All">All Meals</option>
-            <option value="Breakfast">Breakfast</option>
-            <option value="Lunch">Lunch</option>
-            <option value="Dinner">Dinner</option>
-            <option value="Sweets">Sweets</option>
+            <option value="All">All Categories</option>
+            {CATEGORIES.map((category) => (
+              <option value={category} key={category}>
+                {category}
+              </option>
+            ))}
           </select>
 
           <select
             value={typeFilter}
             onChange={(event) => setTypeFilter(event.target.value)}
-            aria-label="Filter by food type"
+            aria-label="Filter food type"
           >
             <option value="All">Veg & Non-Veg</option>
-            <option value="Veg">Vegetarian</option>
-            <option value="Non-Veg">Non-Vegetarian</option>
+            <option value="Veg">Veg</option>
+            <option value="Non-Veg">Non-Veg</option>
           </select>
 
           <select
             value={availabilityFilter}
-            onChange={(event) =>
-              setAvailabilityFilter(event.target.value)
-            }
-            aria-label="Filter by availability"
+            onChange={(event) => setAvailabilityFilter(event.target.value)}
+            aria-label="Filter availability"
           >
             <option value="All">All Status</option>
             <option value="Available">Available</option>
@@ -415,12 +269,9 @@ function FoodMenu() {
 
       {notice && (
         <div className="food-menu-notice" role="status">
-          <span>✓</span> {notice}
-          <button
-            type="button"
-            onClick={() => setNotice("")}
-            aria-label="Dismiss message"
-          >
+          <span>✓</span>
+          {notice}
+          <button type="button" onClick={() => setNotice("")}>
             ×
           </button>
         </div>
@@ -430,16 +281,19 @@ function FoodMenu() {
         <div className="food-menu-error" role="alert">
           <span>!</span>
           <p>{error}</p>
-          <button type="button" onClick={loadFoods}>
-            Retry
+          <button type="button" onClick={loadFoods} disabled={loading}>
+            {loading ? "Loading..." : "Retry"}
           </button>
         </div>
       )}
 
       <section className="food-menu-results">
         <div className="food-results-heading">
-          <h2>Food Collection</h2>
-          <span>
+          <div>
+            <span className="food-menu-section-label">MENU OVERVIEW</span>
+            <h2>Food Collection</h2>
+          </div>
+          <span className="food-results-count">
             {loading ? "Loading..." : `${filteredFoods.length} dishes`}
           </span>
         </div>
@@ -452,20 +306,17 @@ function FoodMenu() {
         ) : filteredFoods.length === 0 ? (
           <div className="food-menu-empty">
             <div className="food-empty-icon">♨</div>
-            <h3>
-              {foods.length ? "No matching dishes" : "Your menu is empty"}
-            </h3>
+            <h3>{foods.length ? "No matching dishes" : "Your menu is empty"}</h3>
             <p>
               {foods.length
-                ? "Try changing your search or filters."
+                ? "Try another search term or change the filters."
                 : "Add your first dish to start building the menu."}
             </p>
-
             {foods.length === 0 && (
               <button
                 type="button"
                 className="food-add-button"
-                onClick={openAddModal}
+                onClick={() => navigate("/foods/add")}
               >
                 ＋ Add First Food
               </button>
@@ -475,10 +326,14 @@ function FoodMenu() {
           <div className="food-menu-grid">
             {filteredFoods.map((food, index) => {
               const id = getFoodId(food);
-              const available =
-                food.available ?? food.isAvailable ?? true;
+              const available = food.available ?? food.isAvailable ?? true;
               const category = food.category || food.meal || "Other";
-              const type = food.type || food.foodType || "Veg";
+              const rawType = food.type || food.foodType || "Veg";
+              const type =
+                rawType.toLowerCase() === "non-veg" ||
+                rawType.toLowerCase() === "nonveg"
+                  ? "Non-Veg"
+                  : rawType;
               const busy = String(id) === busyId;
 
               return (
@@ -487,23 +342,17 @@ function FoodMenu() {
                     !available ? "food-unavailable" : ""
                   }`}
                   key={id || `${food.name}-${index}`}
-                  style={{
-                    animationDelay: `${Math.min(index, 8) * 55}ms`,
-                  }}
                 >
                   <div className="food-card-image-wrap">
                     {food.image ? (
                       <img
                         src={food.image}
-                        alt={food.name}
+                        alt={food.name || "Food"}
                         className="food-card-image"
                         loading="lazy"
                       />
                     ) : (
-                      <div
-                        className="food-image-placeholder"
-                        aria-hidden="true"
-                      >
+                      <div className="food-image-placeholder">
                         <span>♨</span>
                         <small>NIVETHA</small>
                       </div>
@@ -526,31 +375,18 @@ function FoodMenu() {
                   </div>
 
                   <div className="food-card-content">
-                    <div className="food-card-title-row">
-                      <div>
-                        <span className="food-meal-label">
-                          {category}
-                        </span>
-                        <h3>{food.name || "Untitled Dish"}</h3>
+                    <span className="food-meal-label">{category}</span>
+                    <h3>{food.name || "Untitled Dish"}</h3>
 
-                        {food.tamilName && (
-                          <p className="food-tamil-name">
-                            {food.tamilName}
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                    {food.tamilName && (
+                      <p className="food-tamil-name">{food.tamilName}</p>
+                    )}
 
                     {food.description && (
-                      <p className="food-description">
-                        {food.description}
-                      </p>
+                      <p className="food-description">{food.description}</p>
                     )}
 
                     <div className="food-card-status-row">
-                      <strong>
-                        ₹{Number(food.price || 0).toLocaleString("en-IN")}
-                      </strong>
                       <span
                         className={`food-availability ${
                           available ? "is-available" : "is-unavailable"
@@ -565,7 +401,7 @@ function FoodMenu() {
                       <button
                         type="button"
                         className="food-edit-button"
-                        onClick={() => openEditModal(food)}
+                        onClick={() => navigate(`/foods/edit/${id}`)}
                         disabled={busy || Boolean(busyId)}
                       >
                         ✎ Edit
@@ -604,176 +440,6 @@ function FoodMenu() {
           </div>
         )}
       </section>
-
-      {modalOpen && (
-        <div
-          className="food-modal-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeModal();
-          }}
-        >
-          <section
-            className="food-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="food-modal-title"
-          >
-            <div className="food-modal-header">
-              <div>
-                <span className="food-menu-section-label">
-                  MENU MANAGEMENT
-                </span>
-                <h2 id="food-modal-title">
-                  {editingFood ? "Edit Food" : "Add New Food"}
-                </h2>
-                <p>Enter the dish details below.</p>
-              </div>
-
-              <button
-                type="button"
-                className="food-modal-close"
-                onClick={closeModal}
-                disabled={saving}
-                aria-label="Close dialog"
-              >
-                ×
-              </button>
-            </div>
-
-            <form className="food-form" onSubmit={handleSubmit}>
-              <div className="food-form-grid">
-                <label>
-                  Food Name <span>*</span>
-                  <input
-                    name="name"
-                    value={form.name}
-                    onChange={handleChange}
-                    placeholder="e.g. Vegetable Biryani"
-                    required
-                    maxLength={100}
-                  />
-                </label>
-
-                <label>
-                  Tamil Name
-                  <input
-                    name="tamilName"
-                    value={form.tamilName}
-                    onChange={handleChange}
-                    placeholder="உணவின் பெயர்"
-                    maxLength={100}
-                  />
-                </label>
-
-                <label>
-                  Meal Category <span>*</span>
-                  <select
-                    name="category"
-                    value={form.category}
-                    onChange={handleChange}
-                    required
-                  >
-                    <option value="Breakfast">Breakfast</option>
-                    <option value="Lunch">Lunch</option>
-                    <option value="Dinner">Dinner</option>
-                    <option value="Sweets">Sweets</option>
-                  </select>
-                </label>
-
-                <label>
-                  Food Type <span>*</span>
-                  <select
-                    name="type"
-                    value={form.type}
-                    onChange={handleChange}
-                    required
-                  >
-                    <option value="Veg">Vegetarian</option>
-                    <option value="Non-Veg">Non-Vegetarian</option>
-                  </select>
-                </label>
-
-                <label>
-                  Price (₹) <span>*</span>
-                  <input
-                    name="price"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.price}
-                    onChange={handleChange}
-                    placeholder="Enter price"
-                    required
-                  />
-                </label>
-
-                <label className="food-form-full">
-                  Image URL
-                  <input
-                    name="image"
-                    type="url"
-                    value={form.image}
-                    onChange={handleChange}
-                    placeholder="https://example.com/food-image.jpg"
-                  />
-                </label>
-
-                <label className="food-form-full">
-                  Description
-                  <textarea
-                    name="description"
-                    value={form.description}
-                    onChange={handleChange}
-                    placeholder="Describe the dish..."
-                    rows={3}
-                    maxLength={500}
-                  />
-                </label>
-
-                <label className="food-availability-checkbox food-form-full">
-                  <input
-                    type="checkbox"
-                    name="available"
-                    checked={form.available}
-                    onChange={handleChange}
-                  />
-                  <span>
-                    <strong>Available for customers</strong>
-                    <small>
-                      Turn this off to hide the dish from available menu items.
-                    </small>
-                  </span>
-                </label>
-              </div>
-
-              <div className="food-modal-actions">
-                <button
-                  type="button"
-                  className="food-cancel-button"
-                  onClick={closeModal}
-                  disabled={saving}
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className="food-save-button"
-                  disabled={saving}
-                >
-                  {saving
-                    ? "Saving..."
-                    : editingFood
-                      ? "Save Changes"
-                      : "Add Food"}
-                </button>
-              </div>
-            </form>
-          </section>
-        </div>
-      )}
     </main>
   );
 }
-
-export default FoodMenu;

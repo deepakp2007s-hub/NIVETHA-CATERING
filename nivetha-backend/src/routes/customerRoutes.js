@@ -15,11 +15,27 @@ const {
 
 const customerAuthMiddleware = require("../middleware/customerAuthMiddleware");
 
-// Customer: Update own profile
-router.patch("/profile", customerAuthMiddleware, updateMyProfile);
+// Customer: Update only their own profile
+router.patch(
+  "/profile",
+  customerAuthMiddleware,
+  updateMyProfile
+);
 
-// Owner-only customer management
-router.get("/", protect, allowRoles("owner"), getCustomers);
-router.get("/:id", protect, allowRoles("owner"), getCustomerById);
+// Owner-only: View all customers
+router.get(
+  "/",
+  protect,
+  allowRoles("owner"),
+  getCustomers
+);
+
+// Owner-only: View a specific customer
+router.get(
+  "/:id",
+  protect,
+  allowRoles("owner"),
+  getCustomerById
+);
 
 module.exports = router;

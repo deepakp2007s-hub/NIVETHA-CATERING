@@ -12,7 +12,7 @@ const {
   allowRoles,
 } = require("../middleware/authMiddleware");
 
-// Owner can view reviews
+// Owner-only: View customer reviews
 router.get(
   "/",
   protect,
@@ -20,7 +20,7 @@ router.get(
   getReviews
 );
 
-// Customer can submit a review
+// Customer-only: Submit a review
 router.post(
   "/",
   protect,

@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 module.exports = function customerAuthMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
 
+  // Require a Bearer token
   if (
     typeof authHeader !== "string" ||
     !authHeader.startsWith("Bearer ")
@@ -40,6 +41,7 @@ module.exports = function customerAuthMiddleware(req, res, next) {
       algorithms: ["HS256"],
     });
 
+    // Customer endpoints accept only customer tokens.
     if (
       !decoded ||
       decoded.role !== "customer" ||
@@ -59,12 +61,25 @@ module.exports = function customerAuthMiddleware(req, res, next) {
 
     return next();
   } catch (error) {
-    return res.status(401).json({
+    if (
+      error.name === "JsonWebTokenError" ||
+      error.name === "TokenExpiredError" ||
+      error.name === "NotBeforeError"
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          error.name === "TokenExpiredError"
+            ? "Session expired. Please log in again."
+            : "Invalid authentication token. Please log in again.",
+      });
+    }
+
+    console.error("Customer authentication error:", error.message);
+
+    return res.status(500).json({
       success: false,
-      message:
-        error.name === "TokenExpiredError"
-          ? "Session expired. Please log in again."
-          : "Invalid authentication token. Please log in again.",
+      message: "Customer authentication failed. Please try again.",
     });
   }
 };

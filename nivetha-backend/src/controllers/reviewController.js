@@ -2,6 +2,7 @@
 const mongoose = require("mongoose");
 const Review = require("../models/Review");
 
+// Owner: Get all reviews with pagination
 const getReviews = async (req, res, next) => {
   try {
     const parsedPage = Number.parseInt(req.query.page, 10);
@@ -45,19 +46,38 @@ const getReviews = async (req, res, next) => {
   }
 };
 
+// Customer: Submit a review
 const createReview = async (req, res, next) => {
   try {
-    const { rating, comment } = req.body;
+    const customerId = req.user?.id || req.user?._id;
 
     if (
-      typeof rating !== "number" ||
-      !Number.isInteger(rating) ||
-      rating < 1 ||
-      rating > 5
+      !customerId ||
+      !mongoose.isValidObjectId(String(customerId))
+    ) {
+      return res.status(401).json({
+        success: false,
+        message: "Valid customer authentication is required.",
+      });
+    }
+
+    const body = req.body || {};
+    const { rating, comment } = body;
+
+    const parsedRating =
+      typeof rating === "number" ? rating : Number(rating);
+
+    if (
+      rating === undefined ||
+      rating === null ||
+      rating === "" ||
+      !Number.isInteger(parsedRating) ||
+      parsedRating < 1 ||
+      parsedRating > 5
     ) {
       return res.status(400).json({
         success: false,
-        message: "Rating must be an integer between 1 and 5",
+        message: "Rating must be an integer between 1 and 5.",
       });
     }
 
@@ -67,29 +87,36 @@ const createReview = async (req, res, next) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "Comment must be text with at most 2000 characters",
-      });
-    }
-
-    if (!mongoose.isValidObjectId(req.user.id)) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid customer authentication",
+        message: "Comment must be text with at most 2000 characters.",
       });
     }
 
     const review = await Review.create({
-      customer: req.user.id,
-      rating,
+      customer: customerId,
+      rating: parsedRating,
       comment: typeof comment === "string" ? comment.trim() : "",
     });
 
     return res.status(201).json({
       success: true,
-      message: "Review submitted successfully",
+      message: "Review submitted successfully.",
       data: review,
     });
   } catch (error) {
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid review data.",
+      });
+    }
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "A review already exists for this record.",
+      });
+    }
+
     return next(error);
   }
 };

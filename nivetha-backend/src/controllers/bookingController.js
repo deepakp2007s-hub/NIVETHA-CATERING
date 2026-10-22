@@ -49,19 +49,16 @@ function normalizeBookingInput(body = {}) {
   }
 
   if (Object.hasOwn(input, "cateringServices")) {
-    if (!Array.isArray(input.cateringServices)) {
-      return { error: "Catering services must be an array." };
-    }
-
-    if (input.cateringServices.some((item) => typeof item !== "string")) {
-      return { error: "Each catering service must be a string." };
+    if (
+      !Array.isArray(input.cateringServices) ||
+      input.cateringServices.some((item) => typeof item !== "string")
+    ) {
+      return { error: "Catering services must be an array of strings." };
     }
 
     input.cateringServices = [
       ...new Set(
-        input.cateringServices
-          .map((item) => item.trim())
-          .filter(Boolean)
+        input.cateringServices.map((item) => item.trim()).filter(Boolean)
       ),
     ];
 
@@ -78,9 +75,11 @@ function normalizeBookingInput(body = {}) {
       return { error: "Selected food names must be an array of strings." };
     }
 
-    input.selectedFoodNames = input.selectedFoodNames
-      .map((name) => name.trim())
-      .filter(Boolean);
+    input.selectedFoodNames = [
+      ...new Set(
+        input.selectedFoodNames.map((name) => name.trim()).filter(Boolean)
+      ),
+    ];
   }
 
   if (Object.hasOwn(input, "selectedFoods")) {
@@ -88,18 +87,19 @@ function normalizeBookingInput(body = {}) {
       return { error: "Selected foods must be an array." };
     }
 
-    const foods = input.selectedFoods;
     const ids = [];
     const names = [];
 
-    for (const food of foods) {
+    for (const food of input.selectedFoods) {
       if (typeof food === "string") {
-        if (mongoose.isValidObjectId(food)) {
-          ids.push(food);
-        } else if (food.trim()) {
-          names.push(food.trim());
+        const value = food.trim();
+
+        if (mongoose.isValidObjectId(value)) {
+          ids.push(value);
+        } else if (value) {
+          names.push(value);
         }
-      } else if (food && typeof food === "object") {
+      } else if (food && typeof food === "object" && !Array.isArray(food)) {
         const id = food._id || food.id;
 
         if (id && mongoose.isValidObjectId(String(id))) {
@@ -115,7 +115,9 @@ function normalizeBookingInput(body = {}) {
     }
 
     input.selectedFoods = [...new Set(ids)];
-    input.selectedFoodNames = [...new Set(names)];
+    input.selectedFoodNames = [
+      ...new Set([...names, ...(input.selectedFoodNames || [])]),
+    ];
   }
 
   return input;
@@ -123,11 +125,11 @@ function normalizeBookingInput(body = {}) {
 
 function getCalendarDate(value) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, "0");
-    const day = String(value.getDate()).padStart(2, "0");
-
-    return `${year}-${month}-${day}`;
+    return [
+      value.getFullYear(),
+      String(value.getMonth() + 1).padStart(2, "0"),
+      String(value.getDate()).padStart(2, "0"),
+    ].join("-");
   }
 
   if (typeof value !== "string") return null;
@@ -229,8 +231,7 @@ function validateBooking(input, requireCateringServices = false) {
 
   if (
     requireCateringServices &&
-    !(Array.isArray(input.cateringServices) &&
-      input.cateringServices.length) &&
+    !(Array.isArray(input.cateringServices) && input.cateringServices.length) &&
     !(typeof input.cateringService === "string" &&
       input.cateringService.trim())
   ) {
@@ -250,7 +251,7 @@ function getPagination(query = {}) {
   };
 }
 
-// Owner: get all bookings with pagination
+// OWNER: Get all bookings
 const getBookings = async (req, res, next) => {
   try {
     const { page, limit } = getPagination(req.query);
@@ -264,7 +265,6 @@ const getBookings = async (req, res, next) => {
         .populate("customer", "name phone email")
         .populate("selectedFoods", "name category type")
         .lean(),
-
       Booking.countDocuments(),
     ]);
 
@@ -279,20 +279,17 @@ const getBookings = async (req, res, next) => {
       },
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
-// Customer: create a booking
+// CUSTOMER: Create a booking
 const createBooking = async (req, res, next) => {
   try {
     const input = normalizeBookingInput(req.body || {});
 
     if (input.error) {
-      return res.status(400).json({
-        success: false,
-        message: input.error,
-      });
+      return res.status(400).json({ success: false, message: input.error });
     }
 
     const validationError = validateBooking(input, true);
@@ -317,11 +314,11 @@ const createBooking = async (req, res, next) => {
       data: booking,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
-// Customer: get own bookings with pagination
+// CUSTOMER: Get own bookings
 const getMyBookings = async (req, res, next) => {
   try {
     const { page, limit } = getPagination(req.query);
@@ -335,7 +332,6 @@ const getMyBookings = async (req, res, next) => {
         .limit(limit)
         .populate("selectedFoods", "name category type")
         .lean(),
-
       Booking.countDocuments(filter),
     ]);
 
@@ -350,11 +346,11 @@ const getMyBookings = async (req, res, next) => {
       },
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
-// Owner or booking-owning customer: view one booking
+// OWNER or booking-owning CUSTOMER: Get one booking
 const getBookingById = async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -368,6 +364,11 @@ const getBookingById = async (req, res, next) => {
 
     if (req.user.role === "customer") {
       filter.customer = req.user.id;
+    } else if (req.user.role !== "owner") {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to view this booking.",
+      });
     }
 
     const booking = await Booking.findOne(filter)
@@ -382,16 +383,13 @@ const getBookingById = async (req, res, next) => {
       });
     }
 
-    return res.status(200).json({
-      success: true,
-      data: booking,
-    });
+    return res.status(200).json({ success: true, data: booking });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
-// Customer: update own pending booking
+// CUSTOMER: Update own pending booking
 const updateMyBooking = async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -461,11 +459,11 @@ const updateMyBooking = async (req, res, next) => {
       data: booking,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
-// Owner: update booking status
+// OWNER: Update booking status
 const updateBooking = async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -503,11 +501,11 @@ const updateBooking = async (req, res, next) => {
       data: booking,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
-// Customer: cancel own pending booking
+// CUSTOMER: Cancel own pending booking
 const cancelBooking = async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -540,7 +538,7 @@ const cancelBooking = async (req, res, next) => {
       data: booking,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 

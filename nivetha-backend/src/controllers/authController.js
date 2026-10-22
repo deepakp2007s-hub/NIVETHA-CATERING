@@ -8,7 +8,7 @@ const getAllowedOwnerPhones = () => {
     process.env.OWNER_PHONE_1,
     process.env.OWNER_PHONE_2,
   ]
-    .filter(Boolean)
+    .filter((phone) => typeof phone === "string" && phone.trim())
     .map((phone) => phone.trim());
 };
 
@@ -20,7 +20,10 @@ const createOwnerToken = (ownerId) => {
   }
 
   return jwt.sign(
-    { id: ownerId.toString(), role: "owner" },
+    {
+      id: ownerId.toString(),
+      role: "owner",
+    },
     secret,
     {
       expiresIn: "1d",
@@ -29,6 +32,15 @@ const createOwnerToken = (ownerId) => {
   );
 };
 
+const isAllowedOwner = (owner) => {
+  if (!owner || !owner.isActive) {
+    return false;
+  }
+
+  return getAllowedOwnerPhones().includes(owner.phone);
+};
+
+// Owner login
 exports.login = async (req, res) => {
   try {
     const phone =
@@ -37,10 +49,13 @@ exports.login = async (req, res) => {
         : "";
 
     const password = req.body?.password;
+
     const allowedPhones = getAllowedOwnerPhones();
 
     if (allowedPhones.length !== 2) {
-      console.error("Configure exactly two allowed owner phone numbers.");
+      console.error(
+        "OWNER_PHONE_1 and OWNER_PHONE_2 must both be configured."
+      );
 
       return res.status(500).json({
         success: false,
@@ -55,14 +70,14 @@ exports.login = async (req, res) => {
       });
     }
 
-    if (password.length > 128) {
+    if (phone.length > 32 || password.length > 128) {
       return res.status(401).json({
         success: false,
         message: "Invalid phone number or password.",
       });
     }
 
-    // Only these two configured accounts can use the Owner App.
+    // Only the two configured owner phone numbers are permitted.
     if (!allowedPhones.includes(phone)) {
       return res.status(401).json({
         success: false,
@@ -72,14 +87,17 @@ exports.login = async (req, res) => {
 
     const owner = await Owner.findOne({ phone }).select("+passwordHash");
 
-    if (!owner || !owner.isActive || !owner.passwordHash) {
+    if (!owner || !isAllowedOwner(owner) || !owner.passwordHash) {
       return res.status(401).json({
         success: false,
         message: "Invalid phone number or password.",
       });
     }
 
-    const isMatch = await bcrypt.compare(password, owner.passwordHash);
+    const isMatch = await bcrypt.compare(
+      password,
+      owner.passwordHash
+    );
 
     if (!isMatch) {
       return res.status(401).json({
@@ -111,8 +129,16 @@ exports.login = async (req, res) => {
   }
 };
 
+// Get logged-in owner profile
 exports.getMe = async (req, res) => {
   try {
+    if (!req.user?.id || req.user.role !== "owner") {
+      return res.status(401).json({
+        success: false,
+        message: "Owner authentication is required.",
+      });
+    }
+
     const owner = await Owner.findById(req.user.id);
 
     if (!owner || !owner.isActive) {
@@ -122,9 +148,7 @@ exports.getMe = async (req, res) => {
       });
     }
 
-    const allowedPhones = getAllowedOwnerPhones();
-
-    if (!allowedPhones.includes(owner.phone)) {
+    if (!getAllowedOwnerPhones().includes(owner.phone)) {
       return res.status(403).json({
         success: false,
         message: "This owner is not authorized to use the Owner App.",

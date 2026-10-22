@@ -7,23 +7,24 @@ const bookingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Customer",
       required: true,
+      index: false,
     },
 
     eventType: {
       type: String,
-      required: true,
+      required: [true, "Event type is required"],
       trim: true,
-      maxlength: 100,
+      maxlength: [100, "Event type cannot exceed 100 characters"],
     },
 
     functionDate: {
       type: Date,
-      required: true,
+      required: [true, "Function date is required"],
     },
 
     functionTime: {
       type: String,
-      required: true,
+      required: [true, "Function time is required"],
       trim: true,
       match: [
         /^(?:[01]\d|2[0-3]):[0-5]\d$/,
@@ -33,16 +34,16 @@ const bookingSchema = new mongoose.Schema(
 
     location: {
       type: String,
-      required: true,
+      required: [true, "Event location is required"],
       trim: true,
-      maxlength: 500,
+      maxlength: [500, "Location cannot exceed 500 characters"],
     },
 
     numberOfPersons: {
       type: Number,
-      required: true,
-      min: 1,
-      max: 1000000,
+      required: [true, "Number of persons is required"],
+      min: [1, "At least one person is required"],
+      max: [1000000, "Number of persons exceeds the limit"],
       validate: {
         validator: Number.isSafeInteger,
         message: "Number of persons must be a whole number",
@@ -53,7 +54,7 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: "cooking",
-      maxlength: 100,
+      maxlength: [100, "Catering service cannot exceed 100 characters"],
     },
 
     cateringServices: {
@@ -61,7 +62,7 @@ const bookingSchema = new mongoose.Schema(
         {
           type: String,
           trim: true,
-          maxlength: 100,
+          maxlength: [100, "Each catering service cannot exceed 100 characters"],
         },
       ],
       default: [],
@@ -71,12 +72,15 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: "",
-      maxlength: 50,
+      maxlength: [50, "Meal type cannot exceed 50 characters"],
     },
 
     foodType: {
       type: String,
-      enum: ["veg", "non-veg", "both"],
+      enum: {
+        values: ["veg", "non-veg", "both"],
+        message: "Food type must be veg, non-veg, or both",
+      },
       default: "veg",
       required: true,
     },
@@ -93,7 +97,7 @@ const bookingSchema = new mongoose.Schema(
         {
           type: String,
           trim: true,
-          maxlength: 150,
+          maxlength: [150, "Food name cannot exceed 150 characters"],
         },
       ],
       default: [],
@@ -103,18 +107,21 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: "",
-      maxlength: 2000,
+      maxlength: [2000, "Extra requirements cannot exceed 2000 characters"],
     },
 
     status: {
       type: String,
-      enum: [
-        "pending",
-        "confirmed",
-        "rejected",
-        "cancelled",
-        "completed",
-      ],
+      enum: {
+        values: [
+          "pending",
+          "confirmed",
+          "rejected",
+          "cancelled",
+          "completed",
+        ],
+        message: "Invalid booking status",
+      },
       default: "pending",
       required: true,
     },
@@ -122,6 +129,7 @@ const bookingSchema = new mongoose.Schema(
   {
     timestamps: true,
     versionKey: false,
+    strict: true,
   }
 );
 

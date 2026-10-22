@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const Notification = require("../models/Notification");
 const Customer = require("../models/Customer");
 
-const getPagination = (query) => {
+const getPagination = (query = {}) => {
   const parsedPage = Number.parseInt(query.page, 10);
   const parsedLimit = Number.parseInt(query.limit, 10);
 
@@ -17,17 +17,40 @@ const getPagination = (query) => {
       ? Math.min(parsedLimit, 100)
       : 20;
 
-  return { page, limit, skip: (page - 1) * limit };
+  return {
+    page,
+    limit,
+    skip: (page - 1) * limit,
+  };
 };
 
+const getAuthenticatedUserId = (req) => {
+  const id = req.user?.id || req.user?._id;
+
+  return id && mongoose.isValidObjectId(String(id))
+    ? String(id)
+    : null;
+};
+
+// Get notifications for the authenticated user.
+// Owner sees all notifications; customers see only their own.
 const getNotifications = async (req, res, next) => {
   try {
+    const userId = getAuthenticatedUserId(req);
+
+    if (!userId || !req.user?.role) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required.",
+      });
+    }
+
     const { page, limit, skip } = getPagination(req.query);
 
     const filter =
       req.user.role === "owner"
         ? {}
-        : { recipient: req.user.id };
+        : { recipient: userId };
 
     const [notifications, total] = await Promise.all([
       Notification.find(filter)
@@ -55,9 +78,10 @@ const getNotifications = async (req, res, next) => {
   }
 };
 
+// Owner: Create a notification for a customer.
 const createNotification = async (req, res, next) => {
   try {
-    const { recipient, title, message, type } = req.body;
+    const { recipient, title, message, type } = req.body || {};
 
     if (
       typeof recipient !== "string" ||
@@ -65,7 +89,7 @@ const createNotification = async (req, res, next) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "A valid recipient ID is required",
+        message: "A valid recipient ID is required.",
       });
     }
 
@@ -76,7 +100,7 @@ const createNotification = async (req, res, next) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "Title is required and must not exceed 150 characters",
+        message: "Title is required and must not exceed 150 characters.",
       });
     }
 
@@ -87,7 +111,7 @@ const createNotification = async (req, res, next) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "Message is required and must not exceed 2000 characters",
+        message: "Message is required and must not exceed 2000 characters.",
       });
     }
 
@@ -99,7 +123,7 @@ const createNotification = async (req, res, next) => {
       "update",
     ];
 
-    const notificationType = type || "general";
+    const notificationType = type ?? "general";
 
     if (
       typeof notificationType !== "string" ||
@@ -107,7 +131,7 @@ const createNotification = async (req, res, next) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid notification type",
+        message: "Invalid notification type.",
       });
     }
 
@@ -118,7 +142,7 @@ const createNotification = async (req, res, next) => {
     if (!customerExists) {
       return res.status(404).json({
         success: false,
-        message: "Recipient customer not found",
+        message: "Recipient customer not found.",
       });
     }
 
@@ -132,28 +156,45 @@ const createNotification = async (req, res, next) => {
 
     return res.status(201).json({
       success: true,
+      message: "Notification created successfully.",
       data: notification,
     });
   } catch (error) {
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid notification data.",
+      });
+    }
+
     return next(error);
   }
 };
 
+// Mark one notification as read.
 const markNotificationRead = async (req, res, next) => {
   try {
+    const userId = getAuthenticatedUserId(req);
     const { id } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required.",
+      });
+    }
 
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid notification ID",
+        message: "Invalid notification ID.",
       });
     }
 
     const filter = { _id: id };
 
     if (req.user.role !== "owner") {
-      filter.recipient = req.user.id;
+      filter.recipient = userId;
     }
 
     const notification = await Notification.findOneAndUpdate(
@@ -165,12 +206,13 @@ const markNotificationRead = async (req, res, next) => {
     if (!notification) {
       return res.status(404).json({
         success: false,
-        message: "Notification not found",
+        message: "Notification not found.",
       });
     }
 
     return res.status(200).json({
       success: true,
+      message: "Notification marked as read.",
       data: notification,
     });
   } catch (error) {
@@ -178,12 +220,23 @@ const markNotificationRead = async (req, res, next) => {
   }
 };
 
+// Mark all notifications for the authenticated customer as read.
+// Owner action affects all notifications.
 const markAllNotificationsRead = async (req, res, next) => {
   try {
+    const userId = getAuthenticatedUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required.",
+      });
+    }
+
     const filter =
       req.user.role === "owner"
         ? {}
-        : { recipient: req.user.id };
+        : { recipient: userId };
 
     const result = await Notification.updateMany(
       filter,
@@ -192,7 +245,7 @@ const markAllNotificationsRead = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: "Notifications marked as read",
+      message: "Notifications marked as read.",
       modifiedCount: result.modifiedCount,
     });
   } catch (error) {
@@ -200,21 +253,31 @@ const markAllNotificationsRead = async (req, res, next) => {
   }
 };
 
+// Delete a notification.
+// Customers can delete only their own; owners can delete any.
 const deleteNotification = async (req, res, next) => {
   try {
+    const userId = getAuthenticatedUserId(req);
     const { id } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required.",
+      });
+    }
 
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid notification ID",
+        message: "Invalid notification ID.",
       });
     }
 
     const filter = { _id: id };
 
     if (req.user.role !== "owner") {
-      filter.recipient = req.user.id;
+      filter.recipient = userId;
     }
 
     const notification = await Notification.findOneAndDelete(filter);
@@ -222,13 +285,13 @@ const deleteNotification = async (req, res, next) => {
     if (!notification) {
       return res.status(404).json({
         success: false,
-        message: "Notification not found",
+        message: "Notification not found.",
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: "Notification deleted successfully",
+      message: "Notification deleted successfully.",
     });
   } catch (error) {
     return next(error);

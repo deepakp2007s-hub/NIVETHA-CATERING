@@ -18,19 +18,33 @@ const {
 // All notification routes require authentication.
 router.use(protect);
 
-// View notifications belonging to the authenticated user.
+// Get notifications for the authenticated user.
 router.get("/", getNotifications);
 
-// Owner can create notifications.
-router.post("/", allowRoles("owner"), createNotification);
+// Owner only: create notifications.
+router.post(
+  "/",
+  allowRoles("owner"),
+  createNotification
+);
 
 // Mark one notification as read.
-router.patch("/:id/read", markNotificationRead);
+router.patch(
+  "/:id/read",
+  markNotificationRead
+);
 
 // Mark all notifications as read.
-router.patch("/read-all", markAllNotificationsRead);
+router.patch(
+  "/read-all",
+  markAllNotificationsRead
+);
 
-// Delete one notification.
-router.delete("/:id", deleteNotification);
+// Delete a notification.
+// Controller must verify ownership or owner permissions.
+router.delete(
+  "/:id",
+  deleteNotification
+);
 
 module.exports = router;

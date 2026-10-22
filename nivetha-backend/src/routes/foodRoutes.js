@@ -16,17 +16,38 @@ const {
   allowRoles,
 } = require("../middleware/authMiddleware");
 
-// Public customer menu — available foods only
+// Public customer menu: available foods only
+// Customer response must not expose food prices.
 router.get("/customer", getCustomerFoods);
 
 // Owner-only food management
-router.get("/", protect, allowRoles("owner"), getFoods);
+router.get(
+  "/",
+  protect,
+  allowRoles("owner"),
+  getFoods
+);
 
-router.post("/", protect, allowRoles("owner"), createFood);
+router.post(
+  "/",
+  protect,
+  allowRoles("owner"),
+  createFood
+);
 
-router.patch("/:id", protect, allowRoles("owner"), updateFood);
+router.patch(
+  "/:id",
+  protect,
+  allowRoles("owner"),
+  updateFood
+);
 
-router.delete("/:id", protect, allowRoles("owner"), deleteFood);
+router.delete(
+  "/:id",
+  protect,
+  allowRoles("owner"),
+  deleteFood
+);
 
 router.patch(
   "/:id/availability",

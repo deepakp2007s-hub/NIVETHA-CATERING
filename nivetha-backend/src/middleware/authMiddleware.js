@@ -8,6 +8,14 @@ const getAllowedOwnerPhones = () =>
     .filter((phone) => typeof phone === "string" && phone.trim())
     .map((phone) => phone.trim());
 
+const isValidOwnerConfiguration = (phones) => {
+  return (
+    phones.length === 2 &&
+    phones[0] !== phones[1] &&
+    phones.every((phone) => /^[6-9]\d{9}$/.test(phone))
+  );
+};
+
 const protect = async (req, res, next) => {
   const authorization = req.headers.authorization;
 
@@ -58,15 +66,11 @@ const protect = async (req, res, next) => {
       });
     }
 
-    // Verify owner account and enforce the two-phone allowlist.
+    // Validate owner authorization on every protected owner request.
     if (decoded.role === "owner") {
       const allowedPhones = getAllowedOwnerPhones();
 
-      if (
-        allowedPhones.length !== 2 ||
-        allowedPhones[0] === allowedPhones[1] ||
-        allowedPhones.some((phone) => !/^[6-9]\d{9}$/.test(phone))
-      ) {
+      if (!isValidOwnerConfiguration(allowedPhones)) {
         console.error("Owner phone allowlist is not configured correctly.");
 
         return res.status(500).json({
@@ -75,7 +79,9 @@ const protect = async (req, res, next) => {
         });
       }
 
-      const owner = await Owner.findById(decoded.id).select("phone isActive");
+      const owner = await Owner.findById(decoded.id)
+        .select("phone isActive")
+        .lean();
 
       if (
         !owner ||
@@ -110,6 +116,7 @@ const protect = async (req, res, next) => {
       });
     }
 
+    // Forward database and unexpected errors to Express error middleware.
     return next(error);
   }
 };
