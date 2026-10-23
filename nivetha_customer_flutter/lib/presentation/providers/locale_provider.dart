@@ -1,20 +1,40 @@
+
 import 'package:flutter/material.dart';
+
 class LocaleProvider extends ChangeNotifier {
   Locale _locale = const Locale('en');
+
   Locale get locale => _locale;
+
   bool get isTamil => _locale.languageCode == 'ta';
+
+  String get languageName => isTamil ? 'தமிழ்' : 'English';
+
   void setLocale(Locale locale) {
-    if (_locale != locale) {
-      _locale = locale;
-      notifyListeners();
+    if (locale.languageCode != 'en' &&
+        locale.languageCode != 'ta') {
+      return;
     }
-  }
-  void toggleLanguage() {
-    if (_locale.languageCode == 'en') {
-      _locale = const Locale('ta');
-    } else {
-      _locale = const Locale('en');
-    }
+
+    if (_locale == locale) return;
+
+    _locale = locale;
     notifyListeners();
+  }
+
+  void setEnglish() {
+    setLocale(const Locale('en'));
+  }
+
+  void setTamil() {
+    setLocale(const Locale('ta'));
+  }
+
+  void toggleLanguage() {
+    if (isTamil) {
+      setEnglish();
+    } else {
+      setTamil();
+    }
   }
 }
