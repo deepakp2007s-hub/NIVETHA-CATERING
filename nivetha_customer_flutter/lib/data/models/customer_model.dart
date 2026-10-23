@@ -2,50 +2,51 @@
 class CustomerModel {
   final String id;
   final String name;
-  final String mobile;
+  final String phone;
   final String email;
+  final String address;
+  final DateTime? createdAt;
 
   const CustomerModel({
     required this.id,
     required this.name,
-    required this.mobile,
+    required this.phone,
     this.email = '',
+    this.address = '',
+    this.createdAt,
   });
+
+  String get mobile => phone;
 
   factory CustomerModel.fromJson(Map<String, dynamic> json) {
     return CustomerModel(
       id: (json['_id'] ?? json['id'] ?? '').toString(),
-      name: (json['name'] ?? json['fullName'] ?? '').toString(),
-      mobile: (
-        json['mobile'] ??
-        json['phone'] ??
-        json['phoneNumber'] ??
-        ''
-      ).toString(),
+      name: (json['name'] ?? '').toString(),
+      phone: (json['phone'] ?? json['mobile'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
+      address: (json['address'] ?? '').toString(),
+      createdAt: _parseDate(json['createdAt']),
     );
+  }
+
+  factory CustomerModel.fromMap(Map<String, dynamic> json) {
+    return CustomerModel.fromJson(json);
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      '_id': id,
       'name': name,
-      'mobile': mobile,
+      'phone': phone,
       'email': email,
+      'address': address,
+      if (createdAt != null)
+        'createdAt': createdAt!.toIso8601String(),
     };
   }
 
-  CustomerModel copyWith({
-    String? id,
-    String? name,
-    String? mobile,
-    String? email,
-  }) {
-    return CustomerModel(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      mobile: mobile ?? this.mobile,
-      email: email ?? this.email,
-    );
+  static DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    return DateTime.tryParse(value.toString());
   }
 }

@@ -1,6 +1,5 @@
 
 import 'package:flutter/material.dart';
-
 import '../../../core/constants/app_colors.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -24,9 +23,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool get _isTamil => _language == 'ta';
 
-  String _text(String english, String tamil) {
-    return _isTamil ? tamil : english;
-  }
+  String _text(String english, String tamil) =>
+      _isTamil ? tamil : english;
 
   @override
   Widget build(BuildContext context) {
@@ -149,10 +147,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [
-            AppColors.primaryGreenDark,
-            AppColors.primary,
-          ],
+          colors: [AppColors.primaryGreenDark, AppColors.primary],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -322,69 +317,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }) {
     final selected = _language == code;
 
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _language = code;
-        });
-      },
+    return Material(
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(13),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 12,
-        ),
-        decoration: BoxDecoration(
-          color: selected
-              ? AppColors.primary.withValues(alpha: 0.08)
-              : Colors.white,
-          borderRadius: BorderRadius.circular(13),
-          border: Border.all(
-            color: selected
-                ? AppColors.primary
-                : AppColors.cardBorder,
+      child: InkWell(
+        onTap: () => setState(() => _language = code),
+        borderRadius: BorderRadius.circular(13),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 12,
           ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              selected
-                  ? Icons.radio_button_checked_rounded
-                  : Icons.radio_button_unchecked_rounded,
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.primary.withValues(alpha: 0.08)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
               color: selected
                   ? AppColors.primary
-                  : AppColors.textSecondary,
+                  : AppColors.cardBorder,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: AppColors.primaryGreenDark,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
+          ),
+          child: Row(
+            children: [
+              Icon(
+                selected
+                    ? Icons.radio_button_checked_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                color: selected
+                    ? AppColors.primary
+                    : AppColors.textSecondary,
               ),
-            ),
-            if (selected)
-              const Icon(
-                Icons.check_circle_rounded,
-                color: AppColors.primary,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppColors.primaryGreenDark,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-          ],
+              if (selected)
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: AppColors.primary,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -403,35 +398,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: AppColors.cardBorder),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 5,
-        ),
-        leading: _iconContainer(icon),
-        title: Text(
-          title,
-          style: const TextStyle(
-            color: AppColors.primaryGreenDark,
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(15),
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          tileColor: Colors.transparent,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 5,
           ),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            subtitle,
+          leading: _iconContainer(icon),
+          title: Text(
+            title,
             style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 11,
+              color: AppColors.primaryGreenDark,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
             ),
           ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              subtitle,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 11,
+              ),
+            ),
+          ),
+          trailing: const Icon(
+            Icons.chevron_right_rounded,
+            color: AppColors.textSecondary,
+          ),
+          onTap: onTap,
         ),
-        trailing: const Icon(
-          Icons.chevron_right_rounded,
-          color: AppColors.textSecondary,
-        ),
-        onTap: onTap,
       ),
     );
   }
@@ -453,6 +454,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showMessage(String message) {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(

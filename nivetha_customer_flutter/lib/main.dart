@@ -7,6 +7,7 @@ import 'core/localization/app_localizations.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/providers/locale_provider.dart';
 import 'presentation/screens/main_shell_screen.dart';
+import 'presentation/screens/splash/splash_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,7 +15,9 @@ void main() {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => LocaleProvider()),
+        ChangeNotifierProvider(
+          create: (_) => LocaleProvider(),
+        ),
       ],
       child: const NivethaCateringApp(),
     ),
@@ -43,7 +46,14 @@ class NivethaCateringApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: const MainShellScreen(),
+
+      // First screen when the app opens.
+      home: const SplashScreen(),
+
+      // Main customer app screen.
+      routes: {
+        '/home': (context) => const MainShellScreen(),
+      },
     );
   }
 }

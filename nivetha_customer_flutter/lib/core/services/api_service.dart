@@ -72,11 +72,55 @@ class ApiService {
     }
   }
 
+  Future<dynamic> patch(
+    String path, {
+    Map<String, dynamic>? body,
+    String? token,
+  }) async {
+    try {
+      final response = await _client
+          .patch(
+            _buildUri(path),
+            headers: _headers(token),
+            body: jsonEncode(body ?? <String, dynamic>{}),
+          )
+          .timeout(ApiConfig.receiveTimeout);
+
+      return _handleResponse(response);
+    } on TimeoutException {
+      throw Exception('Server took too long to respond. Try again.');
+    } on http.ClientException {
+      throw Exception('Unable to connect to the server.');
+    }
+  }
+
+  Future<dynamic> delete(
+    String path, {
+    String? token,
+  }) async {
+    try {
+      final response = await _client
+          .delete(
+            _buildUri(path),
+            headers: _headers(token),
+          )
+          .timeout(ApiConfig.receiveTimeout);
+
+      return _handleResponse(response);
+    } on TimeoutException {
+      throw Exception('Server took too long to respond. Try again.');
+    } on http.ClientException {
+      throw Exception('Unable to connect to the server.');
+    }
+  }
+
   dynamic _handleResponse(http.Response response) {
     dynamic data;
 
     try {
-      data = jsonDecode(response.body);
+      data = response.body.isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(response.body);
     } catch (_) {
       data = response.body;
     }

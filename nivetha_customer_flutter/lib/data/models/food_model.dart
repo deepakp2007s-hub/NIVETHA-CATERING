@@ -26,10 +26,12 @@ class FoodModel {
       name: (json['name'] ?? '').toString(),
       tamilName: (json['tamilName'] ?? '').toString(),
       category: (json['category'] ?? '').toString(),
-      type: (json['type'] ?? '').toString(),
+      type: (json['type'] ?? 'veg').toString(),
       description: (json['description'] ?? '').toString(),
       image: (json['image'] ?? '').toString(),
-      available: json['available'] == true,
+      available: json['available'] is bool
+          ? json['available'] as bool
+          : true,
     );
   }
 

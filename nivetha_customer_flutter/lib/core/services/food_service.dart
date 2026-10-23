@@ -8,7 +8,6 @@ class FoodService {
 
   final ApiService _api = ApiService.instance;
 
-  // Confirm this route against the deployed backend.
   static const String foodsEndpoint = '/foods/customer';
 
   Future<List<Map<String, dynamic>>> getFoods() async {
@@ -17,8 +16,8 @@ class FoodService {
     dynamic items = response;
 
     if (response is Map) {
-      items = response['foods'] ??
-          response['data'] ??
+      items = response['data'] ??
+          response['foods'] ??
           response['items'];
     }
 
@@ -30,15 +29,13 @@ class FoodService {
 
     return items
         .whereType<Map>()
-        .map((item) {
-          final food = Map<String, dynamic>.from(item);
-
-          // Never expose food prices in the customer app.
+        .map((item) => Map<String, dynamic>.from(item))
+        .where((food) => food['available'] != false)
+        .map((food) {
+          // Customer app must not display food prices.
           food.remove('price');
-
           return food;
         })
-        .where((food) => food['available'] != false)
         .toList();
   }
 }
