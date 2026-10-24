@@ -1,134 +1,148 @@
 
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import mongoose from 'mongoose';
 import Food from '../models/Food.js';
 
-const escapeRegex = (value) =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const ALLOWED_CATEGORIES = [
+  'Breakfast & Tiffin',
+  'Meals & Vegetarian',
+  'Biryani, Rice & Non-Vegetarian',
+  'Dinner',
+  'Sweets & Desserts',
+];
 
-const validateFoodId = (id) => mongoose.isValidObjectId(id);
+const ALLOWED_TYPES = ['Veg', 'Non-Veg', 'Sweet'];
 
-const handleFoodError = (error, res, next) => {
-  if (error?.code === 11000) {
-    return res.status(409).json({
-      success: false,
-      message: 'A food item with this name already exists.',
-    });
+const ALLOWED_FIELDS = [
+  'name',
+  'tamilName',
+  'category',
+  'type',
+  'description',
+  'price',
+  'image',
+  'available',
+];
+
+const isValidImageUrl = (value) => {
+  if (typeof value !== 'string' || !value.trim()) return false;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
   }
-
-  if (error?.name === 'ValidationError' || error?.name === 'CastError') {
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
-  }
-
-  return next(error);
 };
 
 /**
- * GET /api/foods
- * Public food list with optional filters.
+ * Get all foods with optional filters.
  */
-export const getFoods = async (req, res, next) => {
+export const getAllFoods = async (req, res) => {
   try {
-    const { category, type, available, search } = req.query;
+    const { category, type, search, available } = req.query;
     const filter = {};
 
-    if (category !== undefined) {
-      if (typeof category !== 'string' || !category.trim()) {
+    if (category && category !== 'All') {
+      if (!ALLOWED_CATEGORIES.includes(category)) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid category.',
+          message: 'Invalid food category',
         });
       }
-      filter.category = category.trim();
+      filter.category = category;
     }
 
-    if (type !== undefined) {
-      if (typeof type !== 'string' || !type.trim()) {
+    if (type && type !== 'All') {
+      if (!ALLOWED_TYPES.includes(type)) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid food type.',
+          message: 'Invalid food type',
         });
       }
-      filter.type = type.trim().toLowerCase();
+      filter.type = type;
     }
 
     if (available !== undefined) {
       if (!['true', 'false'].includes(available)) {
         return res.status(400).json({
           success: false,
-          message: 'Available must be true or false.',
+          message: 'available must be true or false',
         });
       }
       filter.available = available === 'true';
     }
 
-    if (search !== undefined) {
-      if (typeof search !== 'string' || search.length > 100) {
-        return res.status(400).json({
-          success: false,
-          message: 'Search must be a string of at most 100 characters.',
-        });
-      }
+    if (search?.trim()) {
+      const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escaped, 'i');
 
-      const query = search.trim();
-
-      if (query) {
-        const escaped = escapeRegex(query);
-        filter.$or = [
-          { name: { $regex: escaped, $options: 'i' } },
-          { tamilName: { $regex: escaped, $options: 'i' } },
-          { description: { $regex: escaped, $options: 'i' } },
-        ];
-      }
+      filter.$or = [
+        { name: searchRegex },
+        { tamilName: searchRegex },
+        { description: searchRegex },
+      ];
     }
 
-    const foods = await Food.find(filter)
-      .sort({ category: 1, name: 1 })
-      .lean();
+    const foods = await Food.find(filter).sort({ category: 1, name: 1 });
 
     return res.status(200).json({
       success: true,
       count: foods.length,
-      foods,
+      data: foods,
     });
   } catch (error) {
-    return next(error);
+    console.error('getAllFoods error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch food items',
+    });
   }
 };
 
 /**
- * GET /api/foods/:id
+ * Get one food by ID.
  */
-export const getFoodById = async (req, res, next) => {
+export const getFoodById = async (req, res) => {
   try {
-    if (!validateFoodId(req.params.id)) {
+    if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid food ID.',
+        message: 'Invalid food ID',
       });
     }
 
-    const food = await Food.findById(req.params.id).lean();
+    const food = await Food.findById(req.params.id);
 
     if (!food) {
       return res.status(404).json({
         success: false,
-        message: 'Food item not found.',
+        message: 'Food item not found',
       });
     }
 
-    return res.status(200).json({ success: true, food });
+    return res.status(200).json({
+      success: true,
+      data: food,
+    });
   } catch (error) {
-    return next(error);
+    console.error('getFoodById error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch food item',
+    });
   }
 };
 
 /**
- * POST /api/foods — Owner only.
+ * Create a food item.
+ * This route must use protectOwner in foodRoutes.js.
  */
-export const createFood = async (req, res, next) => {
+export const createFood = async (req, res) => {
   try {
     const {
       name,
@@ -136,278 +150,349 @@ export const createFood = async (req, res, next) => {
       category,
       type,
       description = '',
-      price = 0,
-      image = '',
+      price,
+      image,
       available = true,
     } = req.body;
 
-    if (
-      typeof name !== 'string' ||
-      !name.trim() ||
-      typeof tamilName !== 'string' ||
-      !tamilName.trim() ||
-      typeof category !== 'string' ||
-      !category.trim() ||
-      typeof type !== 'string' ||
-      !type.trim()
-    ) {
+    if (typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Food name, Tamil name, category, and type are required.',
+        message: 'Food name is required',
+      });
+    }
+
+    if (typeof tamilName !== 'string' || !tamilName.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tamil food name is required',
+      });
+    }
+
+    if (!ALLOWED_CATEGORIES.includes(category)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid food category',
+      });
+    }
+
+    if (!ALLOWED_TYPES.includes(type || 'Veg')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid food type',
       });
     }
 
     if (
-      typeof description !== 'string' ||
-      typeof image !== 'string' ||
-      typeof available !== 'boolean'
+      price === undefined ||
+      price === null ||
+      price === '' ||
+      !Number.isFinite(Number(price)) ||
+      Number(price) < 0
     ) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid description, image, or availability value.',
+        message: 'A valid non-negative price is required',
       });
     }
 
-    const parsedPrice = Number(price);
-
-    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+    if (!isValidImageUrl(image)) {
       return res.status(400).json({
         success: false,
-        message: 'Price must be a valid non-negative number.',
+        message: 'A valid HTTP or HTTPS image URL is required',
+      });
+    }
+
+    if (typeof available !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'available must be a boolean',
       });
     }
 
     const normalizedName = name.trim();
+    const existingFood = await Food.findOne({
+      name: { $regex: `^${normalizedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
+    });
 
-    const existing = await Food.findOne({
-      name: normalizedName,
-    }).select('_id');
-
-    if (existing) {
+    if (existingFood) {
       return res.status(409).json({
         success: false,
-        message: 'A food item with this name already exists.',
+        message: `Food "${normalizedName}" already exists`,
       });
     }
 
     const food = await Food.create({
       name: normalizedName,
       tamilName: tamilName.trim(),
-      category: category.trim(),
-      type: type.trim().toLowerCase(),
-      description: description.trim(),
-      price: parsedPrice,
+      category,
+      type: type || 'Veg',
+      description: typeof description === 'string' ? description.trim() : '',
+      price: Number(price),
       image: image.trim(),
       available,
     });
 
     return res.status(201).json({
       success: true,
-      message: 'Food item created successfully.',
-      food,
+      message: 'Food item created successfully',
+      data: food,
     });
   } catch (error) {
-    return handleFoodError(error, res, next);
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'A food item with this name already exists',
+      });
+    }
+
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    console.error('createFood error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to create food item',
+    });
   }
 };
 
 /**
- * PUT /api/foods/:id — Owner only.
+ * Update only supported food fields.
  */
-export const updateFood = async (req, res, next) => {
+export const updateFood = async (req, res) => {
   try {
-    if (!validateFoodId(req.params.id)) {
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid food ID.',
+        message: 'Invalid food ID',
       });
     }
 
-    const food = await Food.findById(req.params.id);
+    const updates = {};
 
-    if (!food) {
-      return res.status(404).json({
+    for (const field of ALLOWED_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+        updates[field] = req.body[field];
+      }
+    }
+
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({
         success: false,
-        message: 'Food item not found.',
+        message: 'No valid food fields provided',
       });
     }
 
-    const updates = req.body;
-
-    if (updates.name !== undefined) {
+    if ('name' in updates) {
       if (typeof updates.name !== 'string' || !updates.name.trim()) {
         return res.status(400).json({
           success: false,
-          message: 'Food name must be a non-empty string.',
+          message: 'Food name cannot be empty',
         });
       }
+      updates.name = updates.name.trim();
 
-      const newName = updates.name.trim();
+      const duplicate = await Food.findOne({
+        name: { $regex: `^${updates.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
+        _id: { $ne: id },
+      });
 
-      if (newName !== food.name) {
-        const duplicate = await Food.findOne({
-          name: newName,
-          _id: { $ne: food._id },
-        }).select('_id');
-
-        if (duplicate) {
-          return res.status(409).json({
-            success: false,
-            message: 'A food item with this name already exists.',
-          });
-        }
-
-        food.name = newName;
+      if (duplicate) {
+        return res.status(409).json({
+          success: false,
+          message: 'Another food already uses this name',
+        });
       }
     }
 
-    if (updates.tamilName !== undefined) {
+    if ('tamilName' in updates) {
       if (typeof updates.tamilName !== 'string' || !updates.tamilName.trim()) {
         return res.status(400).json({
           success: false,
-          message: 'Tamil name must be a non-empty string.',
+          message: 'Tamil name cannot be empty',
         });
       }
-      food.tamilName = updates.tamilName.trim();
+      updates.tamilName = updates.tamilName.trim();
     }
 
-    if (updates.category !== undefined) {
-      if (typeof updates.category !== 'string') {
+    if ('category' in updates && !ALLOWED_CATEGORIES.includes(updates.category)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid food category',
+      });
+    }
+
+    if ('type' in updates && !ALLOWED_TYPES.includes(updates.type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid food type',
+      });
+    }
+
+    if ('price' in updates) {
+      if (
+        updates.price === '' ||
+        !Number.isFinite(Number(updates.price)) ||
+        Number(updates.price) < 0
+      ) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid food category.',
+          message: 'Price must be a valid non-negative number',
         });
       }
-      food.category = updates.category.trim();
+      updates.price = Number(updates.price);
     }
 
-    if (updates.type !== undefined) {
-      if (typeof updates.type !== 'string' || !updates.type.trim()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid food type.',
-        });
-      }
-      food.type = updates.type.trim().toLowerCase();
+    if ('image' in updates && !isValidImageUrl(updates.image)) {
+      return res.status(400).json({
+        success: false,
+        message: 'A valid HTTP or HTTPS image URL is required',
+      });
     }
 
-    if (updates.description !== undefined) {
+    if ('available' in updates && typeof updates.available !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'available must be a boolean',
+      });
+    }
+
+    if ('description' in updates) {
       if (typeof updates.description !== 'string') {
         return res.status(400).json({
           success: false,
-          message: 'Description must be a string.',
+          message: 'Description must be text',
         });
       }
-      food.description = updates.description.trim();
+      updates.description = updates.description.trim();
     }
 
-    if (updates.price !== undefined) {
-      const parsedPrice = Number(updates.price);
-
-      if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'Price must be a valid non-negative number.',
-        });
-      }
-      food.price = parsedPrice;
-    }
-
-    if (updates.image !== undefined) {
-      if (typeof updates.image !== 'string') {
-        return res.status(400).json({
-          success: false,
-          message: 'Image must be a string.',
-        });
-      }
-      food.image = updates.image.trim();
-    }
-
-    if (updates.available !== undefined) {
-      if (typeof updates.available !== 'boolean') {
-        return res.status(400).json({
-          success: false,
-          message: 'Availability must be true or false.',
-        });
-      }
-      food.available = updates.available;
-    }
-
-    await food.save();
-
-    return res.status(200).json({
-      success: true,
-      message: 'Food item updated successfully.',
-      food,
+    const food = await Food.findByIdAndUpdate(id, updates, {
+      new: true,
+      runValidators: true,
     });
-  } catch (error) {
-    return handleFoodError(error, res, next);
-  }
-};
-
-/**
- * PATCH /api/foods/:id/toggle-availability — Owner only.
- */
-export const toggleFoodAvailability = async (req, res, next) => {
-  try {
-    if (!validateFoodId(req.params.id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid food ID.',
-      });
-    }
-
-    const food = await Food.findById(req.params.id);
 
     if (!food) {
       return res.status(404).json({
         success: false,
-        message: 'Food item not found.',
+        message: 'Food item not found',
       });
     }
 
-    food.available = !food.available;
-    await food.save();
-
     return res.status(200).json({
       success: true,
-      message: `Food availability set to ${food.available ? 'Available' : 'Unavailable'}.`,
-      available: food.available,
-      food,
+      message: 'Food item updated successfully',
+      data: food,
     });
   } catch (error) {
-    return handleFoodError(error, res, next);
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'A food item with this name already exists',
+      });
+    }
+
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    console.error('updateFood error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update food item',
+    });
   }
 };
 
 /**
- * DELETE /api/foods/:id — Owner only.
+ * Delete a food item.
+ * This route must use protectOwner in foodRoutes.js.
  */
-export const deleteFood = async (req, res, next) => {
+export const deleteFood = async (req, res) => {
   try {
-    if (!validateFoodId(req.params.id)) {
+    if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid food ID.',
+        message: 'Invalid food ID',
       });
     }
 
-    const food = await Food.findById(req.params.id);
+    const food = await Food.findByIdAndDelete(req.params.id);
 
     if (!food) {
       return res.status(404).json({
         success: false,
-        message: 'Food item not found.',
+        message: 'Food item not found',
       });
     }
 
-    await Food.deleteOne({ _id: food._id });
+    return res.status(200).json({
+      success: true,
+      message: `Deleted food item "${food.name}"`,
+    });
+  } catch (error) {
+    console.error('deleteFood error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to delete food item',
+    });
+  }
+};
+
+/**
+ * Get live food catalog statistics.
+ */
+export const getCatalogStats = async (req, res) => {
+  try {
+    const [total, available, veg, nonVeg, sweets, categories] =
+      await Promise.all([
+        Food.countDocuments(),
+        Food.countDocuments({ available: true }),
+        Food.countDocuments({ type: 'Veg' }),
+        Food.countDocuments({ type: 'Non-Veg' }),
+        Food.countDocuments({ type: 'Sweet' }),
+        Food.aggregate([
+          {
+            $group: {
+              _id: '$category',
+              count: { $sum: 1 },
+              available: {
+                $sum: { $cond: ['$available', 1, 0] },
+              },
+              avgPrice: { $avg: '$price' },
+            },
+          },
+          { $sort: { _id: 1 } },
+        ]),
+      ]);
 
     return res.status(200).json({
       success: true,
-      message: `Food item "${food.name}" deleted successfully.`,
+      data: {
+        total,
+        available,
+        unavailable: total - available,
+        veg,
+        nonVeg,
+        sweets,
+        categories,
+      },
     });
   } catch (error) {
-    return next(error);
+    console.error('getCatalogStats error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch food statistics',
+    });
   }
 };

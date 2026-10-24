@@ -1,24 +1,32 @@
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import express from 'express';
 import {
-  getFoods,
+  getAllFoods,
   getFoodById,
   createFood,
   updateFood,
-  toggleFoodAvailability,
   deleteFood,
+  getCatalogStats,
 } from '../controllers/foodController.js';
+
 import { protectOwner } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Public / Customer read access
-router.get('/', getFoods);
+// Public routes — customers can view foods
+router.get('/stats', getCatalogStats);
+router.get('/', getAllFoods);
 router.get('/:id', getFoodById);
 
-// Owner-only write / modify access
+// Owner-only routes — authentication required
 router.post('/', protectOwner, createFood);
 router.put('/:id', protectOwner, updateFood);
-router.patch('/:id/toggle-availability', protectOwner, toggleFoodAvailability);
+router.patch('/:id', protectOwner, updateFood);
 router.delete('/:id', protectOwner, deleteFood);
 
 export default router;
