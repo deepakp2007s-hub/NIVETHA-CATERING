@@ -1,27 +1,29 @@
 
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 
-import 'core/localization/app_localizations.dart';
 import 'core/theme/app_theme.dart';
-import 'presentation/providers/locale_provider.dart';
+import 'presentation/screens/auth/login_screen.dart';
 import 'presentation/screens/main_shell_screen.dart';
 import 'presentation/screens/splash/splash_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(
-          create: (_) => LocaleProvider(),
-        ),
-      ],
-      child: const NivethaCateringApp(),
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Color(0xFFFFF8EC),
+      statusBarIconBrightness: Brightness.dark,
+      systemNavigationBarColor: Color(0xFFFFF8EC),
+      systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
+
+  runApp(const NivethaCateringApp());
 }
 
 class NivethaCateringApp extends StatelessWidget {
@@ -29,30 +31,21 @@ class NivethaCateringApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final localeProvider = context.watch<LocaleProvider>();
-
     return MaterialApp(
-      title: 'Nivetha Catering',
+      title: 'Nivetha Catering Service',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      locale: localeProvider.locale,
-      supportedLocales: const [
-        Locale('en'),
-        Locale('ta'),
-      ],
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-
-      // First screen when the app opens.
-      home: const SplashScreen(),
-
-      // Main customer app screen.
+      themeMode: ThemeMode.light,
+      initialRoute: '/',
       routes: {
+        '/': (context) => const SplashScreen(),
+        '/login': (context) => const LoginScreen(),
         '/home': (context) => const MainShellScreen(),
+      },
+      onUnknownRoute: (settings) {
+        return MaterialPageRoute<void>(
+          builder: (_) => const LoginScreen(),
+        );
       },
     );
   }

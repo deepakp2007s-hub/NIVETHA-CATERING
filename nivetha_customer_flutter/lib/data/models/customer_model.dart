@@ -2,51 +2,61 @@
 class CustomerModel {
   final String id;
   final String name;
-  final String phone;
   final String email;
-  final String address;
-  final DateTime? createdAt;
+  final String phone;
+  final String? address;
+  final String? profileImage;
 
   const CustomerModel({
     required this.id,
     required this.name,
+    required this.email,
     required this.phone,
-    this.email = '',
-    this.address = '',
-    this.createdAt,
+    this.address,
+    this.profileImage,
   });
 
-  String get mobile => phone;
-
   factory CustomerModel.fromJson(Map<String, dynamic> json) {
-    return CustomerModel(
-      id: (json['_id'] ?? json['id'] ?? '').toString(),
-      name: (json['name'] ?? '').toString(),
-      phone: (json['phone'] ?? json['mobile'] ?? '').toString(),
-      email: (json['email'] ?? '').toString(),
-      address: (json['address'] ?? '').toString(),
-      createdAt: _parseDate(json['createdAt']),
-    );
-  }
+    final idValue = json['_id'] ?? json['id'];
 
-  factory CustomerModel.fromMap(Map<String, dynamic> json) {
-    return CustomerModel.fromJson(json);
+    return CustomerModel(
+      id: idValue?.toString() ?? '',
+      name: (json['name'] ?? json['fullName'] ?? '').toString(),
+      email: (json['email'] ?? '').toString(),
+      phone: (json['phone'] ?? json['mobile'] ?? '').toString(),
+      address: json['address']?.toString(),
+      profileImage:
+          (json['profileImage'] ?? json['avatar'] ?? json['image'])
+              ?.toString(),
+    );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      '_id': id,
+      'id': id,
       'name': name,
-      'phone': phone,
       'email': email,
-      'address': address,
-      if (createdAt != null)
-        'createdAt': createdAt!.toIso8601String(),
+      'phone': phone,
+      if (address != null) 'address': address,
+      if (profileImage != null) 'profileImage': profileImage,
     };
   }
 
-  static DateTime? _parseDate(dynamic value) {
-    if (value == null) return null;
-    return DateTime.tryParse(value.toString());
+  CustomerModel copyWith({
+    String? id,
+    String? name,
+    String? email,
+    String? phone,
+    String? address,
+    String? profileImage,
+  }) {
+    return CustomerModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      address: address ?? this.address,
+      profileImage: profileImage ?? this.profileImage,
+    );
   }
 }

@@ -1,7 +1,7 @@
-
 name: nivetha_customer_flutter
 description: "Nivetha Catering Customer Mobile Application"
 publish_to: "none"
+
 version: 1.0.0+1
 
 environment:
@@ -19,6 +19,7 @@ dependencies:
   provider: ^6.1.2
   http: ^1.6.0
   flutter_secure_storage: ^11.2.0
+  shared_preferences: ^2.5.6
 
 dev_dependencies:
   flutter_test:

@@ -3,44 +3,30 @@ import '../models/food_model.dart';
 import '../../core/services/food_service.dart';
 
 class FoodRepository {
-  FoodRepository._();
+  FoodRepository({FoodService? foodService})
+      : _foodService = foodService ?? FoodService.instance;
 
-  static final FoodRepository instance = FoodRepository._();
+  final FoodService _foodService;
 
-  final FoodService _foodService = FoodService.instance;
-
-  Future<List<FoodModel>> getFoods() async {
-    final items = await _foodService.getFoods();
-
-    return items
-        .map((item) => FoodModel.fromJson(item))
-        .toList();
-  }
-
-  Future<List<FoodModel>> getAvailableFoods() async {
-    final foods = await getFoods();
-
-    return foods
-        .where((food) => food.available)
-        .toList();
-  }
-
-  Future<List<FoodModel>> getFoodsByCategory(
-    String category,
-  ) async {
-    final foods = await getAvailableFoods();
-
-    if (category.trim().isEmpty ||
-        category.toLowerCase() == 'all') {
-      return foods;
-    }
+  Future<List<FoodModel>> getFoods({
+    String? category,
+    String? type,
+    bool? available,
+  }) async {
+    final foods = await _foodService.getFoods(
+      category: category,
+      type: type,
+      available: available,
+    );
 
     return foods
-        .where(
-          (food) =>
-              food.category.toLowerCase() ==
-              category.trim().toLowerCase(),
-        )
-        .toList();
+        .map(FoodModel.fromJson)
+        .where((food) => food.id.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Future<FoodModel> getFoodById(String foodId) async {
+    final foodJson = await _foodService.getFoodById(foodId);
+    return FoodModel.fromJson(foodJson);
   }
 }

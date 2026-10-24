@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
+import 'auth_storage_service.dart';
 
 class ApiService {
   ApiService._();
@@ -13,142 +14,223 @@ class ApiService {
 
   final http.Client _client = http.Client();
 
-  Uri _buildUri(String path) {
-    final base = Uri.parse('${ApiConfig.baseUrl}/');
-    final normalizedPath =
-        path.startsWith('/') ? path.substring(1) : path;
-
-    return base.resolve(normalizedPath);
-  }
-
-  Map<String, String> _headers(String? token) {
-    return {
+  Future<Map<String, String>> _headers({
+    bool authenticated = false,
+    Map<String, String>? additionalHeaders,
+  }) async {
+    final headers = <String, String>{
       'Accept': 'application/json',
       'Content-Type': 'application/json',
-      if (token != null && token.isNotEmpty)
-        'Authorization': 'Bearer $token',
+      ...?additionalHeaders,
     };
+
+    if (authenticated) {
+      final token = await AuthStorageService.getToken();
+
+      if (token != null && token.trim().isNotEmpty) {
+        headers['Authorization'] = 'Bearer ${token.trim()}';
+      }
+    }
+
+    return headers;
+  }
+
+  Uri _uri(
+    String path, [
+    Map<String, String>? queryParameters,
+  ]) {
+    final uri = Uri.parse(ApiConfig.endpoint(path));
+
+    if (queryParameters == null || queryParameters.isEmpty) {
+      return uri;
+    }
+
+    return uri.replace(
+      queryParameters: {
+        ...uri.queryParameters,
+        ...queryParameters,
+      },
+    );
+  }
+
+  dynamic _decodeResponse(http.Response response) {
+    if (response.body.trim().isEmpty) {
+      return null;
+    }
+
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      throw ApiException(
+        'Server returned an invalid response.',
+        statusCode: response.statusCode,
+        responseBody: response.body,
+      );
+    }
+  }
+
+  dynamic _handleResponse(http.Response response) {
+    final data = _decodeResponse(response);
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return data;
+    }
+
+    String message = 'Request failed. Please try again.';
+
+    if (data is Map) {
+      final serverMessage =
+          data['message'] ?? data['error'] ?? data['detail'];
+
+      if (serverMessage is String && serverMessage.trim().isNotEmpty) {
+        message = serverMessage.trim();
+      }
+    }
+
+    if (response.statusCode == 401) {
+      message = 'Session expired or authentication is required.';
+    } else if (response.statusCode == 403) {
+      message = 'You do not have permission to perform this action.';
+    } else if (response.statusCode == 404) {
+      message = 'Requested resource was not found.';
+    } else if (response.statusCode >= 500) {
+      message = 'Server error. Please try again later.';
+    }
+
+    throw ApiException(
+      message,
+      statusCode: response.statusCode,
+      responseBody: response.body,
+    );
   }
 
   Future<dynamic> get(
     String path, {
-    String? token,
+    Map<String, String>? queryParameters,
+    bool authenticated = false,
+    Map<String, String>? headers,
   }) async {
     try {
       final response = await _client
           .get(
-            _buildUri(path),
-            headers: _headers(token),
+            _uri(path, queryParameters),
+            headers: await _headers(
+              authenticated: authenticated,
+              additionalHeaders: headers,
+            ),
           )
           .timeout(ApiConfig.receiveTimeout);
 
       return _handleResponse(response);
     } on TimeoutException {
-      throw Exception('Server took too long to respond. Try again.');
-    } on http.ClientException {
-      throw Exception('Unable to connect to the server.');
+      throw const ApiException(
+        'Request timed out. Please check your connection.',
+      );
+    } on http.ClientException catch (error) {
+      throw ApiException('Network error: ${error.message}');
     }
   }
 
   Future<dynamic> post(
     String path, {
     Map<String, dynamic>? body,
-    String? token,
+    bool authenticated = false,
+    Map<String, String>? headers,
   }) async {
     try {
       final response = await _client
           .post(
-            _buildUri(path),
-            headers: _headers(token),
-            body: jsonEncode(body ?? <String, dynamic>{}),
+            _uri(path),
+            headers: await _headers(
+              authenticated: authenticated,
+              additionalHeaders: headers,
+            ),
+            body: body == null ? null : jsonEncode(body),
           )
           .timeout(ApiConfig.receiveTimeout);
 
       return _handleResponse(response);
     } on TimeoutException {
-      throw Exception('Server took too long to respond. Try again.');
-    } on http.ClientException {
-      throw Exception('Unable to connect to the server.');
+      throw const ApiException(
+        'Request timed out. Please check your connection.',
+      );
+    } on http.ClientException catch (error) {
+      throw ApiException('Network error: ${error.message}');
     }
   }
 
-  Future<dynamic> patch(
+  Future<dynamic> put(
     String path, {
     Map<String, dynamic>? body,
-    String? token,
+    bool authenticated = false,
+    Map<String, String>? headers,
   }) async {
     try {
       final response = await _client
-          .patch(
-            _buildUri(path),
-            headers: _headers(token),
-            body: jsonEncode(body ?? <String, dynamic>{}),
+          .put(
+            _uri(path),
+            headers: await _headers(
+              authenticated: authenticated,
+              additionalHeaders: headers,
+            ),
+            body: body == null ? null : jsonEncode(body),
           )
           .timeout(ApiConfig.receiveTimeout);
 
       return _handleResponse(response);
     } on TimeoutException {
-      throw Exception('Server took too long to respond. Try again.');
-    } on http.ClientException {
-      throw Exception('Unable to connect to the server.');
+      throw const ApiException(
+        'Request timed out. Please check your connection.',
+      );
+    } on http.ClientException catch (error) {
+      throw ApiException('Network error: ${error.message}');
     }
   }
 
   Future<dynamic> delete(
     String path, {
-    String? token,
+    Map<String, dynamic>? body,
+    bool authenticated = false,
+    Map<String, String>? headers,
   }) async {
     try {
       final response = await _client
           .delete(
-            _buildUri(path),
-            headers: _headers(token),
+            _uri(path),
+            headers: await _headers(
+              authenticated: authenticated,
+              additionalHeaders: headers,
+            ),
+            body: body == null ? null : jsonEncode(body),
           )
           .timeout(ApiConfig.receiveTimeout);
 
       return _handleResponse(response);
     } on TimeoutException {
-      throw Exception('Server took too long to respond. Try again.');
-    } on http.ClientException {
-      throw Exception('Unable to connect to the server.');
+      throw const ApiException(
+        'Request timed out. Please check your connection.',
+      );
+    } on http.ClientException catch (error) {
+      throw ApiException('Network error: ${error.message}');
     }
   }
 
-  dynamic _handleResponse(http.Response response) {
-    dynamic data;
-
-    try {
-      data = response.body.isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(response.body);
-    } catch (_) {
-      data = response.body;
-    }
-
-    if (response.statusCode >= 200 &&
-        response.statusCode < 300) {
-      return data;
-    }
-
-    String message = 'Request failed';
-
-    if (data is Map) {
-      message = (
-        data['message'] ??
-        data['error'] ??
-        data['errors'] ??
-        message
-      ).toString();
-    } else if (data is String && data.isNotEmpty) {
-      message = data;
-    }
-
-    throw Exception(
-      '$message (HTTP ${response.statusCode})',
-    );
-  }
-
-  void dispose() {
+  void close() {
     _client.close();
   }
+}
+
+class ApiException implements Exception {
+  final String message;
+  final int? statusCode;
+  final String? responseBody;
+
+  const ApiException(
+    this.message, {
+    this.statusCode,
+    this.responseBody,
+  });
+
+  @override
+  String toString() => message;
 }
