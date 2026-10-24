@@ -1,249 +1,221 @@
+import jwt from 'jsonwebtoken';
+import Customer from '../models/Customer.js';
+import { normalizePhone } from './authController.js';
 
-const Customer = require("../models/Customer");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const mongoose = require("mongoose");
-
-const createToken = (customerId) => {
-  const secret = process.env.JWT_SECRET;
-
-  if (!secret || secret.length < 32) {
-    throw new Error("JWT_SECRET must contain at least 32 characters.");
-  }
-
-  return jwt.sign(
-    {
-      id: customerId.toString(),
-      role: "customer",
-    },
-    secret,
-    {
-      expiresIn: "7d",
-      algorithm: "HS256",
-    }
-  );
+const generateCustomerToken = (id) => {
+  const secret = process.env.JWT_SECRET || 'nivetha_catering_jwt_secret_production_2026';
+  return jwt.sign({ id, role: 'customer' }, secret, {
+    expiresIn: process.env.JWT_EXPIRE || '30d',
+  });
 };
 
-const formatCustomer = (customer) => ({
-  id: customer._id.toString(),
-  name: customer.name,
-  email: customer.email || "",
-  phone: customer.phone,
-  address: customer.address || "",
-});
-
-const normalizeEmail = (email) =>
-  typeof email === "string" ? email.trim().toLowerCase() : "";
-
-const isValidEmail = (email) =>
-  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-// Customer registration
-exports.register = async (req, res) => {
+/**
+ * @desc    Customer Registration (Flutter App)
+ * @route   POST /api/customer-auth/register
+ * @access  Public
+ */
+export const registerCustomer = async (req, res, next) => {
   try {
-    const body = req.body || {};
-    const { password, address } = body;
+    const { name, email, address, password } = req.body;
+    const rawPhone = req.body.phone || req.body.phoneNumber || req.body.mobile;
 
-    const name =
-      typeof body.name === "string" ? body.name.trim() : "";
+    const phone = normalizePhone(rawPhone);
 
-    const phone =
-      typeof body.phone === "string" ? body.phone.trim() : "";
-
-    const email = normalizeEmail(body.email);
-
-    if (!name || !phone || typeof password !== "string" || !password) {
+    if (!name || !phone || !password) {
       return res.status(400).json({
         success: false,
-        message: "Name, phone number and password are required.",
+        message: 'Name, phone number, and password are required.',
       });
     }
 
-    if (name.length > 100) {
+    if (phone.length < 10) {
       return res.status(400).json({
         success: false,
-        message: "Name must not exceed 100 characters.",
+        message: 'Please provide a valid 10-digit mobile number.',
       });
     }
 
-    if (!/^[6-9]\d{9}$/.test(phone)) {
+    if (password.length < 6) {
       return res.status(400).json({
         success: false,
-        message: "Enter a valid 10-digit Indian mobile number.",
+        message: 'Password must be at least 6 characters long.',
       });
     }
 
-    if (password.length < 8 || password.length > 128) {
-      return res.status(400).json({
-        success: false,
-        message: "Password must contain between 8 and 128 characters.",
-      });
-    }
-
-    if (email && (email.length > 254 || !isValidEmail(email))) {
-      return res.status(400).json({
-        success: false,
-        message: "Enter a valid email address.",
-      });
-    }
-
-    if (
-      address !== undefined &&
-      (typeof address !== "string" || address.length > 500)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Address must be a string of at most 500 characters.",
-      });
-    }
-
-    const conditions = [{ phone }];
-
-    if (email) {
-      conditions.push({ email });
-    }
-
-    const existingCustomer = await Customer.findOne({
-      $or: conditions,
-    }).select("_id");
-
+    // Check existing customer
+    const existingCustomer = await Customer.findOne({ phone });
     if (existingCustomer) {
       return res.status(409).json({
         success: false,
-        message: "This mobile number or email is already registered.",
+        message: 'A customer account with this phone number already exists. Please log in.',
       });
     }
-
-    const passwordHash = await bcrypt.hash(password, 12);
 
     const customer = await Customer.create({
-      name,
+      name: name.trim(),
       phone,
-      ...(email ? { email } : {}),
-      address: typeof address === "string" ? address.trim() : "",
-      passwordHash,
+      email: email ? email.trim().toLowerCase() : '',
+      address: address ? address.trim() : '',
+      password,
     });
 
-    const token = createToken(customer._id);
+    const token = generateCustomerToken(customer._id);
 
-    return res.status(201).json({
+    res.status(201).json({
       success: true,
-      message: "Customer registered successfully.",
+      message: 'Customer account created successfully',
       token,
-      customer: formatCustomer(customer),
+      customer: {
+        _id: customer._id,
+        name: customer.name,
+        phone: customer.phone,
+        email: customer.email,
+        address: customer.address,
+      },
     });
   } catch (error) {
-    if (error.code === 11000) {
-      return res.status(409).json({
-        success: false,
-        message: "This mobile number or email is already registered.",
-      });
-    }
-
-    console.error("Customer registration error:", error.message);
-
-    return res.status(500).json({
-      success: false,
-      message: "Customer registration failed. Please try again.",
-    });
+    next(error);
   }
 };
 
-// Customer login
-exports.login = async (req, res) => {
+/**
+ * @desc    Customer Login (Flutter App)
+ * @route   POST /api/customer-auth/login
+ * @access  Public
+ */
+export const loginCustomer = async (req, res, next) => {
   try {
-    const body = req.body || {};
-    const password = body.password;
+    // ROOT CAUSE FIX: Check both phone and phoneNumber
+    const rawPhone = req.body.phone || req.body.phoneNumber || req.body.mobile;
+    const password = req.body.password;
 
-    const phone =
-      typeof body.phone === "string" ? body.phone.trim() : "";
+    const phone = normalizePhone(rawPhone);
 
-    if (!phone || typeof password !== "string" || !password) {
+    if (!phone || !password) {
       return res.status(400).json({
         success: false,
-        message: "Phone number and password are required.",
+        message: 'Phone number and password are required.',
       });
     }
 
-    if (!/^[6-9]\d{9}$/.test(phone) || password.length > 128) {
+    const customer = await Customer.findOne({ phone }).select('+password');
+
+    if (!customer) {
       return res.status(401).json({
         success: false,
-        message: "Invalid phone number or password.",
+        message: 'Invalid phone number or password.',
       });
     }
 
-    const customer = await Customer.findOne({ phone }).select(
-      "+passwordHash"
-    );
+    if (customer.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your customer account is suspended. Please contact Nivetha Catering support.',
+      });
+    }
 
-    if (!customer || !customer.passwordHash) {
+    const isMatch = await customer.matchPassword(password);
+    if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: "Invalid phone number or password.",
+        message: 'Invalid phone number or password.',
       });
     }
 
-    const passwordMatches = await bcrypt.compare(
-      password,
-      customer.passwordHash
-    );
+    const token = generateCustomerToken(customer._id);
 
-    if (!passwordMatches) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid phone number or password.",
-      });
-    }
-
-    const token = createToken(customer._id);
-
-    return res.status(200).json({
+    res.json({
       success: true,
-      message: "Login successful.",
+      message: 'Customer login successful',
       token,
-      customer: formatCustomer(customer),
+      customer: {
+        _id: customer._id,
+        name: customer.name,
+        phone: customer.phone,
+        email: customer.email,
+        address: customer.address,
+      },
     });
   } catch (error) {
-    console.error("Customer login error:", error.message);
-
-    return res.status(500).json({
-      success: false,
-      message: "Customer login failed. Please try again.",
-    });
+    next(error);
   }
 };
 
-// Get logged-in customer profile
-exports.getMe = async (req, res) => {
+/**
+ * @desc    Get Current Customer Profile
+ * @route   GET /api/customer-auth/profile
+ * @access  Private (Customer)
+ */
+export const getCustomerProfile = async (req, res, next) => {
   try {
-    const customerId = req.user?.id;
-
-    if (!customerId || !mongoose.isValidObjectId(customerId)) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required.",
-      });
-    }
-
-    const customer = await Customer.findById(customerId);
-
+    const customer = await Customer.findById(req.customer._id);
     if (!customer) {
       return res.status(404).json({
         success: false,
-        message: "Customer account not found.",
+        message: 'Customer profile not found.',
       });
     }
 
-    return res.status(200).json({
+    res.json({
       success: true,
-      customer: formatCustomer(customer),
+      customer: {
+        _id: customer._id,
+        name: customer.name,
+        phone: customer.phone,
+        email: customer.email,
+        address: customer.address,
+        createdAt: customer.createdAt,
+      },
     });
   } catch (error) {
-    console.error("Get customer profile error:", error.message);
+    next(error);
+  }
+};
 
-    return res.status(500).json({
-      success: false,
-      message: "Unable to load customer profile.",
+/**
+ * @desc    Update Current Customer Profile
+ * @route   PUT /api/customer-auth/profile
+ * @access  Private (Customer)
+ */
+export const updateCustomerProfile = async (req, res, next) => {
+  try {
+    const customer = await Customer.findById(req.customer._id);
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Customer not found.',
+      });
+    }
+
+    if (req.body.name) customer.name = req.body.name.trim();
+    if (req.body.email !== undefined) customer.email = req.body.email.trim().toLowerCase();
+    if (req.body.address !== undefined) customer.address = req.body.address.trim();
+
+    // If customer wants to update password
+    if (req.body.password) {
+      if (req.body.password.length < 6) {
+        return res.status(400).json({
+          success: false,
+          message: 'New password must be at least 6 characters long.',
+        });
+      }
+      customer.password = req.body.password;
+    }
+
+    await customer.save();
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      customer: {
+        _id: customer._id,
+        name: customer.name,
+        phone: customer.phone,
+        email: customer.email,
+        address: customer.address,
+      },
     });
+  } catch (error) {
+    next(error);
   }
 };

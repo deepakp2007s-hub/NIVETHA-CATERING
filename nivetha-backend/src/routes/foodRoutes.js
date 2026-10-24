@@ -1,59 +1,24 @@
-
-const express = require("express");
-const router = express.Router();
-
-const {
+import express from 'express';
+import {
   getFoods,
-  getCustomerFoods,
+  getFoodById,
   createFood,
   updateFood,
-  deleteFood,
   toggleFoodAvailability,
-} = require("../controllers/foodController");
+  deleteFood,
+} from '../controllers/foodController.js';
+import { protectOwner } from '../middleware/authMiddleware.js';
 
-const {
-  protect,
-  allowRoles,
-} = require("../middleware/authMiddleware");
+const router = express.Router();
 
-// Public customer menu: available foods only
-// Customer response must not expose food prices.
-router.get("/customer", getCustomerFoods);
+// Public / Customer read access
+router.get('/', getFoods);
+router.get('/:id', getFoodById);
 
-// Owner-only food management
-router.get(
-  "/",
-  protect,
-  allowRoles("owner"),
-  getFoods
-);
+// Owner-only write / modify access
+router.post('/', protectOwner, createFood);
+router.put('/:id', protectOwner, updateFood);
+router.patch('/:id/toggle-availability', protectOwner, toggleFoodAvailability);
+router.delete('/:id', protectOwner, deleteFood);
 
-router.post(
-  "/",
-  protect,
-  allowRoles("owner"),
-  createFood
-);
-
-router.patch(
-  "/:id",
-  protect,
-  allowRoles("owner"),
-  updateFood
-);
-
-router.delete(
-  "/:id",
-  protect,
-  allowRoles("owner"),
-  deleteFood
-);
-
-router.patch(
-  "/:id/availability",
-  protect,
-  allowRoles("owner"),
-  toggleFoodAvailability
-);
-
-module.exports = router;
+export default router;

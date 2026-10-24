@@ -1,1710 +1,494 @@
-
-require("dotenv").config();
-
-const mongoose = require("mongoose");
-const connectDB = require("../src/config/db");
-const Food = require("../src/models/Food");
-
-const tamilNaduFoods = [
-      /* =======================================================
-     BREAKFAST - VEG
-     ======================================================= */
-
-  {
-    name: "Idli",
-    tamilName: "இட்லி",
-    meal: "Breakfast",
-    type: "Veg",
-    description: "Soft and fresh steamed idli",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mini Idli",
-    tamilName: "மினி இட்லி",
-    meal: "Breakfast",
-    type: "Veg",
-    description: "Small soft steamed idlis",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Sambar Idli",
-    tamilName: "சாம்பார் இட்லி",
-    meal: "Breakfast",
-    type: "Veg",
-    description: "Idli served with delicious sambar",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Dosa",
-    tamilName: "தோசை",
-    meal: "Breakfast",
-    type: "Veg",
-    description: "Crispy South Indian dosa",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Masala Dosa",
-    tamilName: "மசாலா தோசை",
-    meal: "Breakfast",
-    type: "Veg",
-    description: "Crispy dosa with potato masala",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Ven Pongal",
-    tamilName: "வெண்பொங்கல்",
-    meal: "Breakfast",
-    type: "Veg",
-    description: "Traditional South Indian ven pongal",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Poori",
-    tamilName: "பூரி",
-    meal: "Breakfast",
-    type: "Veg",
-    description: "Fluffy deep-fried poori",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chapathi",
-    tamilName: "சப்பாத்தி",
-    meal: "Breakfast",
-    type: "Veg",
-    description: "Soft Indian wheat chapathi",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Parotta",
-    tamilName: "பரோட்டா",
-    meal: "Breakfast",
-    type: "Veg",
-    description: "Layered South Indian parotta",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Bun Parotta",
-    tamilName: "பன் பரோட்டா",
-    meal: "Breakfast",
-    type: "Veg",
-    description: "Soft layered bun parotta",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Upma",
-    tamilName: "உப்புமா",
-    meal: "Breakfast",
-    type: "Veg",
-    description: "Traditional South Indian upma",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Vegetable Kootu",
-    tamilName: "காய்கறி கூட்டு",
-    meal: "Breakfast",
-    type: "Veg",
-    description: "Healthy mixed vegetable kootu",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Onion Uthappam",
-    tamilName: "வெங்காய ஊத்தப்பம்",
-    meal: "Breakfast",
-    type: "Veg",
-    description: "Soft uthappam topped with onions",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Veg Kurma",
-    tamilName: "வெஜ் குருமா",
-    meal: "Breakfast",
-    type: "Veg",
-    description: "Mixed vegetable kurma",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Cauliflower 65",
-    tamilName: "காலிஃப்ளவர் 65",
-    meal: "Breakfast",
-    type: "Veg",
-    description: "Crispy cauliflower 65",
-    image: "",
-    isAvailable: true,
-  },
-
-
-  /* =======================================================
-     BREAKFAST - NON VEG
-     ======================================================= */
-
-  {
-    name: "Egg Dosa",
-    tamilName: "முட்டை தோசை",
-    meal: "Breakfast",
-    type: "Non-Veg",
-    description: "Dosa topped with egg",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Egg Omelette",
-    tamilName: "முட்டை ஆம்லெட்",
-    meal: "Breakfast",
-    type: "Non-Veg",
-    description: "Fresh egg omelette",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Egg Kalakki",
-    tamilName: "முட்டை கலக்கி",
-    meal: "Breakfast",
-    type: "Non-Veg",
-    description: "Soft South Indian egg kalakki",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Egg Appam",
-    tamilName: "முட்டை ஆப்பம்",
-    meal: "Breakfast",
-    type: "Non-Veg",
-    description: "Soft appam with egg",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken Dosa",
-    tamilName: "சிக்கன் தோசை",
-    meal: "Breakfast",
-    type: "Non-Veg",
-    description: "Dosa with spicy chicken filling",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken Curry",
-    tamilName: "சிக்கன் கறி",
-    meal: "Breakfast",
-    type: "Non-Veg",
-    description: "Traditional chicken curry",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mutton Curry",
-    tamilName: "மட்டன் கறி",
-    meal: "Breakfast",
-    type: "Non-Veg",
-    description: "Traditional mutton curry",
-    image: "",
-    isAvailable: true,
-  },
-
-
-  /* =======================================================
-     LUNCH - VEG
-     ======================================================= */
-
-  {
-    name: "South Indian Meals",
-    tamilName: "சவுத் இந்தியன் மீல்ஸ்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Complete South Indian vegetarian meals",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "White Rice",
-    tamilName: "வெள்ளை சாதம்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Steamed white rice",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Sambar",
-    tamilName: "சாம்பார்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Traditional South Indian sambar",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Dal",
-    tamilName: "தால்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Traditional dal",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Dal Rasam",
-    tamilName: "தால் ரசம்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Dal based rasam",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Rasam",
-    tamilName: "ரசம்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Traditional South Indian rasam",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Vatha Kuzhambu",
-    tamilName: "வத்தக்குழம்பு",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Traditional spicy vatha kuzhambu",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Kara Kuzhambu",
-    tamilName: "காரக்குழம்பு",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Spicy South Indian kara kuzhambu",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Avial",
-    tamilName: "அவியல்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Mixed vegetables cooked with coconut",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Vegetable Kootu",
-    tamilName: "காய்கறி கூட்டு",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Mixed vegetable kootu",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Potato Poriyal",
-    tamilName: "உருளைக்கிழங்கு பொரியல்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "South Indian potato poriyal",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Cabbage Poriyal",
-    tamilName: "முட்டைக்கோஸ் பொரியல்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Fresh cabbage poriyal",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Beans Poriyal",
-    tamilName: "பீன்ஸ் பொரியல்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Fresh beans poriyal",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Carrot Poriyal",
-    tamilName: "கேரட் பொரியல்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Fresh carrot poriyal",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Cauliflower Poriyal",
-    tamilName: "காலிஃப்ளவர் பொரியல்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Cauliflower poriyal",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Cauliflower 65",
-    tamilName: "காலிஃப்ளவர் 65",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Crispy cauliflower 65",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mushroom 65",
-    tamilName: "மஷ்ரூம் 65",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Crispy mushroom 65",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Paneer Butter Masala",
-    tamilName: "பனீர் பட்டர் மசாலா",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Creamy paneer butter masala",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Channa Masala",
-    tamilName: "சன்னா மசாலா",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Spicy chickpea masala",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Rajma Masala",
-    tamilName: "ராஜ்மா மசாலா",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Kidney bean masala",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Vegetable Biryani",
-    tamilName: "வெஜிடபிள் பிரியாணி",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Aromatic vegetable biryani",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mushroom Biryani",
-    tamilName: "மஷ்ரூம் பிரியாணி",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Aromatic mushroom biryani",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Lemon Rice",
-    tamilName: "எலுமிச்சை சாதம்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Tangy lemon rice",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Tomato Rice",
-    tamilName: "தக்காளி சாதம்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Flavourful tomato rice",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Curd Rice",
-    tamilName: "தயிர் சாதம்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Traditional curd rice",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Coconut Rice",
-    tamilName: "தேங்காய் சாதம்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Aromatic coconut rice",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Puliyodarai",
-    tamilName: "புளியோதரை",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Traditional tamarind rice",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Appalam",
-    tamilName: "அப்பளம்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Crispy South Indian appalam",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Pickle",
-    tamilName: "ஊறுகாய்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Traditional Indian pickle",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Curds",
-    tamilName: "தயிர்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Fresh curd",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Buttermilk",
-    tamilName: "மோர்",
-    meal: "Lunch",
-    type: "Veg",
-    description: "Refreshing traditional buttermilk",
-    image: "",
-    isAvailable: true,
-  },
-
-
-  /* =======================================================
-     LUNCH - NON VEG
-     ======================================================= */
-
-  {
-    name: "Chicken Biryani",
-    tamilName: "சிக்கன் பிரியாணி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Premium chicken biryani",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken Dum Biryani",
-    tamilName: "சிக்கன் தம் பிரியாணி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Traditional dum cooked chicken biryani",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken Vadi Biryani",
-    tamilName: "சிக்கன் வாடி பிரியாணி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Special chicken vadi biryani",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mutton Biryani",
-    tamilName: "மட்டன் பிரியாணி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Aromatic mutton biryani",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mutton Dum Biryani",
-    tamilName: "மட்டன் தம் பிரியாணி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Traditional dum cooked mutton biryani",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mutton Vadi Biryani",
-    tamilName: "மட்டன் வாடி பிரியாணி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Special mutton vadi biryani",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Prawn Biryani",
-    tamilName: "இறால் பிரியாணி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Flavourful prawn biryani",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Egg Biryani",
-    tamilName: "முட்டை பிரியாணி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Aromatic egg biryani",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken Rice",
-    tamilName: "சிக்கன் ரைஸ்",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Chicken fried rice",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Egg Rice",
-    tamilName: "முட்டை ரைஸ்",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Egg fried rice",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken Noodles",
-    tamilName: "சிக்கன் நூடுல்ஸ்",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Chicken noodles",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken 65",
-    tamilName: "சிக்கன் 65",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Crispy spicy chicken 65",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken Lollipop",
-    tamilName: "சிக்கன் லாலிபாப்",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Crispy chicken lollipop",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Naatukozhi Varuval",
-    tamilName: "நாட்டுக்கோழி வறுவல்",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Traditional country chicken fry",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken Pepper Gravy",
-    tamilName: "சிக்கன் பெப்பர் கிரேவி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Spicy chicken pepper gravy",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chettinad Chicken Gravy",
-    tamilName: "செட்டிநாடு சிக்கன் கிரேவி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Authentic Chettinad chicken gravy",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Andhra Spicy Chicken Gravy",
-    tamilName: "ஆந்திரா ஸ்பைசி சிக்கன் கிரேவி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Spicy Andhra style chicken gravy",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Butter Chicken Gravy",
-    tamilName: "பட்டர் சிக்கன் கிரேவி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Creamy butter chicken gravy",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Country Chicken Gravy",
-    tamilName: "நாட்டுக்கோழி கிரேவி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Traditional country chicken gravy",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Pallapalayam Chicken Gravy",
-    tamilName: "பல்லபாளையம் சிக்கன் கிரேவி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Traditional Pallapalayam chicken gravy",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken Gravy",
-    tamilName: "சிக்கன் கிரேவி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Traditional chicken gravy",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken Kurma",
-    tamilName: "சிக்கன் குருமா",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Rich chicken kurma",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mutton Gravy",
-    tamilName: "மட்டன் கிரேவி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Traditional mutton gravy",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chettinad Mutton Gravy",
-    tamilName: "செட்டிநாடு மட்டன் கிரேவி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Authentic Chettinad mutton gravy",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mutton Pepper Gravy",
-    tamilName: "மட்டன் பெப்பர் கிரேவி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Spicy mutton pepper gravy",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mutton Chukka",
-    tamilName: "மட்டன் சுக்கா",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Spicy dry mutton chukka",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Coconut Milk Mutton Gravy",
-    tamilName: "தேங்காய் பால் மட்டன் கிரேவி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Mutton gravy cooked with coconut milk",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mutton Bone Gravy",
-    tamilName: "மட்டன் எலும்பு கிரேவி",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Rich mutton bone gravy",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Fish Fry",
-    tamilName: "மீன் வறுவல்",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Crispy fish fry",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Fish Curry",
-    tamilName: "மீன் குழம்பு",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Traditional fish curry",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Prawn Masala",
-    tamilName: "இறால் மசாலா",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Spicy prawn masala",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Egg Curry",
-    tamilName: "முட்டை குழம்பு",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Traditional egg curry",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Egg Fry",
-    tamilName: "முட்டை வறுவல்",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Spicy egg fry",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mutton Kurma",
-    tamilName: "மட்டன் குருமா",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Rich mutton kurma",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Veg Kurma",
-    tamilName: "வெஜ் குருமா",
-    meal: "Lunch",
-    type: "Non-Veg",
-    description: "Vegetable kurma",
-    image: "",
-    isAvailable: true,
-  },
-
-
-  /* =======================================================
-     DINNER - VEG
-     ======================================================= */
-
-  {
-    name: "Chapathi",
-    tamilName: "சப்பாத்தி",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Soft wheat chapathi",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Parotta",
-    tamilName: "பரோட்டா",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Layered South Indian parotta",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Bun Parotta",
-    tamilName: "பன் பரோட்டா",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Soft layered bun parotta",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Veg Kothu Parotta",
-    tamilName: "வெஜ் கொத்து பரோட்டா",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Spicy vegetable kothu parotta",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Dosa",
-    tamilName: "தோசை",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Crispy South Indian dosa",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Masala Dosa",
-    tamilName: "மசாலா தோசை",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Crispy dosa with potato masala",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Ghee Dosa",
-    tamilName: "நெய் தோசை",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Crispy ghee dosa",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Roti",
-    tamilName: "ரொட்டி",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Soft Indian roti",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Naan",
-    tamilName: "நான்",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Soft Indian naan",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Butter Naan",
-    tamilName: "பட்டர் நான்",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Soft naan topped with butter",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Kulcha",
-    tamilName: "குல்சா",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Soft Indian kulcha",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Idly",
-    tamilName: "இட்லி",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Soft steamed idly",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Idiyappam",
-    tamilName: "இடியாப்பம்",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Traditional rice string hoppers",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Appam",
-    tamilName: "ஆப்பம்",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Soft South Indian appam",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Vegetable Fried Rice",
-    tamilName: "வெஜிடபிள் ஃப்ரைட் ரைஸ்",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Vegetable fried rice",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Gobi Fried Rice",
-    tamilName: "கோபி ஃப்ரைட் ரைஸ்",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Cauliflower fried rice",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Paneer Fried Rice",
-    tamilName: "பனீர் ஃப்ரைட் ரைஸ்",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Paneer fried rice",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Veg Noodles",
-    tamilName: "வெஜ் நூடுல்ஸ்",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Vegetable noodles",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Gobi Manchurian",
-    tamilName: "கோபி மஞ்சூரியன்",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Crispy cauliflower manchurian",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Cauliflower 65",
-    tamilName: "காலிஃப்ளவர் 65",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Crispy cauliflower 65",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Paneer Butter Masala",
-    tamilName: "பனீர் பட்டர் மசாலா",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Creamy paneer butter masala",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Veg Kurma",
-    tamilName: "வெஜ் குருமா",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Mixed vegetable kurma",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Brinjal Pachadi",
-    tamilName: "கத்திரிக்காய் பச்சடி",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Traditional brinjal pachadi",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Sambar",
-    tamilName: "சாம்பார்",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Traditional South Indian sambar",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Vatha Kuzhambu",
-    tamilName: "வத்தக்குழம்பு",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Traditional vatha kuzhambu",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Dal Fry",
-    tamilName: "தால் ஃப்ரை",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Indian dal fry",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Rice",
-    tamilName: "சாதம்",
-    meal: "Dinner",
-    type: "Veg",
-    description: "Steamed white rice",
-    image: "",
-    isAvailable: true,
-  },
-
-
-  /* =======================================================
-     DINNER - NON VEG
-     ======================================================= */
-
-  {
-    name: "Chicken Biryani",
-    tamilName: "சிக்கன் பிரியாணி",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Aromatic chicken biryani",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mutton Biryani",
-    tamilName: "மட்டன் பிரியாணி",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Aromatic mutton biryani",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken Rice",
-    tamilName: "சிக்கன் ரைஸ்",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Chicken fried rice",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Egg Rice",
-    tamilName: "முட்டை ரைஸ்",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Egg fried rice",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken Noodles",
-    tamilName: "சிக்கன் நூடுல்ஸ்",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Chicken noodles",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken 65",
-    tamilName: "சிக்கன் 65",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Crispy chicken 65",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken Lollipop",
-    tamilName: "சிக்கன் லாலிபாப்",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Crispy chicken lollipop",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken Pepper Gravy",
-    tamilName: "சிக்கன் பெப்பர் கிரேவி",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Spicy chicken pepper gravy",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken Gravy",
-    tamilName: "சிக்கன் கிரேவி",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Traditional chicken gravy",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Chicken Kurma",
-    tamilName: "சிக்கன் குருமா",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Rich chicken kurma",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mutton Gravy",
-    tamilName: "மட்டன் கிரேவி",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Traditional mutton gravy",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mutton Kurma",
-    tamilName: "மட்டன் குருமா",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Rich mutton kurma",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mutton Bone Curry",
-    tamilName: "மட்டன் எலும்பு கறி",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Rich mutton bone curry",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mutton Chukka",
-    tamilName: "மட்டன் சுக்கா",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Spicy dry mutton chukka",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Fish Curry",
-    tamilName: "மீன் குழம்பு",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Traditional fish curry",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Fish Fry",
-    tamilName: "மீன் வறுவல்",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Crispy fish fry",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Prawn Masala",
-    tamilName: "இறால் மசாலா",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Spicy prawn masala",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Egg Curry",
-    tamilName: "முட்டை குழம்பு",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Traditional egg curry",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Egg Omelette",
-    tamilName: "முட்டை ஆம்லெட்",
-    meal: "Dinner",
-    type: "Non-Veg",
-    description: "Fresh egg omelette",
-    image: "",
-    isAvailable: true,
-  },
-
-
-  /* =======================================================
-     SWEETS
-     ======================================================= */
-
-  {
-    name: "Gulab Jamun",
-    tamilName: "குலாப் ஜாமூன்",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Soft gulab jamun soaked in sugar syrup",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Rasgulla",
-    tamilName: "ரசகுல்லா",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Soft Bengali rasgulla",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Rasmalai",
-    tamilName: "ரஸ்மலை",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Soft rasmalai in creamy milk",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Mysore Pak",
-    tamilName: "மைசூர் பாக்",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional Mysore pak",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Badam Halwa",
-    tamilName: "பாதாம் அல்வா",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Rich almond halwa",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Wheat Halwa",
-    tamilName: "கோதுமை அல்வா",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional wheat halwa",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Carrot Halwa",
-    tamilName: "கேரட் அல்வா",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Rich carrot halwa",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Kasi Halwa",
-    tamilName: "காசி அல்வா",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional kasi halwa",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Tirunelveli Halwa",
-    tamilName: "திருநெல்வேலி அல்வா",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional Tirunelveli halwa",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Bread Halwa",
-    tamilName: "பிரெட் அல்வா",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Soft bread halwa",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Kesari",
-    tamilName: "கேசரி",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional kesari",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Rava Kesari",
-    tamilName: "ரவா கேசரி",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional rava kesari",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Pineapple Kesari",
-    tamilName: "அன்னாசி கேசரி",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Flavourful pineapple kesari",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Paal Payasam",
-    tamilName: "பால் பாயசம்",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional milk payasam",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Semiya Payasam",
-    tamilName: "சேமியா பாயசம்",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional semiya payasam",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Paruppu Payasam",
-    tamilName: "பருப்பு பாயசம்",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional dal payasam",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Jangiri",
-    tamilName: "ஜாங்கிரி",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional South Indian jangiri",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Jalebi",
-    tamilName: "ஜிலேபி",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Crispy jalebi soaked in sugar syrup",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Laddu",
-    tamilName: "லட்டு",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional laddu",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Boondi Laddu",
-    tamilName: "பூந்தி லட்டு",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional boondi laddu",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Motichoor Laddu",
-    tamilName: "மோதிச்சூர் லட்டு",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Soft motichoor laddu",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Coconut Burfi",
-    tamilName: "தேங்காய் பர்ஃபி",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional coconut burfi",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Milk Peda",
-    tamilName: "பால் பேடா",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Soft milk peda",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Badusha",
-    tamilName: "பாதுஷா",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional badusha",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Poli",
-    tamilName: "போளி",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional sweet poli",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Sweet Pongal",
-    tamilName: "சக்கரை பொங்கல்",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional sweet pongal",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Sweet Appam",
-    tamilName: "ஸ்வீட் ஆப்பம்",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional sweet appam",
-    image: "",
-    isAvailable: true,
-  },
-
-  {
-    name: "Moong Dal Payasam",
-    tamilName: "பாசிப்பருப்பு பாயசம்",
-    meal: "Sweets",
-    type: "Veg",
-    description: "Traditional moong dal payasam",
-    image: "",
-    isAvailable: true,
+import dotenv from 'dotenv';
+dotenv.config();
+
+import mongoose from 'mongoose';
+import connectDB from '../src/config/db.js';
+import Food from '../src/models/Food.js';
+
+/**
+ * 42 Traditional Tamil Nadu Catering Foods for Nivetha Catering Service
+ * 18 Vegetarian, 14 Non-Vegetarian, 10 Sweets & Desserts
+ */
+export const initial42Foods = [
+  // --- VEGETARIAN (18 Items) ---
+  {
+    name: 'South Indian Wedding Meals',
+    tamilName: 'தென்னிந்திய திருமண சைவ சாப்பாடு',
+    category: 'Meals',
+    type: 'veg',
+    description: 'Grand traditional banana leaf feast with Ponni boiled rice, sambar, rasam, kootu, poriyal, avial, appalam, vadai, and curd.',
+    price: 180,
+    image: 'https://images.unsplash.com/photo-1610057099443-fde8c4d50f91?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Special Wedding Meals',
+    tamilName: 'சிறப்பு திருமண சைவ சாப்பாடு',
+    category: 'Meals',
+    type: 'veg',
+    description: 'Deluxe banquet thali including Mysore pak, medu vadai, ghee rice, 2 varieties of poriyal, paneer butter masala, and payasam.',
+    price: 250,
+    image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Mini Meals',
+    tamilName: 'மினி சாப்பாடு',
+    category: 'Meals',
+    type: 'veg',
+    description: 'Compact South Indian lunch with sambar rice, curd rice, poriyal, appalam, and sweet.',
+    price: 120,
+    image: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Idli',
+    tamilName: 'இட்லி',
+    category: 'Tiffin & Breakfast',
+    type: 'veg',
+    description: 'Pillowy soft steamed rice cakes served with hotel style sambar, coconut chutney, and kara chutney.',
+    price: 40,
+    image: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Dosa',
+    tamilName: 'தோசை',
+    category: 'Tiffin & Breakfast',
+    type: 'veg',
+    description: 'Crispy golden crepe made from fermented rice and lentil batter served with 3 types of chutneys and sambar.',
+    price: 60,
+    image: 'https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Ven Pongal',
+    tamilName: 'வெண் பொங்கல்',
+    category: 'Tiffin & Breakfast',
+    type: 'veg',
+    description: 'Fragrant clarified butter ghee pongal tempered with black pepper, cumin seeds, ginger, and roasted cashews.',
+    price: 65,
+    image: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Poori Masala',
+    tamilName: 'பூரி மசாலா',
+    category: 'Tiffin & Breakfast',
+    type: 'veg',
+    description: 'Puffed golden wheat pooris served with spiced potato onion masala curry.',
+    price: 70,
+    image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Chapati with Vegetable Kurma',
+    tamilName: 'சப்பாத்தி காய்கறி குருமா',
+    category: 'Breads',
+    type: 'veg',
+    description: 'Soft layered whole wheat rotis served with rich coconut-cashew blended Tamil Nadu vegetable kurma.',
+    price: 75,
+    image: 'https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Vegetable Biryani',
+    tamilName: 'காய்கறி பிரியாணி',
+    category: 'Biryani & Rice',
+    type: 'veg',
+    description: 'Aromatic Seeraga Samba rice layered with garden fresh vegetables, mint, and Chettinad spices.',
+    price: 130,
+    image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Paneer Biryani',
+    tamilName: 'பனீர் பிரியாணி',
+    category: 'Biryani & Rice',
+    type: 'veg',
+    description: 'Rich dum biryani studded with marinated cottage cheese cubes, saffron milk, and fried onions.',
+    price: 160,
+    image: 'https://images.unsplash.com/photo-1645177628172-a94c1f96e6db?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Lemon Rice',
+    tamilName: 'எலுமிச்சை சாதம்',
+    category: 'Biryani & Rice',
+    type: 'veg',
+    description: 'Tangy tempered rice with fresh lemon juice, turmeric, crunchy roasted peanuts, and curry leaves.',
+    price: 60,
+    image: 'https://images.unsplash.com/photo-1610057099443-fde8c4d50f91?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Curd Rice',
+    tamilName: 'தயிர் சாதம்',
+    category: 'Biryani & Rice',
+    type: 'veg',
+    description: 'Creamy comforting yogurt rice seasoned with mustard seeds, green chillies, ginger, and fresh pomegranate.',
+    price: 55,
+    image: 'https://images.unsplash.com/photo-1596797038530-2c107229654b?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Sambar Rice',
+    tamilName: 'சாம்பார் சாதம்',
+    category: 'Biryani & Rice',
+    type: 'veg',
+    description: 'Traditional temple-style bisibelebath cooked with shallots, drumstick, toor dal, and aromatic ghee.',
+    price: 65,
+    image: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Vegetable Fried Rice',
+    tamilName: 'காய்கறி ஃப்ரைட் ரைஸ்',
+    category: 'Biryani & Rice',
+    type: 'veg',
+    description: 'Wok-tossed long-grain Basmati rice with crunchy carrots, cabbage, french beans, and spring onions.',
+    price: 110,
+    image: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Paneer Butter Masala',
+    tamilName: 'பனீர் பட்டர் மசாலா',
+    category: 'Curries & Gravies',
+    type: 'veg',
+    description: 'Tender cottage cheese cubes simmered in a luscious buttery tomato-cashew satin gravy.',
+    price: 140,
+    image: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Gobi Manchurian',
+    tamilName: 'கோபி மஞ்சூரியன்',
+    category: 'Sides & Starters',
+    type: 'veg',
+    description: 'Crisp battered cauliflower florets tossed in garlic, ginger, and scallion indo-chinese sauce.',
+    price: 100,
+    image: 'https://images.unsplash.com/photo-1625398407796-82650a8c135f?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Vegetable Kothu Parotta',
+    tamilName: 'காய்கறி கொத்து பரோட்டா',
+    category: 'Sides & Starters',
+    type: 'veg',
+    description: 'Shredded Tamil Nadu street-style parotta beaten on iron griddle with spiced vegetables and salna.',
+    price: 90,
+    image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Mixed Vegetable Curry',
+    tamilName: 'கலவை காய்கறி கறி',
+    category: 'Curries & Gravies',
+    type: 'veg',
+    description: 'Home-style Chettinad curry with seasonal vegetables in roasted coriander and fennel masala.',
+    price: 80,
+    image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+
+  // --- NON-VEGETARIAN (14 Items) ---
+  {
+    name: 'Chicken Biryani',
+    tamilName: 'சிக்கன் பிரியாணி',
+    category: 'Biryani & Rice',
+    type: 'non-veg',
+    description: 'Authentic Dindigul/Ambur style Seeraga Samba chicken biryani infused with fresh mint and tender meat.',
+    price: 190,
+    image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Mutton Biryani',
+    tamilName: 'மட்டன் பிரியாணி',
+    category: 'Biryani & Rice',
+    type: 'non-veg',
+    description: 'Royal wedding style dum biryani with melt-in-mouth tender goat meat and caramelized whole spices.',
+    price: 270,
+    image: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Chicken 65',
+    tamilName: 'சிக்கன் 65',
+    category: 'Sides & Starters',
+    type: 'non-veg',
+    description: 'Iconic Chennai red-marinated crisp fried boneless chicken tossed with fried curry leaves and green chillies.',
+    price: 150,
+    image: 'https://images.unsplash.com/photo-1610057099443-fde8c4d50f91?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Chicken Chettinad',
+    tamilName: 'செட்டிநாடு சிக்கன்',
+    category: 'Curries & Gravies',
+    type: 'non-veg',
+    description: 'Fiery and fragrant Karaikudi speciality curry made with freshly stone-ground kalpasi and peppercorns.',
+    price: 180,
+    image: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Pepper Chicken',
+    tamilName: 'மிளகு சிக்கன்',
+    category: 'Sides & Starters',
+    type: 'non-veg',
+    description: 'Dry roasted country chicken sautéed with cracked Tellicherry black pepper, shallots, and curry leaves.',
+    price: 170,
+    image: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Chicken Curry',
+    tamilName: 'சிக்கன் குழம்பு',
+    category: 'Curries & Gravies',
+    type: 'non-veg',
+    description: 'Traditional Tamil household chicken gravy simmered with coconut paste and fresh coriander.',
+    price: 160,
+    image: 'https://images.unsplash.com/photo-1588166524941-3bf61a9c41db?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Mutton Curry',
+    tamilName: 'மட்டன் குழம்பு',
+    category: 'Curries & Gravies',
+    type: 'non-veg',
+    description: 'Rich slow-cooked mutton gravy bursting with ginger-garlic, shallots, and ground Indian spices.',
+    price: 240,
+    image: 'https://images.unsplash.com/photo-1545247181-516773cae754?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Fish Fry',
+    tamilName: 'மீன் வறுவல்',
+    category: 'Sides & Starters',
+    type: 'non-veg',
+    description: 'Fresh Vanjaram (Seer fish) steaks coated in spicy tangy masala and tawa fried to golden crispness.',
+    price: 190,
+    image: 'https://images.unsplash.com/photo-1534939561126-855b8675edd7?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Fish Curry',
+    tamilName: 'மீன் குழம்பு',
+    category: 'Curries & Gravies',
+    type: 'non-veg',
+    description: 'Authentic clay-pot Meen Kulambu made with tangy tamarind extract, shallots, garlic, and fresh fish.',
+    price: 180,
+    image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Prawn Masala',
+    tamilName: 'இறால் மசாலா',
+    category: 'Curries & Gravies',
+    type: 'non-veg',
+    description: 'Juicy coastal prawns sautéed in a thick, semi-dry tomato and onion masala with crushed pepper.',
+    price: 210,
+    image: 'https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Egg Curry',
+    tamilName: 'முட்டை குழம்பு',
+    category: 'Curries & Gravies',
+    type: 'non-veg',
+    description: 'Hard-boiled farm eggs gently scored and simmered in a mildly spiced onion-tomato gravy.',
+    price: 90,
+    image: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Chicken Fried Rice',
+    tamilName: 'சிக்கன் ஃப்ரைட் ரைஸ்',
+    category: 'Biryani & Rice',
+    type: 'non-veg',
+    description: 'High-flame wok tossed Basmati rice with shredded chicken, scrambled eggs, and scallions.',
+    price: 140,
+    image: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Chicken Kothu Parotta',
+    tamilName: 'சிக்கன் கொத்து பரோட்டா',
+    category: 'Sides & Starters',
+    type: 'non-veg',
+    description: 'Madurai style shredded flaky parotta stir-fried with boneless chicken pieces, eggs, and rich gravy.',
+    price: 130,
+    image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Mutton Sukka',
+    tamilName: 'மட்டன் சுக்கா',
+    category: 'Sides & Starters',
+    type: 'non-veg',
+    description: 'Tender tenderized mutton cubes pan-roasted dry with shallots, crushed garlic, and Chettinad spices.',
+    price: 250,
+    image: 'https://images.unsplash.com/photo-1545247181-516773cae754?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+
+  // --- SWEETS & DESSERTS (10 Items) ---
+  {
+    name: 'Sweet Pongal',
+    tamilName: 'சர்க்கரைப் பொங்கல்',
+    category: 'Sweets & Desserts',
+    type: 'sweet',
+    description: 'Traditional festival dessert made with rice, moong dal, organic brown jaggery, pure ghee, and cashews.',
+    price: 60,
+    image: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Payasam',
+    tamilName: 'பாயாசம்',
+    category: 'Sweets & Desserts',
+    type: 'sweet',
+    description: 'Rich wedding milk kheer infused with cardamom pods, golden raisins, and roasted nuts.',
+    price: 55,
+    image: 'https://images.unsplash.com/photo-1579888944880-d98341245702?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Semiya Payasam',
+    tamilName: 'சேமியா பாயாசம்',
+    category: 'Sweets & Desserts',
+    type: 'sweet',
+    description: 'Silky roasted vermicelli cooked in condensed milk, saffron strands, and roasted cashews.',
+    price: 55,
+    image: 'https://images.unsplash.com/photo-1579888944880-d98341245702?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Gulab Jamun',
+    tamilName: 'குலாப் ஜாமுன்',
+    category: 'Sweets & Desserts',
+    type: 'sweet',
+    description: 'Golden fried khoya dumplings soaked in warm rosewater and cardamom flavored sugar syrup.',
+    price: 50,
+    image: 'https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Kesari',
+    tamilName: 'கேசரி',
+    category: 'Sweets & Desserts',
+    type: 'sweet',
+    description: 'Glistening rava kesari flavored with saffron, pure cow ghee, and crisp fried cashews.',
+    price: 45,
+    image: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Mysore Pak',
+    tamilName: 'மைசூர் பாக்',
+    category: 'Sweets & Desserts',
+    type: 'sweet',
+    description: 'Famous melt-in-the-mouth gram flour sweet prepared with generous quantities of desi ghee.',
+    price: 60,
+    image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Laddu',
+    tamilName: 'லட்டு',
+    category: 'Sweets & Desserts',
+    type: 'sweet',
+    description: 'Traditional Tirupati-style boondi laddu with cloves, cardamom, cashews, and sugar crystals.',
+    price: 40,
+    image: 'https://images.unsplash.com/photo-1596797038530-2c107229654b?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Jangiri',
+    tamilName: 'ஜாங்கிரி',
+    category: 'Sweets & Desserts',
+    type: 'sweet',
+    description: 'Intricately patterned urad dal swirl fried to crisp perfection and steeped in saffron syrup.',
+    price: 50,
+    image: 'https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Badam Halwa',
+    tamilName: 'பாதாம் அல்வா',
+    category: 'Sweets & Desserts',
+    type: 'sweet',
+    description: 'Royal dessert crafted with stone-ground California almonds, saffron milk, and pure ghee.',
+    price: 85,
+    image: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?auto=format&fit=crop&w=600&q=80',
+    available: true,
+  },
+  {
+    name: 'Ice Cream',
+    tamilName: 'ஐஸ்கிரீம்',
+    category: 'Sweets & Desserts',
+    type: 'sweet',
+    description: 'Creamy catering scoops available in traditional South Indian flavours including Vanilla, Mango, and Pista.',
+    price: 40,
+    image: 'https://images.unsplash.com/photo-1501443762994-82bd5dace89a?auto=format&fit=crop&w=600&q=80',
+    available: true,
   },
 ];
 
+/**
+ * Idempotent Seed Function
+ * - Inserts missing foods
+ * - Does NOT overwrite owner-edited price, image, or availability
+ * - Does NOT delete owner-created foods
+ */
+export const seedTamilNaduFoods = async () => {
+  console.log('🌾 [Nivetha Catering] Seeding 42 Traditional Tamil Nadu Foods...');
 
-const seedFoods = async () => {
-  try {
-    await connectDB();
+  const connected = await connectDB();
+  if (!connected && !process.env.MONGODB_URI) {
+    console.warn('⚠️ MONGODB_URI not provided. Skipping live DB seed.');
+    return { created: 0, skipped: 0, total: initial42Foods.length };
+  }
 
-    let inserted = 0;
-    let skipped = 0;
+  let createdCount = 0;
+  let skippedCount = 0;
 
-    for (const item of tamilNaduFoods) {
+  for (const item of initial42Foods) {
+    try {
       const existing = await Food.findOne({ name: item.name });
 
       if (existing) {
-        skipped++;
-        continue;
+        // Safe: Preserve existing owner modifications (price, image, availability)
+        skippedCount++;
+      } else {
+        await Food.create(item);
+        createdCount++;
       }
-
-      await Food.create({
-        ...item,
-        description: "Traditional Tamil Nadu catering menu item",
-        price: 0,
-        image: "",
-        // Owner must set the actual price and enable the item.
-        available: false,
-      });
-
-      inserted++;
+    } catch (err) {
+      console.error(`❌ Error seeding food "${item.name}":`, err.message);
     }
-
-    console.log("Tamil Nadu food catalogue seeding completed.");
-    console.log(`New foods added: ${inserted}`);
-    console.log(`Existing foods skipped: ${skipped}`);
-    console.log("New foods are disabled until the owner sets their prices.");
-
-    await mongoose.disconnect();
-    process.exitCode = 0;
-  } catch (error) {
-    console.error("Food catalogue seeding failed:", error.message);
-
-    try {
-      await mongoose.disconnect();
-    } catch {}
-
-    process.exitCode = 1;
   }
+
+  console.log('\n======================================');
+  console.log('📊 Tamil Nadu Food Menu Seed Summary:');
+  console.log(`   - Total Specified in Catalog: ${initial42Foods.length}`);
+  console.log(`   - Newly Created: ${createdCount}`);
+  console.log(`   - Preserved / Skipped: ${skippedCount}`);
+  console.log('======================================\n');
+
+  return { created: createdCount, skipped: skippedCount, total: initial42Foods.length };
 };
 
-seedFoods();
+// Auto-run if executed directly
+if (process.argv[1] && process.argv[1].endsWith('seedTamilNaduFoods.js')) {
+  seedTamilNaduFoods().then(async () => {
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.connection.close();
+    }
+    process.exit(0);
+  });
+}
+
+export default seedTamilNaduFoods;

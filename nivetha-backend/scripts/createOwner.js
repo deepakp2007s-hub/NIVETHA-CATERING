@@ -1,125 +1,74 @@
+import dotenv from 'dotenv';
+dotenv.config();
 
-const path = require("path");
-require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
+import mongoose from 'mongoose';
+import connectDB from '../src/config/db.js';
+import Owner from '../src/models/Owner.js';
+import { normalizePhone } from '../src/controllers/authController.js';
 
-const readline = require("readline");
-const bcrypt = require("bcryptjs");
-const mongoose = require("mongoose");
+/**
+ * Script to safely provision the two authorized Owner accounts for Nivetha Catering Service.
+ * Preserves existing accounts and does not reset passwords unexpectedly.
+ */
+const provisionOwners = async () => {
+  console.log('🚀 [Nivetha Catering] Starting Owner Provisioning...');
 
-const connectDB = require("../src/config/db");
-const Owner = require("../src/models/Owner");
+  const connected = await connectDB();
+  if (!connected && !process.env.MONGODB_URI) {
+    console.error('❌ MONGODB_URI is required to run owner provisioning.');
+    process.exit(1);
+  }
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
+  // Pre-configured authorized owner definitions (can be overridden via environment variables)
+  const authorizedOwners = [
+    {
+      name: process.env.OWNER_1_NAME || 'Nivetha Chief Owner',
+      phone: normalizePhone(process.env.OWNER_1_PHONE || '9677880164'),
+      password: process.env.OWNER_1_PASSWORD || 'NivethaOwner@2026',
+    },
+    {
+      name: process.env.OWNER_2_NAME || 'Operations Manager Owner',
+      phone: normalizePhone(process.env.OWNER_2_PHONE || '8807669855'),
+      password: process.env.OWNER_2_PASSWORD || 'NivethaOps@2026',
+    },
+  ];
 
-const ask = (question) =>
-  new Promise((resolve) =>
-    rl.question(question, (answer) => resolve(answer.trim()))
-  );
+  let createdCount = 0;
+  let skippedCount = 0;
 
-const getAllowedPhones = () =>
-  [process.env.OWNER_PHONE_1, process.env.OWNER_PHONE_2]
-    .filter(Boolean)
-    .map((phone) => phone.trim());
-
-const run = async () => {
-  try {
-    const allowedPhones = getAllowedPhones();
-
-    if (
-      allowedPhones.length !== 2 ||
-      allowedPhones[0] === allowedPhones[1] ||
-      allowedPhones.some((phone) => !/^[6-9]\d{9}$/.test(phone))
-    ) {
-      throw new Error(
-        "Configure two different valid Indian phone numbers in OWNER_PHONE_1 and OWNER_PHONE_2 in .env."
-      );
-    }
-
-    await connectDB();
-    console.log(`\nConnected to database: ${mongoose.connection.name}`);
-
-    const totalOwners = await Owner.countDocuments();
-
-    if (totalOwners > 2) {
-      throw new Error(
-        `Database already contains ${totalOwners} owners. Review existing accounts before continuing.`
-      );
-    }
-
-    for (let i = 0; i < allowedPhones.length; i += 1) {
-      const phone = allowedPhones[i];
-
-      console.log(`\n--- Configure allowed owner ${i + 1} of 2 ---`);
-      console.log(`Phone: ${phone}`);
-
-      const existing = await Owner.findOne({ phone }).select("+passwordHash");
-      const name = await ask("Owner name: ");
-      const password = await ask("Password (minimum 8 characters): ");
-
-      if (
-        !name ||
-        name.length > 100 ||
-        password.length < 8 ||
-        password.length > 128
-      ) {
-        console.log("Skipped: check the name and password requirements.");
-        continue;
-      }
+  for (const ownerData of authorizedOwners) {
+    try {
+      const existing = await Owner.findOne({ phone: ownerData.phone });
 
       if (existing) {
-        const reset = (
-          await ask("Account exists. Update name and reset password? (y/n): ")
-        ).toLowerCase();
-
-        if (reset !== "y") {
-          console.log("Skipped.");
-          continue;
-        }
-
-        existing.name = name;
-        existing.passwordHash = await bcrypt.hash(password, 12);
-        existing.isActive = true;
-        await existing.save();
-
-        console.log("Owner account updated.");
-        continue;
+        console.log(`ℹ️ [Owner Exists] Owner "${existing.name}" (${ownerData.phone}) already exists. Password preserved.`);
+        skippedCount++;
+      } else {
+        await Owner.create({
+          name: ownerData.name,
+          phone: ownerData.phone,
+          password: ownerData.password,
+          role: 'owner',
+          isAuthorized: true,
+        });
+        console.log(`✅ [Created] Authorized Owner account created for: ${ownerData.name} (${ownerData.phone})`);
+        createdCount++;
       }
-
-      const currentCount = await Owner.countDocuments();
-
-      if (currentCount >= 2) {
-        console.log(
-          "Cannot create another owner: the database already contains two accounts."
-        );
-        continue;
-      }
-
-      await Owner.create({
-        name,
-        phone,
-        passwordHash: await bcrypt.hash(password, 12),
-        isActive: true,
-      });
-
-      console.log("Owner account created.");
-    }
-
-    const finalCount = await Owner.countDocuments();
-    console.log(`\nTotal owner accounts in database: ${finalCount}`);
-    console.log("Only the two configured phone numbers are allowed by the login allowlist.");
-  } catch (error) {
-    console.error("Failed:", error.message);
-    process.exitCode = 1;
-  } finally {
-    rl.close();
-
-    if (mongoose.connection.readyState !== 0) {
-      await mongoose.connection.close();
+    } catch (err) {
+      console.error(`❌ Error provisioning owner ${ownerData.phone}:`, err.message);
     }
   }
+
+  console.log('\n======================================');
+  console.log(`📊 Owner Provisioning Complete:`);
+  console.log(`   - Created: ${createdCount}`);
+  console.log(`   - Skipped (already exist): ${skippedCount}`);
+  console.log('======================================\n');
+
+  if (mongoose.connection.readyState === 1) {
+    await mongoose.connection.close();
+  }
+  process.exit(0);
 };
 
-run();
+provisionOwners();

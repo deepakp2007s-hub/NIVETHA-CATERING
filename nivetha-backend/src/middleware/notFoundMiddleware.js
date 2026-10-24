@@ -1,11 +1,7 @@
-
-const notFoundMiddleware = (req, res) => {
-  return res.status(404).json({
-    success: false,
-    message: "API endpoint not found.",
-    path: req.originalUrl,
-    method: req.method,
-  });
+export const notFound = (req, res, next) => {
+  const error = new Error(`Not Found - ${req.method} ${req.originalUrl}`);
+  res.status(404);
+  next(error);
 };
 
-module.exports = notFoundMiddleware;
+export default notFound;

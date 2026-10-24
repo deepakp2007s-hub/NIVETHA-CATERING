@@ -1,43 +1,54 @@
-
-const mongoose = require("mongoose");
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 const ownerSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, "Owner name is required"],
+      required: [true, 'Owner name is required'],
       trim: true,
-      maxlength: [100, "Owner name cannot exceed 100 characters"],
     },
-
     phone: {
       type: String,
-      required: [true, "Owner phone number is required"],
+      required: [true, 'Phone number is required'],
       unique: true,
       trim: true,
-      match: [
-        /^[6-9]\d{9}$/,
-        "Enter a valid 10-digit Indian mobile number",
-      ],
     },
-
-    passwordHash: {
+    password: {
       type: String,
-      required: [true, "Owner password hash is required"],
-      select: false,
+      required: [true, 'Password is required'],
+      minlength: [6, 'Password must be at least 6 characters'],
+      select: false, // Do not return password by default in queries
     },
-
-    isActive: {
+    role: {
+      type: String,
+      enum: ['owner'],
+      default: 'owner',
+    },
+    isAuthorized: {
       type: Boolean,
       default: true,
     },
   },
   {
     timestamps: true,
-    versionKey: false,
-    strict: true,
   }
 );
 
-module.exports =
-  mongoose.models.Owner || mongoose.model("Owner", ownerSchema);
+// Hash password before saving
+ownerSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) {
+    return next();
+  }
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
+
+// Compare password method
+ownerSchema.methods.matchPassword = async function (enteredPassword) {
+  return await bcrypt.compare(enteredPassword, this.password);
+};
+
+export const Owner = mongoose.models.Owner || mongoose.model('Owner', ownerSchema);
+export default Owner;

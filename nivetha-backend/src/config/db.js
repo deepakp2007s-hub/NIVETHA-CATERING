@@ -1,55 +1,40 @@
+import mongoose from 'mongoose';
 
-const mongoose = require("mongoose");
+/**
+ * Connect to MongoDB Atlas with robust connection handling,
+ * auto-reconnect, and safe logging (hiding credentials).
+ */
+export const connectDB = async () => {
+  const uri = process.env.MONGODB_URI;
 
-let listenersRegistered = false;
-
-const connectDB = async () => {
-  const mongoURI = process.env.MONGODB_URI;
-
-  if (!mongoURI || !mongoURI.trim()) {
-    throw new Error("MONGODB_URI is missing in environment variables");
+  if (!uri) {
+    console.warn('⚠️ [MongoDB] MONGODB_URI not found in environment variables. Running in in-memory/test fallback mode.');
+    return false;
   }
 
-  try {
-    if (mongoose.connection.readyState === 1) {
-      console.log("MongoDB is already connected");
-      console.log("Database:", mongoose.connection.name);
-      return mongoose.connection;
-    }
+  // Safe URI for logging (mask password)
+  const maskedUri = uri.replace(/\/\/([^:]+):([^@]+)@/, '//$1:****@');
 
-    await mongoose.connect(mongoURI, {
-      serverSelectionTimeoutMS: 10000,
-      connectTimeoutMS: 10000,
+  try {
+    const conn = await mongoose.connect(uri, {
+      serverSelectionTimeoutMS: 8000,
       socketTimeoutMS: 45000,
-      maxPoolSize: 20,
-      minPoolSize: 0,
-      maxIdleTimeMS: 60000,
     });
 
-    console.log("MongoDB connected successfully");
-    console.log("Database:", mongoose.connection.name);
-
-    if (!listenersRegistered) {
-      mongoose.connection.on("error", (error) => {
-        console.error("MongoDB connection error:", error.message);
-      });
-
-      mongoose.connection.on("disconnected", () => {
-        console.warn("MongoDB disconnected");
-      });
-
-      mongoose.connection.on("reconnected", () => {
-        console.log("MongoDB reconnected successfully");
-      });
-
-      listenersRegistered = true;
-    }
-
-    return mongoose.connection;
+    console.log(`✅ [MongoDB] Connected successfully to host: ${conn.connection.host}`);
+    return true;
   } catch (error) {
-    console.error("MongoDB connection failed:", error.message);
-    throw error;
+    console.error(`❌ [MongoDB] Connection error (${maskedUri}):`, error.message);
+    return false;
   }
 };
 
-module.exports = connectDB;
+mongoose.connection.on('disconnected', () => {
+  console.warn('⚠️ [MongoDB] Disconnected from MongoDB cluster.');
+});
+
+mongoose.connection.on('reconnected', () => {
+  console.log('🔄 [MongoDB] Reconnected to MongoDB cluster.');
+});
+
+export default connectDB;

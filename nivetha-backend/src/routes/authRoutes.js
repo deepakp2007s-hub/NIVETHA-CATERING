@@ -1,24 +1,13 @@
+import express from 'express';
+import { loginOwner, getOwnerProfile } from '../controllers/authController.js';
+import { protectOwner } from '../middleware/authMiddleware.js';
 
-const express = require("express");
 const router = express.Router();
 
-const authController = require("../controllers/authController");
-const {
-  protect,
-  allowRoles,
-} = require("../middleware/authMiddleware");
+// Owner login (Public endpoint, but only authorized owner credentials succeed)
+router.post('/login', loginOwner);
 
-// Owner login
-// POST /api/auth/login
-router.post("/login", authController.login);
+// Owner profile
+router.get('/me', protectOwner, getOwnerProfile);
 
-// Get logged-in owner profile
-// GET /api/auth/me
-router.get(
-  "/me",
-  protect,
-  allowRoles("owner"),
-  authController.getMe
-);
-
-module.exports = router;
+export default router;

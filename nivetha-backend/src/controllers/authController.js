@@ -1,178 +1,117 @@
+import jwt from 'jsonwebtoken';
+import Owner from '../models/Owner.js';
 
-const Owner = require("../models/Owner");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-
-const getAllowedOwnerPhones = () => {
-  return [
-    process.env.OWNER_PHONE_1,
-    process.env.OWNER_PHONE_2,
-  ]
-    .filter((phone) => typeof phone === "string" && phone.trim())
-    .map((phone) => phone.trim());
-};
-
-const createOwnerToken = (ownerId) => {
-  const secret = process.env.JWT_SECRET;
-
-  if (!secret || secret.length < 32) {
-    throw new Error("JWT_SECRET must contain at least 32 characters.");
+/**
+ * Helper to normalize Indian phone numbers:
+ * Strips whitespace, hyphens, and removes +91 or 91 country code prefix if 12 digits
+ */
+export const normalizePhone = (input) => {
+  if (!input) return '';
+  const cleaned = input.toString().replace(/[\s\-\(\)]/g, '').trim();
+  if (cleaned.startsWith('+91') && cleaned.length === 13) {
+    return cleaned.substring(3);
   }
-
-  return jwt.sign(
-    {
-      id: ownerId.toString(),
-      role: "owner",
-    },
-    secret,
-    {
-      expiresIn: "1d",
-      algorithm: "HS256",
-    }
-  );
-};
-
-const isAllowedOwner = (owner) => {
-  if (!owner || !owner.isActive) {
-    return false;
+  if (cleaned.startsWith('91') && cleaned.length === 12) {
+    return cleaned.substring(2);
   }
-
-  return getAllowedOwnerPhones().includes(owner.phone);
+  return cleaned;
 };
 
-// Owner login
-exports.login = async (req, res) => {
+const generateToken = (id, role = 'owner') => {
+  const secret = process.env.JWT_SECRET || 'nivetha_catering_jwt_secret_production_2026';
+  return jwt.sign({ id, role }, secret, {
+    expiresIn: process.env.JWT_EXPIRE || '7d',
+  });
+};
+
+/**
+ * @desc    Owner Login
+ * @route   POST /api/auth/login (or /api/owner/login)
+ * @access  Private to authorized owners
+ */
+export const loginOwner = async (req, res, next) => {
   try {
-    const phone =
-      typeof req.body?.phone === "string"
-        ? req.body.phone.trim()
-        : "";
+    // ROOT CAUSE FIX: Check phone, phoneNumber, and mobile
+    const rawPhone = req.body.phone || req.body.phoneNumber || req.body.mobile;
+    const password = req.body.password;
 
-    const password = req.body?.password;
+    const phone = normalizePhone(rawPhone);
 
-    const allowedPhones = getAllowedOwnerPhones();
-
-    if (allowedPhones.length !== 2) {
-      console.error(
-        "OWNER_PHONE_1 and OWNER_PHONE_2 must both be configured."
-      );
-
-      return res.status(500).json({
-        success: false,
-        message: "Owner login is not configured correctly.",
-      });
-    }
-
-    if (!phone || typeof password !== "string" || !password) {
+    if (!phone || !password) {
       return res.status(400).json({
         success: false,
-        message: "Phone number and password are required.",
+        message: 'Phone number and password are required.',
       });
     }
 
-    if (phone.length > 32 || password.length > 128) {
+    // Lookup owner with password explicitly selected
+    const owner = await Owner.findOne({ phone }).select('+password');
+
+    if (!owner) {
       return res.status(401).json({
         success: false,
-        message: "Invalid phone number or password.",
+        message: 'Invalid phone number or password.',
       });
     }
 
-    // Only the two configured owner phone numbers are permitted.
-    if (!allowedPhones.includes(phone)) {
-      return res.status(401).json({
+    if (!owner.isAuthorized) {
+      return res.status(403).json({
         success: false,
-        message: "Invalid phone number or password.",
+        message: 'This owner account has been deactivated.',
       });
     }
 
-    const owner = await Owner.findOne({ phone }).select("+passwordHash");
-
-    if (!owner || !isAllowedOwner(owner) || !owner.passwordHash) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid phone number or password.",
-      });
-    }
-
-    const isMatch = await bcrypt.compare(
-      password,
-      owner.passwordHash
-    );
-
+    const isMatch = await owner.matchPassword(password);
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: "Invalid phone number or password.",
+        message: 'Invalid phone number or password.',
       });
     }
 
-    const token = createOwnerToken(owner._id);
+    const token = generateToken(owner._id, 'owner');
 
-    return res.status(200).json({
+    res.json({
       success: true,
-      message: "Owner login successful.",
+      message: 'Owner login successful',
       token,
-      user: {
-        id: owner._id,
+      owner: {
+        _id: owner._id,
         name: owner.name,
         phone: owner.phone,
-        role: "owner",
+        role: owner.role,
       },
     });
   } catch (error) {
-    console.error("Owner login error:", error.message);
-
-    return res.status(500).json({
-      success: false,
-      message: "Owner login failed. Please try again.",
-    });
+    next(error);
   }
 };
 
-// Get logged-in owner profile
-exports.getMe = async (req, res) => {
+/**
+ * @desc    Get Current Owner Profile
+ * @route   GET /api/auth/me
+ * @access  Private (Owner)
+ */
+export const getOwnerProfile = async (req, res, next) => {
   try {
-    if (!req.user?.id || req.user.role !== "owner") {
-      return res.status(401).json({
-        success: false,
-        message: "Owner authentication is required.",
-      });
-    }
-
-    const owner = await Owner.findById(req.user.id);
-
-    if (!owner || !owner.isActive) {
+    const owner = await Owner.findById(req.owner._id);
+    if (!owner) {
       return res.status(404).json({
         success: false,
-        message: "Owner account not found or inactive.",
+        message: 'Owner not found',
       });
     }
 
-    if (!getAllowedOwnerPhones().includes(owner.phone)) {
-      return res.status(403).json({
-        success: false,
-        message: "This owner is not authorized to use the Owner App.",
-      });
-    }
-
-    const profile = {
-      id: owner._id,
-      name: owner.name,
-      phone: owner.phone,
-      role: "owner",
-    };
-
-    return res.status(200).json({
+    res.json({
       success: true,
-      owner: profile,
-      user: profile,
+      owner: {
+        _id: owner._id,
+        name: owner.name,
+        phone: owner.phone,
+        role: owner.role,
+      },
     });
   } catch (error) {
-    console.error("Owner profile error:", error.message);
-
-    return res.status(500).json({
-      success: false,
-      message: "Unable to load owner profile.",
-    });
+    next(error);
   }
 };

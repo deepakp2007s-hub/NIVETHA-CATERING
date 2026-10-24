@@ -1,147 +1,63 @@
+import jwt from 'jsonwebtoken';
+import Owner from '../models/Owner.js';
 
-const jwt = require("jsonwebtoken");
-const mongoose = require("mongoose");
-const Owner = require("../models/Owner");
+export const protectOwner = async (req, res, next) => {
+  let token;
 
-const getAllowedOwnerPhones = () =>
-  [process.env.OWNER_PHONE_1, process.env.OWNER_PHONE_2]
-    .filter((phone) => typeof phone === "string" && phone.trim())
-    .map((phone) => phone.trim());
-
-const isValidOwnerConfiguration = (phones) => {
-  return (
-    phones.length === 2 &&
-    phones[0] !== phones[1] &&
-    phones.every((phone) => /^[6-9]\d{9}$/.test(phone))
-  );
-};
-
-const protect = async (req, res, next) => {
-  const authorization = req.headers.authorization;
-
-  if (
-    typeof authorization !== "string" ||
-    !authorization.startsWith("Bearer ")
-  ) {
-    return res.status(401).json({
-      success: false,
-      message: "Authentication token required. Please log in.",
-    });
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
   }
-
-  const token = authorization.slice(7).trim();
 
   if (!token) {
     return res.status(401).json({
       success: false,
-      message: "Authentication token is missing.",
-    });
-  }
-
-  const jwtSecret = process.env.JWT_SECRET;
-
-  if (!jwtSecret || jwtSecret.length < 32) {
-    console.error("JWT_SECRET is missing or too short.");
-
-    return res.status(500).json({
-      success: false,
-      message: "Authentication service is not configured correctly.",
+      message: 'Not authorized. Owner token is missing.',
     });
   }
 
   try {
-    const decoded = jwt.verify(token, jwtSecret, {
-      algorithms: ["HS256"],
-    });
+    const jwtSecret = process.env.JWT_SECRET || 'nivetha_catering_jwt_secret_production_2026';
+    const decoded = jwt.verify(token, jwtSecret);
 
-    if (
-      !decoded ||
-      typeof decoded.id !== "string" ||
-      !mongoose.isValidObjectId(decoded.id) ||
-      !["owner", "customer"].includes(decoded.role)
-    ) {
-      return res.status(401).json({
+    // Enforce role isolation: Customer tokens MUST NOT access Owner endpoints
+    if (decoded.role !== 'owner') {
+      return res.status(403).json({
         success: false,
-        message: "Invalid authentication token.",
+        message: 'Access denied. Owner privileges required.',
       });
     }
 
-    // Validate owner authorization on every protected owner request.
-    if (decoded.role === "owner") {
-      const allowedPhones = getAllowedOwnerPhones();
-
-      if (!isValidOwnerConfiguration(allowedPhones)) {
-        console.error("Owner phone allowlist is not configured correctly.");
-
-        return res.status(500).json({
-          success: false,
-          message: "Owner authentication is not configured correctly.",
-        });
-      }
-
-      const owner = await Owner.findById(decoded.id)
-        .select("phone isActive")
-        .lean();
-
-      if (
-        !owner ||
-        owner.isActive !== true ||
-        !allowedPhones.includes(owner.phone)
-      ) {
-        return res.status(403).json({
-          success: false,
-          message: "This owner account is not authorized.",
-        });
-      }
+    const owner = await Owner.findById(decoded.id).select('-password');
+    if (!owner) {
+      return res.status(401).json({
+        success: false,
+        message: 'Owner account no longer exists.',
+      });
     }
 
-    req.user = {
-      id: decoded.id,
-      role: decoded.role,
-    };
+    if (owner.isAuthorized === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Owner account is deactivated.',
+      });
+    }
 
-    return next();
+    req.owner = owner;
+    req.user = owner;
+    next();
   } catch (error) {
-    if (
-      error.name === "JsonWebTokenError" ||
-      error.name === "TokenExpiredError" ||
-      error.name === "NotBeforeError"
-    ) {
+    console.error('Owner auth error:', error.message);
+    if (error.name === 'TokenExpiredError') {
       return res.status(401).json({
         success: false,
-        message:
-          error.name === "TokenExpiredError"
-            ? "Session expired. Please log in again."
-            : "Invalid authentication token.",
+        message: 'Session expired. Please log in again.',
       });
     }
-
-    // Forward database and unexpected errors to Express error middleware.
-    return next(error);
+    return res.status(401).json({
+      success: false,
+      message: 'Not authorized. Invalid token.',
+    });
   }
 };
 
-const allowRoles = (...roles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: "Please log in first.",
-      });
-    }
-
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not authorized to access this resource.",
-      });
-    }
-
-    return next();
-  };
-};
-
-module.exports = {
-  protect,
-  allowRoles,
-};
+export default protectOwner;

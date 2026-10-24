@@ -1,22 +1,12 @@
+import express from 'express';
+import { getDashboardStats } from '../controllers/dashboardController.js';
+import { protectOwner } from '../middleware/authMiddleware.js';
 
-const express = require("express");
 const router = express.Router();
 
-const {
-  getDashboard,
-} = require("../controllers/dashboardController");
+router.use(protectOwner);
 
-const {
-  protect,
-  allowRoles,
-} = require("../middleware/authMiddleware");
+router.get('/', getDashboardStats);
+router.get('/stats', getDashboardStats);
 
-// Owner-only dashboard access
-router.get(
-  "/",
-  protect,
-  allowRoles("owner"),
-  getDashboard
-);
-
-module.exports = router;
+export default router;

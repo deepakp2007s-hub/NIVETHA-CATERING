@@ -1,147 +1,114 @@
-
-const mongoose = require("mongoose");
+import mongoose from 'mongoose';
 
 const bookingSchema = new mongoose.Schema(
   {
+    bookingId: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+    },
     customer: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Customer",
-      required: true,
-      index: false,
+      ref: 'Customer',
+      required: [true, 'Customer reference is required'],
+      index: true,
     },
-
+    customerName: {
+      type: String,
+      required: [true, 'Customer name is required'],
+      trim: true,
+    },
+    customerPhone: {
+      type: String,
+      required: [true, 'Customer phone number is required'],
+      trim: true,
+    },
     eventType: {
       type: String,
-      required: [true, "Event type is required"],
+      required: [true, 'Event type is required'],
       trim: true,
-      maxlength: [100, "Event type cannot exceed 100 characters"],
-    },
-
-    functionDate: {
-      type: Date,
-      required: [true, "Function date is required"],
-    },
-
-    functionTime: {
-      type: String,
-      required: [true, "Function time is required"],
-      trim: true,
-      match: [
-        /^(?:[01]\d|2[0-3]):[0-5]\d$/,
-        "Function time must be in HH:mm format",
+      enum: [
+        'Wedding',
+        'Reception',
+        'Birthday Party',
+        'Housewarming (Grahapravesam)',
+        'Engagement',
+        'Baby Shower (Valaikappu)',
+        'Ear Piercing',
+        'Corporate Event',
+        'Other Function',
       ],
+      default: 'Wedding',
     },
-
-    location: {
+    eventDate: {
+      type: Date,
+      required: [true, 'Function date is required'],
+      index: true,
+    },
+    eventTime: {
       type: String,
-      required: [true, "Event location is required"],
+      required: [true, 'Function session/time is required'],
       trim: true,
-      maxlength: [500, "Location cannot exceed 500 characters"],
+      default: 'Morning',
     },
-
+    eventLocation: {
+      type: String,
+      required: [true, 'Event location/venue address is required'],
+      trim: true,
+    },
     numberOfPersons: {
       type: Number,
-      required: [true, "Number of persons is required"],
-      min: [1, "At least one person is required"],
-      max: [1000000, "Number of persons exceeds the limit"],
-      validate: {
-        validator: Number.isSafeInteger,
-        message: "Number of persons must be a whole number",
-      },
+      required: [true, 'Number of guests/persons is required'],
+      min: [10, 'Minimum order is 10 persons'],
     },
-
-    cateringService: {
-      type: String,
-      trim: true,
-      default: "cooking",
-      maxlength: [100, "Catering service cannot exceed 100 characters"],
-    },
-
-    cateringServices: {
-      type: [
-        {
-          type: String,
-          trim: true,
-          maxlength: [100, "Each catering service cannot exceed 100 characters"],
-        },
-      ],
-      default: [],
-    },
-
-    mealType: {
-      type: String,
-      trim: true,
-      default: "",
-      maxlength: [50, "Meal type cannot exceed 50 characters"],
-    },
-
-    foodType: {
-      type: String,
-      enum: {
-        values: ["veg", "non-veg", "both"],
-        message: "Food type must be veg, non-veg, or both",
-      },
-      default: "veg",
-      required: true,
-    },
-
     selectedFoods: [
       {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Food",
+        foodId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Food',
+        },
+        name: { type: String, required: true },
+        tamilName: { type: String },
+        category: { type: String },
+        type: { type: String },
+        price: { type: Number, default: 0 },
       },
     ],
-
-    selectedFoodNames: {
-      type: [
-        {
-          type: String,
-          trim: true,
-          maxlength: [150, "Food name cannot exceed 150 characters"],
-        },
-      ],
-      default: [],
+    cateringServices: {
+      type: [String],
+      default: ['Traditional Banana Leaf Service (வாழை இலை விருந்து)'],
     },
-
     extraRequirements: {
       type: String,
       trim: true,
-      default: "",
-      maxlength: [2000, "Extra requirements cannot exceed 2000 characters"],
+      default: '',
     },
-
     status: {
       type: String,
-      enum: {
-        values: [
-          "pending",
-          "confirmed",
-          "rejected",
-          "cancelled",
-          "completed",
-        ],
-        message: "Invalid booking status",
-      },
-      default: "pending",
-      required: true,
+      enum: ['pending', 'confirmed', 'rejected', 'completed', 'cancelled'],
+      default: 'pending',
+      index: true,
+    },
+    totalAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    notes: {
+      type: String,
+      trim: true,
+      default: '',
     },
   },
   {
     timestamps: true,
-    versionKey: false,
-    strict: true,
   }
 );
 
-// Customer booking history
+// Helpful compound indexes
 bookingSchema.index({ customer: 1, createdAt: -1 });
+bookingSchema.index({ status: 1, eventDate: 1 });
 
-// Owner booking status dashboard
-bookingSchema.index({ status: 1, createdAt: -1 });
-
-// Event scheduling
-bookingSchema.index({ functionDate: 1, status: 1 });
-
-module.exports =
-  mongoose.models.Booking ||
-  mongoose.model("Booking", bookingSchema);
+export const Booking = mongoose.models.Booking || mongoose.model('Booking', bookingSchema);
+export default Booking;

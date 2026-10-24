@@ -1,59 +1,55 @@
-
-const mongoose = require("mongoose");
+import mongoose from 'mongoose';
 
 const foodSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: true,
+      required: [true, 'Food English name is required'],
+      unique: true,
       trim: true,
-      maxlength: 150,
+      index: true,
     },
-
     tamilName: {
       type: String,
+      required: [true, 'Food Tamil name is required'],
       trim: true,
-      default: "",
-      maxlength: 150,
     },
-
     category: {
       type: String,
-      required: true,
-      trim: true,
-      maxlength: 100,
+      required: [true, 'Category is required'],
+      enum: [
+        'Meals',
+        'Tiffin & Breakfast',
+        'Biryani & Rice',
+        'Curries & Gravies',
+        'Sides & Starters',
+        'Sweets & Desserts',
+        'Breads',
+      ],
+      default: 'Meals',
     },
-
     type: {
       type: String,
-      enum: ["veg", "non-veg", "both"],
-      default: "veg",
-      required: true,
-      lowercase: true,
-      trim: true,
+      required: [true, 'Food type is required'],
+      enum: ['veg', 'non-veg', 'sweet'],
+      index: true,
     },
-
     description: {
       type: String,
       trim: true,
-      default: "",
-      maxlength: 1000,
+      default: '',
     },
-
-    // Owner-only food price management
     price: {
       type: Number,
-      min: [0, "Price cannot be negative."],
+      required: [true, 'Price is required'],
+      min: [0, 'Price cannot be negative'],
       default: 0,
     },
-
     image: {
       type: String,
       trim: true,
-      default: "",
-      maxlength: 2048,
+      default: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=600&q=80',
     },
-
     available: {
       type: Boolean,
       default: true,
@@ -62,12 +58,12 @@ const foodSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    versionKey: false,
   }
 );
 
-foodSchema.index({ available: 1, category: 1, name: 1 });
-foodSchema.index({ createdAt: -1 });
+// Compound index for category and availability
+foodSchema.index({ category: 1, available: 1 });
+foodSchema.index({ type: 1, available: 1 });
 
-module.exports =
-  mongoose.models.Food || mongoose.model("Food", foodSchema);
+export const Food = mongoose.models.Food || mongoose.model('Food', foodSchema);
+export default Food;

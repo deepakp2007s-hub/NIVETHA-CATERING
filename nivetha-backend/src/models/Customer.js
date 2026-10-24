@@ -1,68 +1,66 @@
-
-const mongoose = require("mongoose");
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 const customerSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, "Customer name is required"],
+      required: [true, 'Customer name is required'],
       trim: true,
-      maxlength: [100, "Name cannot exceed 100 characters"],
     },
-
     phone: {
       type: String,
-      required: [true, "Phone number is required"],
+      required: [true, 'Customer phone number is required'],
       unique: true,
       trim: true,
-      match: [
-        /^[6-9]\d{9}$/,
-        "Enter a valid 10-digit Indian mobile number",
-      ],
+      index: true,
     },
-
-    passwordHash: {
-      type: String,
-      required: [true, "Password hash is required"],
-      select: false,
-    },
-
     email: {
       type: String,
       trim: true,
       lowercase: true,
-      maxlength: [254, "Email cannot exceed 254 characters"],
-      sparse: true,
-      unique: true,
-      default: undefined,
-      set: (value) =>
-        typeof value === "string" && value.trim() === ""
-          ? undefined
-          : value,
-      validate: {
-        validator: (value) =>
-          value == null || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
-        message: "Please provide a valid email address.",
-      },
+      default: '',
     },
-
     address: {
       type: String,
       trim: true,
-      maxlength: [500, "Address cannot exceed 500 characters"],
-      default: "",
+      default: '',
+    },
+    password: {
+      type: String,
+      required: [true, 'Password is required'],
+      minlength: [6, 'Password must be at least 6 characters'],
+      select: false,
+    },
+    role: {
+      type: String,
+      enum: ['customer'],
+      default: 'customer',
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
     },
   },
   {
     timestamps: true,
-    versionKey: false,
-    strict: true,
   }
 );
 
-// Customer registration/history lookup
-customerSchema.index({ createdAt: -1 });
+// Hash password before saving
+customerSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) {
+    return next();
+  }
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
 
-module.exports =
-  mongoose.models.Customer ||
-  mongoose.model("Customer", customerSchema);
+// Compare password method
+customerSchema.methods.matchPassword = async function (enteredPassword) {
+  return await bcrypt.compare(enteredPassword, this.password);
+};
+
+export const Customer = mongoose.models.Customer || mongoose.model('Customer', customerSchema);
+export default Customer;

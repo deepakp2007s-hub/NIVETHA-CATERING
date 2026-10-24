@@ -1,85 +1,62 @@
+import jwt from 'jsonwebtoken';
+import Customer from '../models/Customer.js';
 
-const jwt = require("jsonwebtoken");
-const mongoose = require("mongoose");
+export const protectCustomer = async (req, res, next) => {
+  let token;
 
-module.exports = function customerAuthMiddleware(req, res, next) {
-  const authHeader = req.headers.authorization;
-
-  // Require a Bearer token
-  if (
-    typeof authHeader !== "string" ||
-    !authHeader.startsWith("Bearer ")
-  ) {
-    return res.status(401).json({
-      success: false,
-      message: "Please log in to continue.",
-    });
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
   }
-
-  const token = authHeader.slice(7).trim();
 
   if (!token) {
     return res.status(401).json({
       success: false,
-      message: "Authentication token is missing.",
-    });
-  }
-
-  const jwtSecret = process.env.JWT_SECRET;
-
-  if (!jwtSecret || jwtSecret.length < 32) {
-    console.error("JWT_SECRET is missing or too short.");
-
-    return res.status(500).json({
-      success: false,
-      message: "Authentication service is not configured correctly.",
+      message: 'Not authorized. Customer authentication token missing.',
     });
   }
 
   try {
-    const decoded = jwt.verify(token, jwtSecret, {
-      algorithms: ["HS256"],
-    });
+    const jwtSecret = process.env.JWT_SECRET || 'nivetha_catering_jwt_secret_production_2026';
+    const decoded = jwt.verify(token, jwtSecret);
 
-    // Customer endpoints accept only customer tokens.
-    if (
-      !decoded ||
-      decoded.role !== "customer" ||
-      typeof decoded.id !== "string" ||
-      !mongoose.isValidObjectId(decoded.id)
-    ) {
+    if (decoded.role !== 'customer') {
       return res.status(403).json({
         success: false,
-        message: "Customer access only.",
+        message: 'Access denied. Customer authentication required.',
       });
     }
 
-    req.user = {
-      id: decoded.id,
-      role: "customer",
-    };
-
-    return next();
-  } catch (error) {
-    if (
-      error.name === "JsonWebTokenError" ||
-      error.name === "TokenExpiredError" ||
-      error.name === "NotBeforeError"
-    ) {
+    const customer = await Customer.findById(decoded.id).select('-password');
+    if (!customer) {
       return res.status(401).json({
         success: false,
-        message:
-          error.name === "TokenExpiredError"
-            ? "Session expired. Please log in again."
-            : "Invalid authentication token. Please log in again.",
+        message: 'Customer account not found.',
       });
     }
 
-    console.error("Customer authentication error:", error.message);
+    if (customer.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Customer account is suspended.',
+      });
+    }
 
-    return res.status(500).json({
+    req.customer = customer;
+    req.user = customer;
+    next();
+  } catch (error) {
+    console.error('Customer auth error:', error.message);
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Session expired. Please log in again.',
+      });
+    }
+    return res.status(401).json({
       success: false,
-      message: "Customer authentication failed. Please try again.",
+      message: 'Not authorized. Invalid token.',
     });
   }
 };
+
+export default protectCustomer;

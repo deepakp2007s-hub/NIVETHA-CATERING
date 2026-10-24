@@ -1,22 +1,12 @@
+import express from 'express';
+import { getReportsSummary } from '../controllers/reportController.js';
+import { protectOwner } from '../middleware/authMiddleware.js';
 
-const express = require("express");
 const router = express.Router();
 
-const {
-  getReports,
-} = require("../controllers/reportController");
+router.use(protectOwner);
 
-const {
-  protect,
-  allowRoles,
-} = require("../middleware/authMiddleware");
+router.get('/', getReportsSummary);
+router.get('/summary', getReportsSummary);
 
-// Owner-only reports access
-router.get(
-  "/",
-  protect,
-  allowRoles("owner"),
-  getReports
-);
-
-module.exports = router;
+export default router;

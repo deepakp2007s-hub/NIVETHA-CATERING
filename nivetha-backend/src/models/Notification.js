@@ -1,66 +1,52 @@
-
-const mongoose = require("mongoose");
+import mongoose from 'mongoose';
 
 const notificationSchema = new mongoose.Schema(
   {
     recipient: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Customer",
-      required: true,
+      ref: 'Customer',
+      required: [true, 'Recipient customer is required'],
+      index: true,
     },
-
-    title: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 150,
-    },
-
-    message: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 2000,
-    },
-
     type: {
       type: String,
       enum: [
-        "general",
-        "booking",
-        "payment",
-        "reminder",
-        "update",
+        'booking_received',
+        'booking_confirmed',
+        'booking_updated',
+        'booking_cancelled',
+        'booking_completed',
+        'general',
       ],
-      default: "general",
-      required: true,
+      default: 'booking_received',
     },
-
-    isRead: {
+    title: {
+      type: String,
+      required: [true, 'Notification title is required'],
+      trim: true,
+    },
+    message: {
+      type: String,
+      required: [true, 'Notification message is required'],
+      trim: true,
+    },
+    bookingId: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    read: {
       type: Boolean,
       default: false,
-      required: true,
+      index: true,
     },
   },
   {
     timestamps: true,
-    versionKey: false,
   }
 );
 
-// Efficient customer notification queries
-notificationSchema.index({
-  recipient: 1,
-  createdAt: -1,
-  _id: -1,
-});
+notificationSchema.index({ recipient: 1, createdAt: -1 });
 
-notificationSchema.index({
-  recipient: 1,
-  isRead: 1,
-  createdAt: -1,
-});
-
-module.exports =
-  mongoose.models.Notification ||
-  mongoose.model("Notification", notificationSchema);
+export const Notification = mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
+export default Notification;

@@ -1,45 +1,46 @@
-
-const mongoose = require("mongoose");
+import mongoose from 'mongoose';
 
 const reviewSchema = new mongoose.Schema(
   {
     customer: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Customer",
-      required: true,
-      index: false,
+      ref: 'Customer',
+      required: [true, 'Customer is required'],
+      index: true,
     },
-
+    booking: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Booking',
+    },
+    customerName: {
+      type: String,
+      required: [true, 'Customer name is required'],
+      trim: true,
+    },
     rating: {
       type: Number,
-      required: true,
-      min: [1, "Rating must be at least 1."],
-      max: [5, "Rating cannot exceed 5."],
-      validate: {
-        validator: Number.isInteger,
-        message: "Rating must be an integer between 1 and 5.",
-      },
+      required: [true, 'Rating is required'],
+      min: [1, 'Rating must be at least 1 star'],
+      max: [5, 'Rating cannot exceed 5 stars'],
     },
-
     comment: {
       type: String,
+      required: [true, 'Review comment is required'],
       trim: true,
-      default: "",
-      maxlength: 2000,
+      maxlength: [1000, 'Comment cannot exceed 1000 characters'],
+    },
+    isApproved: {
+      type: Boolean,
+      default: true,
+      index: true,
     },
   },
   {
     timestamps: true,
-    versionKey: false,
   }
 );
 
-// Efficient newest-first review listing
-reviewSchema.index({ createdAt: -1, _id: -1 });
+reviewSchema.index({ isApproved: 1, createdAt: -1 });
 
-// Efficient customer review history
-reviewSchema.index({ customer: 1, createdAt: -1 });
-
-module.exports =
-  mongoose.models.Review ||
-  mongoose.model("Review", reviewSchema);
+export const Review = mongoose.models.Review || mongoose.model('Review', reviewSchema);
+export default Review;

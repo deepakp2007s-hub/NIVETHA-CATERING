@@ -1,127 +1,151 @@
+import Review from '../models/Review.js';
+import Booking from '../models/Booking.js';
 
-const mongoose = require("mongoose");
-const Review = require("../models/Review");
-
-// Owner: Get all reviews with pagination
-const getReviews = async (req, res, next) => {
+/**
+ * @desc    Get All Approved Reviews (Public)
+ * @route   GET /api/reviews
+ * @access  Public
+ */
+export const getPublicReviews = async (req, res, next) => {
   try {
-    const parsedPage = Number.parseInt(req.query.page, 10);
-    const parsedLimit = Number.parseInt(req.query.limit, 10);
+    const reviews = await Review.find({ isApproved: true })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
 
-    const page =
-      Number.isSafeInteger(parsedPage) && parsedPage > 0
-        ? parsedPage
-        : 1;
-
-    const limit =
-      Number.isSafeInteger(parsedLimit) && parsedLimit > 0
-        ? Math.min(parsedLimit, 100)
-        : 20;
-
-    const skip = (page - 1) * limit;
-
-    const [reviews, total] = await Promise.all([
-      Review.find()
-        .sort({ createdAt: -1, _id: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      Review.countDocuments(),
+    // Average rating
+    const avgStats = await Review.aggregate([
+      { $match: { isApproved: true } },
+      {
+        $group: {
+          _id: null,
+          avgRating: { $avg: '$rating' },
+          totalReviews: { $sum: 1 },
+        },
+      },
     ]);
 
-    return res.status(200).json({
+    const averageRating = avgStats.length > 0 ? Number(avgStats[0].avgRating.toFixed(1)) : 5.0;
+    const totalReviews = avgStats.length > 0 ? avgStats[0].totalReviews : 0;
+
+    res.json({
       success: true,
-      data: reviews,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-        hasNextPage: page * limit < total,
-        hasPreviousPage: page > 1,
-      },
+      averageRating,
+      totalReviews,
+      count: reviews.length,
+      reviews,
     });
   } catch (error) {
-    return next(error);
+    next(error);
   }
 };
 
-// Customer: Submit a review
-const createReview = async (req, res, next) => {
+/**
+ * @desc    Submit a Review (Customer Only)
+ * @route   POST /api/reviews
+ * @access  Private (Customer)
+ */
+export const createReview = async (req, res, next) => {
   try {
-    const customerId = req.user?.id || req.user?._id;
+    const { rating, comment, bookingId } = req.body;
 
-    if (
-      !customerId ||
-      !mongoose.isValidObjectId(String(customerId))
-    ) {
-      return res.status(401).json({
+    if (!rating || !comment) {
+      return res.status(400).json({
         success: false,
-        message: "Valid customer authentication is required.",
+        message: 'Rating and comment are required.',
       });
     }
 
-    const body = req.body || {};
-    const { rating, comment } = body;
-
-    const parsedRating =
-      typeof rating === "number" ? rating : Number(rating);
-
-    if (
-      rating === undefined ||
-      rating === null ||
-      rating === "" ||
-      !Number.isInteger(parsedRating) ||
-      parsedRating < 1 ||
-      parsedRating > 5
-    ) {
+    const numericRating = Number(rating);
+    if (isNaN(numericRating) || numericRating < 1 || numericRating > 5) {
       return res.status(400).json({
         success: false,
-        message: "Rating must be an integer between 1 and 5.",
+        message: 'Rating must be a number between 1 and 5.',
       });
     }
 
-    if (
-      comment !== undefined &&
-      (typeof comment !== "string" || comment.trim().length > 2000)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Comment must be text with at most 2000 characters.",
+    let bookingRef = null;
+    if (bookingId) {
+      const booking = await Booking.findOne({
+        $or: [{ _id: bookingId }, { bookingId }],
+        customer: req.customer._id,
       });
+      if (booking) {
+        bookingRef = booking._id;
+      }
     }
 
     const review = await Review.create({
-      customer: customerId,
-      rating: parsedRating,
-      comment: typeof comment === "string" ? comment.trim() : "",
+      customer: req.customer._id,
+      customerName: req.customer.name,
+      booking: bookingRef,
+      rating: numericRating,
+      comment: comment.trim(),
+      isApproved: true,
     });
 
-    return res.status(201).json({
+    res.status(201).json({
       success: true,
-      message: "Review submitted successfully.",
-      data: review,
+      message: 'Thank you for your feedback!',
+      review,
     });
   } catch (error) {
-    if (error.name === "ValidationError") {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid review data.",
-      });
-    }
-
-    if (error.code === 11000) {
-      return res.status(409).json({
-        success: false,
-        message: "A review already exists for this record.",
-      });
-    }
-
-    return next(error);
+    next(error);
   }
 };
 
-module.exports = {
-  getReviews,
-  createReview,
+/**
+ * @desc    Get All Reviews for Owner Moderation
+ * @route   GET /api/reviews/all
+ * @access  Private (Owner Only)
+ */
+export const getAllReviewsForOwner = async (req, res, next) => {
+  try {
+    const reviews = await Review.find().sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: reviews.length,
+      reviews,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Delete a Review
+ * @route   DELETE /api/reviews/:id
+ * @access  Private (Owner or Author)
+ */
+export const deleteReview = async (req, res, next) => {
+  try {
+    const review = await Review.findById(req.params.id);
+    if (!review) {
+      return res.status(404).json({
+        success: false,
+        message: 'Review not found.',
+      });
+    }
+
+    // Check authorization: Owner or author
+    const isAuthor = req.user.role === 'customer' && review.customer.toString() === req.user._id.toString();
+    const isOwner = req.user.role === 'owner';
+
+    if (!isAuthor && !isOwner) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this review.',
+      });
+    }
+
+    await Review.deleteOne({ _id: review._id });
+
+    res.json({
+      success: true,
+      message: 'Review deleted successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
 };

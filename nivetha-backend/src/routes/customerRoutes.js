@@ -1,41 +1,13 @@
+import express from 'express';
+import { getCustomers, getCustomerById } from '../controllers/customerController.js';
+import { protectOwner } from '../middleware/authMiddleware.js';
 
-const express = require("express");
 const router = express.Router();
 
-const {
-  getCustomers,
-  getCustomerById,
-  updateMyProfile,
-} = require("../controllers/customerController");
+// All customer management routes require Owner privileges
+router.use(protectOwner);
 
-const {
-  protect,
-  allowRoles,
-} = require("../middleware/authMiddleware");
+router.get('/', getCustomers);
+router.get('/:id', getCustomerById);
 
-const customerAuthMiddleware = require("../middleware/customerAuthMiddleware");
-
-// Customer: Update only their own profile
-router.patch(
-  "/profile",
-  customerAuthMiddleware,
-  updateMyProfile
-);
-
-// Owner-only: View all customers
-router.get(
-  "/",
-  protect,
-  allowRoles("owner"),
-  getCustomers
-);
-
-// Owner-only: View a specific customer
-router.get(
-  "/:id",
-  protect,
-  allowRoles("owner"),
-  getCustomerById
-);
-
-module.exports = router;
+export default router;

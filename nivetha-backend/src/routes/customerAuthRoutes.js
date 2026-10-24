@@ -1,28 +1,17 @@
+import express from 'express';
+import {
+  registerCustomer,
+  loginCustomer,
+  getCustomerProfile,
+  updateCustomerProfile,
+} from '../controllers/customerAuthController.js';
+import { protectCustomer } from '../middleware/customerAuthMiddleware.js';
 
-const express = require("express");
 const router = express.Router();
 
-const customerAuthController = require("../controllers/customerAuthController");
-const customerAuthMiddleware = require("../middleware/customerAuthMiddleware");
+router.post('/register', registerCustomer);
+router.post('/login', loginCustomer);
+router.get('/profile', protectCustomer, getCustomerProfile);
+router.put('/profile', protectCustomer, updateCustomerProfile);
 
-// ======================================
-// CUSTOMER AUTHENTICATION ROUTES
-// ======================================
-
-// Register a new customer
-// POST /api/customer-auth/register
-router.post("/register", customerAuthController.register);
-
-// Login existing customer
-// POST /api/customer-auth/login
-router.post("/login", customerAuthController.login);
-
-// Get logged-in customer's profile
-// GET /api/customer-auth/me
-router.get(
-  "/me",
-  customerAuthMiddleware,
-  customerAuthController.getMe
-);
-
-module.exports = router;
+export default router;

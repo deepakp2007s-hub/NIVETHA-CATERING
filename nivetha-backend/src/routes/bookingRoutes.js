@@ -1,91 +1,72 @@
-
-const express = require("express");
-const router = express.Router();
-
-const {
-  getBookings,
+import express from 'express';
+import jwt from 'jsonwebtoken';
+import {
   createBooking,
   getMyBookings,
   getBookingById,
-  updateMyBooking,
-  updateBooking,
   cancelBooking,
-} = require("../controllers/bookingController");
+  getAllBookings,
+  updateBookingStatus,
+} from '../controllers/bookingController.js';
+import { protectCustomer } from '../middleware/customerAuthMiddleware.js';
+import { protectOwner } from '../middleware/authMiddleware.js';
+import Owner from '../models/Owner.js';
+import Customer from '../models/Customer.js';
 
-const {
-  protect,
-  allowRoles,
-} = require("../middleware/authMiddleware");
+const router = express.Router();
 
-// ======================================
-// CUSTOMER BOOKING ROUTES
-// ======================================
+/**
+ * Middleware allowing either authenticated Owner or authenticated Customer
+ */
+const protectAnyUser = async (req, res, next) => {
+  let token;
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
+  }
 
-// Create a booking
-// POST /api/bookings
-router.post(
-  "/",
-  protect,
-  allowRoles("customer"),
-  createBooking
-);
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: 'Not authorized. Token is required.',
+    });
+  }
 
-// Get logged-in customer's bookings
-// GET /api/bookings/my-bookings
-router.get(
-  "/my-bookings",
-  protect,
-  allowRoles("customer"),
-  getMyBookings
-);
+  try {
+    const secret = process.env.JWT_SECRET || 'nivetha_catering_jwt_secret_production_2026';
+    const decoded = jwt.verify(token, secret);
 
-// Cancel own booking
-// PATCH /api/bookings/:id/cancel
-router.patch(
-  "/:id/cancel",
-  protect,
-  allowRoles("customer"),
-  cancelBooking
-);
+    if (decoded.role === 'owner') {
+      const owner = await Owner.findById(decoded.id);
+      if (!owner) return res.status(401).json({ success: false, message: 'Owner not found' });
+      req.owner = owner;
+      req.user = owner;
+      return next();
+    } else if (decoded.role === 'customer') {
+      const customer = await Customer.findById(decoded.id);
+      if (!customer) return res.status(401).json({ success: false, message: 'Customer not found' });
+      req.customer = customer;
+      req.user = customer;
+      return next();
+    } else {
+      return res.status(403).json({ success: false, message: 'Unauthorized role' });
+    }
+  } catch (error) {
+    return res.status(401).json({ success: false, message: 'Invalid or expired token' });
+  }
+};
 
-// Update own booking
-// PATCH /api/bookings/:id
-router.patch(
-  "/:id",
-  protect,
-  allowRoles("customer"),
-  updateMyBooking
-);
+// Customer routes
+router.post('/', protectCustomer, createBooking);
+router.get('/my', protectCustomer, getMyBookings);
 
-// View a single booking
-// Controller must verify customer ownership or owner role.
-router.get(
-  "/:id",
-  protect,
-  allowRoles("customer", "owner"),
-  getBookingById
-);
+// Owner list all bookings
+router.get('/', protectOwner, getAllBookings);
 
-// ======================================
-// OWNER BOOKING ROUTES
-// ======================================
+// Shared / Role-checked endpoints
+router.get('/:id', protectAnyUser, getBookingById);
+router.patch('/:id/cancel', protectAnyUser, cancelBooking);
 
-// Get all bookings
-// GET /api/bookings
-router.get(
-  "/",
-  protect,
-  allowRoles("owner"),
-  getBookings
-);
+// Owner update status
+router.patch('/:id/status', protectOwner, updateBookingStatus);
 
-// Update booking status
-// PATCH /api/bookings/:id/status
-router.patch(
-  "/:id/status",
-  protect,
-  allowRoles("owner"),
-  updateBooking
-);
-
-module.exports = router;
+export default router;

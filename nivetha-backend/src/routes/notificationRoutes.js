@@ -1,50 +1,17 @@
+import express from 'express';
+import {
+  getMyNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+} from '../controllers/notificationController.js';
+import { protectCustomer } from '../middleware/customerAuthMiddleware.js';
 
-const express = require("express");
 const router = express.Router();
 
-const {
-  getNotifications,
-  createNotification,
-  markNotificationRead,
-  markAllNotificationsRead,
-  deleteNotification,
-} = require("../controllers/notificationController");
+router.use(protectCustomer);
 
-const {
-  protect,
-  allowRoles,
-} = require("../middleware/authMiddleware");
+router.get('/', getMyNotifications);
+router.patch('/read-all', markAllNotificationsAsRead);
+router.patch('/:id/read', markNotificationAsRead);
 
-// All notification routes require authentication.
-router.use(protect);
-
-// Get notifications for the authenticated user.
-router.get("/", getNotifications);
-
-// Owner only: create notifications.
-router.post(
-  "/",
-  allowRoles("owner"),
-  createNotification
-);
-
-// Mark one notification as read.
-router.patch(
-  "/:id/read",
-  markNotificationRead
-);
-
-// Mark all notifications as read.
-router.patch(
-  "/read-all",
-  markAllNotificationsRead
-);
-
-// Delete a notification.
-// Controller must verify ownership or owner permissions.
-router.delete(
-  "/:id",
-  deleteNotification
-);
-
-module.exports = router;
+export default router;

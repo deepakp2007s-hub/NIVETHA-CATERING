@@ -1,357 +1,204 @@
+import Food from '../models/Food.js';
 
-const mongoose = require("mongoose");
-const Food = require("../models/Food");
-
-const isValidId = (id) => mongoose.isValidObjectId(id);
-
-const sendError = (res, status, message) => {
-  return res.status(status).json({
-    success: false,
-    message,
-  });
-};
-
-// Owner: Get all foods, including unavailable foods.
-const getFoods = async (req, res, next) => {
+/**
+ * @desc    Get All Foods (with filtering and search)
+ * @route   GET /api/foods
+ * @access  Public / Customer / Owner
+ */
+export const getFoods = async (req, res, next) => {
   try {
-    const foods = await Food.find()
-      .sort({ createdAt: -1, _id: -1 })
-      .lean();
+    const { category, type, available, search } = req.query;
+    const filter = {};
 
-    return res.status(200).json({
+    if (category) {
+      filter.category = category;
+    }
+
+    if (type) {
+      filter.type = type.toLowerCase();
+    }
+
+    if (available !== undefined) {
+      filter.available = available === 'true';
+    }
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { tamilName: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const foods = await Food.find(filter).sort({ category: 1, name: 1 });
+
+    res.json({
       success: true,
       count: foods.length,
-      data: foods,
+      foods,
     });
   } catch (error) {
-    return next(error);
+    next(error);
   }
 };
 
-// Customer: Get available foods without exposing prices.
-const getCustomerFoods = async (req, res, next) => {
+/**
+ * @desc    Get Single Food by ID
+ * @route   GET /api/foods/:id
+ * @access  Public
+ */
+export const getFoodById = async (req, res, next) => {
   try {
-    const foods = await Food.find({ available: true })
-      .select("name tamilName category type description image available")
-      .sort({ category: 1, name: 1 })
-      .lean();
+    const food = await Food.findById(req.params.id);
+    if (!food) {
+      return res.status(404).json({
+        success: false,
+        message: 'Food item not found.',
+      });
+    }
 
-    return res.status(200).json({
+    res.json({
       success: true,
-      count: foods.length,
-      data: foods,
+      food,
     });
   } catch (error) {
-    return next(error);
+    next(error);
   }
 };
 
-// Owner: Create a food item.
-const createFood = async (req, res, next) => {
+/**
+ * @desc    Add New Food Item
+ * @route   POST /api/foods
+ * @access  Private (Owner Only)
+ */
+export const createFood = async (req, res, next) => {
   try {
-    const body = req.body || {};
-    const {
-      name,
-      tamilName,
-      category,
-      type,
-      description,
-      price,
-      image,
-      available,
-    } = body;
+    const { name, tamilName, category, type, description, price, image, available } = req.body;
 
-    if (
-      typeof name !== "string" ||
-      !name.trim() ||
-      typeof category !== "string" ||
-      !category.trim()
-    ) {
-      return sendError(
-        res,
-        400,
-        "Food name and category are required."
-      );
+    if (!name || !tamilName || !category || !type) {
+      return res.status(400).json({
+        success: false,
+        message: 'Food English name, Tamil name, category, and type are required.',
+      });
     }
 
-    if (name.trim().length > 100 || category.trim().length > 100) {
-      return sendError(
-        res,
-        400,
-        "Food name and category cannot exceed 100 characters."
-      );
+    const existing = await Food.findOne({ name: name.trim() });
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message: `A food item named "${name}" already exists in the menu.`,
+      });
     }
 
-    const optionalStrings = {
-      tamilName,
-      type,
-      description,
-      image,
-    };
-
-    for (const [field, value] of Object.entries(optionalStrings)) {
-      if (value !== undefined && typeof value !== "string") {
-        return sendError(res, 400, `${field} must be a string.`);
-      }
-    }
-
-    if (available !== undefined && typeof available !== "boolean") {
-      return sendError(
-        res,
-        400,
-        "Availability must be true or false."
-      );
-    }
-
-    const foodData = {
+    const food = await Food.create({
       name: name.trim(),
-      category: category.trim(),
-      tamilName: typeof tamilName === "string" ? tamilName.trim() : "",
-      type: typeof type === "string" ? type.trim().toLowerCase() : "veg",
-      description:
-        typeof description === "string" ? description.trim() : "",
-      image: typeof image === "string" ? image.trim() : "",
-      available: available ?? true,
-    };
+      tamilName: tamilName.trim(),
+      category,
+      type: type.toLowerCase(),
+      description: description ? description.trim() : '',
+      price: Number(price) >= 0 ? Number(price) : 0,
+      image: image || undefined,
+      available: available !== undefined ? available : true,
+    });
 
-    // Price is optional here, but Food.js must define a price field
-    // for Mongoose to persist it.
-    if (price !== undefined && price !== null && price !== "") {
-      const parsedPrice = Number(price);
-
-      if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-        return sendError(
-          res,
-          400,
-          "Price must be a valid non-negative number."
-        );
-      }
-
-      foodData.price = parsedPrice;
-    }
-
-    const food = await Food.create(foodData);
-
-    return res.status(201).json({
+    res.status(201).json({
       success: true,
-      message: "Food added successfully.",
-      data: food,
+      message: 'Food item created successfully',
+      food,
     });
   } catch (error) {
-    if (error.name === "ValidationError") {
-      return sendError(res, 400, error.message);
-    }
-
-    return next(error);
+    next(error);
   }
 };
 
-// Owner: Update a food item.
-const updateFood = async (req, res, next) => {
+/**
+ * @desc    Update Food Item
+ * @route   PUT /api/foods/:id
+ * @access  Private (Owner Only)
+ */
+export const updateFood = async (req, res, next) => {
   try {
-    const { id } = req.params;
-
-    if (!isValidId(id)) {
-      return sendError(res, 400, "Invalid food ID.");
-    }
-
-    const body = req.body || {};
-    const allowedFields = [
-      "name",
-      "tamilName",
-      "category",
-      "type",
-      "description",
-      "price",
-      "image",
-      "available",
-    ];
-
-    const updates = {};
-
-    for (const field of allowedFields) {
-      if (Object.prototype.hasOwnProperty.call(body, field)) {
-        updates[field] = body[field];
-      }
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return sendError(
-        res,
-        400,
-        "No valid food fields provided to update."
-      );
-    }
-
-    for (const field of ["name", "category"]) {
-      if (field in updates) {
-        if (
-          typeof updates[field] !== "string" ||
-          !updates[field].trim()
-        ) {
-          return sendError(
-            res,
-            400,
-            `${field} must be a non-empty string.`
-          );
-        }
-
-        updates[field] = updates[field].trim();
-
-        if (updates[field].length > 100) {
-          return sendError(
-            res,
-            400,
-            `${field} cannot exceed 100 characters.`
-          );
-        }
-      }
-    }
-
-    for (const field of [
-      "tamilName",
-      "type",
-      "description",
-      "image",
-    ]) {
-      if (field in updates) {
-        if (typeof updates[field] !== "string") {
-          return sendError(res, 400, `${field} must be a string.`);
-        }
-
-        updates[field] = updates[field].trim();
-
-        if (field === "type") {
-          updates[field] = updates[field].toLowerCase();
-        }
-      }
-    }
-
-    if ("price" in updates) {
-      if (
-        updates.price === "" ||
-        updates.price === null ||
-        updates.price === undefined
-      ) {
-        return sendError(
-          res,
-          400,
-          "Price must be a valid non-negative number."
-        );
-      }
-
-      const parsedPrice = Number(updates.price);
-
-      if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-        return sendError(
-          res,
-          400,
-          "Price must be a valid non-negative number."
-        );
-      }
-
-      updates.price = parsedPrice;
-    }
-
-    if (
-      "available" in updates &&
-      typeof updates.available !== "boolean"
-    ) {
-      return sendError(
-        res,
-        400,
-        "Availability must be true or false."
-      );
-    }
-
-    const food = await Food.findByIdAndUpdate(
-      id,
-      { $set: updates },
-      {
-        new: true,
-        runValidators: true,
-      }
-    );
-
+    const food = await Food.findById(req.params.id);
     if (!food) {
-      return sendError(res, 404, "Food not found.");
+      return res.status(404).json({
+        success: false,
+        message: 'Food item not found.',
+      });
     }
 
-    return res.status(200).json({
+    const updates = req.body;
+    if (updates.name) food.name = updates.name.trim();
+    if (updates.tamilName) food.tamilName = updates.tamilName.trim();
+    if (updates.category) food.category = updates.category;
+    if (updates.type) food.type = updates.type.toLowerCase();
+    if (updates.description !== undefined) food.description = updates.description.trim();
+    if (updates.price !== undefined) food.price = Number(updates.price);
+    if (updates.image !== undefined) food.image = updates.image;
+    if (updates.available !== undefined) food.available = updates.available;
+
+    await food.save();
+
+    res.json({
       success: true,
-      message: "Food updated successfully.",
-      data: food,
+      message: 'Food item updated successfully',
+      food,
     });
   } catch (error) {
-    if (error.name === "ValidationError") {
-      return sendError(res, 400, error.message);
-    }
-
-    return next(error);
+    next(error);
   }
 };
 
-// Owner: Delete a food item.
-const deleteFood = async (req, res, next) => {
+/**
+ * @desc    Toggle Food Availability
+ * @route   PATCH /api/foods/:id/toggle-availability
+ * @access  Private (Owner Only)
+ */
+export const toggleFoodAvailability = async (req, res, next) => {
   try {
-    const { id } = req.params;
-
-    if (!isValidId(id)) {
-      return sendError(res, 400, "Invalid food ID.");
-    }
-
-    const food = await Food.findByIdAndDelete(id);
-
+    const food = await Food.findById(req.params.id);
     if (!food) {
-      return sendError(res, 404, "Food not found.");
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: "Food deleted successfully.",
-    });
-  } catch (error) {
-    return next(error);
-  }
-};
-
-// Owner: Toggle food availability.
-const toggleFoodAvailability = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    if (!isValidId(id)) {
-      return sendError(res, 400, "Invalid food ID.");
-    }
-
-    const food = await Food.findById(id);
-
-    if (!food) {
-      return sendError(res, 404, "Food not found.");
+      return res.status(404).json({
+        success: false,
+        message: 'Food item not found.',
+      });
     }
 
     food.available = !food.available;
     await food.save();
 
-    return res.status(200).json({
+    res.json({
       success: true,
-      message: "Food availability updated successfully.",
-      data: food,
+      message: `Food "${food.name}" availability set to ${food.available ? 'Available' : 'Unavailable'}`,
+      available: food.available,
+      food,
     });
   } catch (error) {
-    if (error.name === "ValidationError") {
-      return sendError(res, 400, error.message);
-    }
-
-    return next(error);
+    next(error);
   }
 };
 
-module.exports = {
-  getFoods,
-  getCustomerFoods,
-  createFood,
-  updateFood,
-  deleteFood,
-  toggleFoodAvailability,
+/**
+ * @desc    Delete Food Item
+ * @route   DELETE /api/foods/:id
+ * @access  Private (Owner Only)
+ */
+export const deleteFood = async (req, res, next) => {
+  try {
+    const food = await Food.findById(req.params.id);
+    if (!food) {
+      return res.status(404).json({
+        success: false,
+        message: 'Food item not found.',
+      });
+    }
+
+    await Food.deleteOne({ _id: food._id });
+
+    res.json({
+      success: true,
+      message: `Food item "${food.name}" deleted successfully.`,
+    });
+  } catch (error) {
+    next(error);
+  }
 };
