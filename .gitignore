@@ -28,3 +28,4 @@ desktop.ini
 
 # Test output
 .nyc_output/
+nivetha-backend/scripts/resetOwnerPassword.js
