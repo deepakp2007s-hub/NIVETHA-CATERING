@@ -1,4 +1,3 @@
-
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -31,7 +30,6 @@ const foodSchema = new mongoose.Schema(
         'Dinner',
         'Sweets & Desserts',
       ],
-      required: true,
       trim: true,
     },
 
@@ -48,12 +46,6 @@ const foodSchema = new mongoose.Schema(
       default: '',
       trim: true,
       maxlength: 1000,
-    },
-
-    price: {
-      type: Number,
-      required: [true, 'Price is required'],
-      min: [0, 'Price cannot be negative'],
     },
 
     image: {

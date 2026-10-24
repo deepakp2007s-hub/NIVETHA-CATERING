@@ -1,4 +1,3 @@
-
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -23,10 +22,11 @@ const ALLOWED_FIELDS = [
   'category',
   'type',
   'description',
-  'price',
   'image',
   'available',
 ];
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const isValidImageUrl = (value) => {
   if (typeof value !== 'string' || !value.trim()) return false;
@@ -78,8 +78,7 @@ export const getAllFoods = async (req, res) => {
     }
 
     if (search?.trim()) {
-      const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const searchRegex = new RegExp(escaped, 'i');
+      const searchRegex = new RegExp(escapeRegex(search.trim()), 'i');
 
       filter.$or = [
         { name: searchRegex },
@@ -150,7 +149,6 @@ export const createFood = async (req, res) => {
       category,
       type,
       description = '',
-      price,
       image,
       available = true,
     } = req.body;
@@ -183,19 +181,6 @@ export const createFood = async (req, res) => {
       });
     }
 
-    if (
-      price === undefined ||
-      price === null ||
-      price === '' ||
-      !Number.isFinite(Number(price)) ||
-      Number(price) < 0
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: 'A valid non-negative price is required',
-      });
-    }
-
     if (!isValidImageUrl(image)) {
       return res.status(400).json({
         success: false,
@@ -212,7 +197,7 @@ export const createFood = async (req, res) => {
 
     const normalizedName = name.trim();
     const existingFood = await Food.findOne({
-      name: { $regex: `^${normalizedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
+      name: { $regex: `^${escapeRegex(normalizedName)}$`, $options: 'i' },
     });
 
     if (existingFood) {
@@ -228,7 +213,6 @@ export const createFood = async (req, res) => {
       category,
       type: type || 'Veg',
       description: typeof description === 'string' ? description.trim() : '',
-      price: Number(price),
       image: image.trim(),
       available,
     });
@@ -300,7 +284,7 @@ export const updateFood = async (req, res) => {
       updates.name = updates.name.trim();
 
       const duplicate = await Food.findOne({
-        name: { $regex: `^${updates.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
+        name: { $regex: `^${escapeRegex(updates.name)}$`, $options: 'i' },
         _id: { $ne: id },
       });
 
@@ -334,20 +318,6 @@ export const updateFood = async (req, res) => {
         success: false,
         message: 'Invalid food type',
       });
-    }
-
-    if ('price' in updates) {
-      if (
-        updates.price === '' ||
-        !Number.isFinite(Number(updates.price)) ||
-        Number(updates.price) < 0
-      ) {
-        return res.status(400).json({
-          success: false,
-          message: 'Price must be a valid non-negative number',
-        });
-      }
-      updates.price = Number(updates.price);
     }
 
     if ('image' in updates && !isValidImageUrl(updates.image)) {
@@ -469,7 +439,6 @@ export const getCatalogStats = async (req, res) => {
               available: {
                 $sum: { $cond: ['$available', 1, 0] },
               },
-              avgPrice: { $avg: '$price' },
             },
           },
           { $sort: { _id: 1 } },

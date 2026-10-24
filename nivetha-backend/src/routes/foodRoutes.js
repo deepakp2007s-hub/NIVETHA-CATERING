@@ -1,32 +1,73 @@
-
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import express from 'express';
-import {
-  getAllFoods,
-  getFoodById,
-  createFood,
-  updateFood,
-  deleteFood,
-  getCatalogStats,
-} from '../controllers/foodController.js';
+import mongoose from 'mongoose';
 
-import { protectOwner } from '../middleware/authMiddleware.js';
+const foodSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, 'Food name is required'],
+      trim: true,
+      unique: true,
+    },
 
-const router = express.Router();
+    tamilName: {
+      type: String,
+      required: [true, 'Tamil name is required'],
+      trim: true,
+    },
 
-// Public routes — customers can view foods
-router.get('/stats', getCatalogStats);
-router.get('/', getAllFoods);
-router.get('/:id', getFoodById);
+    category: {
+      type: String,
+      required: [true, 'Category is required'],
+      enum: [
+        'Breakfast & Tiffin',
+        'Meals & Vegetarian',
+        'Biryani, Rice & Non-Vegetarian',
+        'Dinner',
+        'Sweets & Desserts',
+      ],
+      trim: true,
+    },
 
-// Owner-only routes — authentication required
-router.post('/', protectOwner, createFood);
-router.put('/:id', protectOwner, updateFood);
-router.patch('/:id', protectOwner, updateFood);
-router.delete('/:id', protectOwner, deleteFood);
+    type: {
+      type: String,
+      required: [true, 'Food type is required'],
+      enum: ['Veg', 'Non-Veg', 'Sweet'],
+      default: 'Veg',
+      trim: true,
+    },
 
-export default router;
+    description: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 1000,
+    },
+
+    image: {
+      type: String,
+      required: [true, 'Image URL is required'],
+      trim: true,
+    },
+
+    available: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+foodSchema.index({ category: 1, available: 1 });
+foodSchema.index({ type: 1 });
+foodSchema.index({ name: 'text', tamilName: 'text' });
+
+const Food = mongoose.models.Food || mongoose.model('Food', foodSchema);
+
+export default Food;
