@@ -62,9 +62,7 @@ const allowedOrigins = new Set([
 ]);
 
 const isFlutterWebLocalOrigin = (origin) =>
-  /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(
-    normalizeOrigin(origin)
-  );
+  /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
 
 const corsOptions = {
   origin(origin, callback) {
@@ -83,8 +81,10 @@ const corsOptions = {
 
     const error = new Error('Origin not allowed by CORS');
     error.status = 403;
+
     return callback(error);
   },
+
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -123,7 +123,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.get('/api', (req, res) => {
-  res.json({
+  return res.json({
     success: true,
     name: 'Nivetha Catering Service API',
     version: '1.0.0',

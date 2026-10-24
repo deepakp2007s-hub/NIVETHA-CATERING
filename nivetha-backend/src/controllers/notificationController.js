@@ -1,43 +1,80 @@
+
+import mongoose from 'mongoose';
 import Notification from '../models/Notification.js';
 
 /**
- * @desc    Get Current Customer's Notifications
- * @route   GET /api/notifications
- * @access  Private (Customer)
+ * GET /api/notifications
+ * Get current customer's notifications.
  */
 export const getMyNotifications = async (req, res, next) => {
   try {
-    const notifications = await Notification.find({ recipient: req.customer._id })
-      .sort({ createdAt: -1 })
-      .limit(50);
+    if (!req.customer?._id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Customer authentication required.',
+      });
+    }
 
-    const unreadCount = await Notification.countDocuments({
-      recipient: req.customer._id,
-      read: false,
-    });
+    const recipient = req.customer._id;
 
-    res.json({
+    const [notifications, unreadCount] = await Promise.all([
+      Notification.find({ recipient })
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .lean(),
+
+      Notification.countDocuments({
+        recipient,
+        read: false,
+      }),
+    ]);
+
+    return res.status(200).json({
       success: true,
       unreadCount,
       count: notifications.length,
       notifications,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
 /**
- * @desc    Mark a Single Notification as Read
- * @route   PATCH /api/notifications/:id/read
- * @access  Private (Customer)
+ * PATCH /api/notifications/:id/read
+ * Mark one notification as read.
  */
 export const markNotificationAsRead = async (req, res, next) => {
   try {
-    const notification = await Notification.findOne({
-      _id: req.params.id,
-      recipient: req.customer._id,
-    });
+    if (!req.customer?._id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Customer authentication required.',
+      });
+    }
+
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid notification ID.',
+      });
+    }
+
+    const notification = await Notification.findOneAndUpdate(
+      {
+        _id: id,
+        recipient: req.customer._id,
+      },
+      {
+        $set: { read: true },
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
 
     if (!notification) {
       return res.status(404).json({
@@ -46,32 +83,44 @@ export const markNotificationAsRead = async (req, res, next) => {
       });
     }
 
-    notification.read = true;
-    await notification.save();
-
-    res.json({
+    return res.status(200).json({
       success: true,
       notification,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
 /**
- * @desc    Mark All Customer Notifications as Read
- * @route   PATCH /api/notifications/read-all
- * @access  Private (Customer)
+ * PATCH /api/notifications/read-all
+ * Mark all current customer's notifications as read.
  */
 export const markAllNotificationsAsRead = async (req, res, next) => {
   try {
-    await Notification.updateMany({ recipient: req.customer._id, read: false }, { read: true });
+    if (!req.customer?._id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Customer authentication required.',
+      });
+    }
 
-    res.json({
+    const result = await Notification.updateMany(
+      {
+        recipient: req.customer._id,
+        read: false,
+      },
+      {
+        $set: { read: true },
+      }
+    );
+
+    return res.status(200).json({
       success: true,
       message: 'All notifications marked as read.',
+      modifiedCount: result.modifiedCount,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };

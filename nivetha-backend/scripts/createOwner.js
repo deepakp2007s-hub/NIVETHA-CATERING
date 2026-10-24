@@ -1,3 +1,4 @@
+
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -6,69 +7,104 @@ import connectDB from '../src/config/db.js';
 import Owner from '../src/models/Owner.js';
 import { normalizePhone } from '../src/controllers/authController.js';
 
-/**
- * Script to safely provision the two authorized Owner accounts for Nivetha Catering Service.
- * Preserves existing accounts and does not reset passwords unexpectedly.
- */
 const provisionOwners = async () => {
-  console.log('🚀 [Nivetha Catering] Starting Owner Provisioning...');
+  console.log('[Nivetha Catering] Starting owner provisioning...');
 
-  const connected = await connectDB();
-  if (!connected && !process.env.MONGODB_URI) {
-    console.error('❌ MONGODB_URI is required to run owner provisioning.');
-    process.exit(1);
-  }
+  try {
+    const requiredVariables = [
+      'MONGODB_URI',
+      'OWNER_1_PHONE',
+      'OWNER_1_PASSWORD',
+      'OWNER_2_PHONE',
+      'OWNER_2_PASSWORD',
+    ];
 
-  // Pre-configured authorized owner definitions (can be overridden via environment variables)
-  const authorizedOwners = [
-    {
-      name: process.env.OWNER_1_NAME || 'Nivetha Chief Owner',
-      phone: normalizePhone(process.env.OWNER_1_PHONE || '9677880164'),
-      password: process.env.OWNER_1_PASSWORD || 'NivethaOwner@2026',
-    },
-    {
-      name: process.env.OWNER_2_NAME || 'Operations Manager Owner',
-      phone: normalizePhone(process.env.OWNER_2_PHONE || '8807669855'),
-      password: process.env.OWNER_2_PASSWORD || 'NivethaOps@2026',
-    },
-  ];
+    const missing = requiredVariables.filter(
+      (key) => !process.env[key]?.trim()
+    );
 
-  let createdCount = 0;
-  let skippedCount = 0;
+    if (missing.length > 0) {
+      throw new Error(
+        `Missing required environment variables: ${missing.join(', ')}`
+      );
+    }
 
-  for (const ownerData of authorizedOwners) {
-    try {
-      const existing = await Owner.findOne({ phone: ownerData.phone });
+    const owners = [
+      {
+        name: process.env.OWNER_1_NAME || 'Nivetha Chief Owner',
+        phone: normalizePhone(process.env.OWNER_1_PHONE),
+        password: process.env.OWNER_1_PASSWORD,
+      },
+      {
+        name: process.env.OWNER_2_NAME || 'Operations Manager Owner',
+        phone: normalizePhone(process.env.OWNER_2_PHONE),
+        password: process.env.OWNER_2_PASSWORD,
+      },
+    ];
+
+    for (const owner of owners) {
+      if (!/^\d{10}$/.test(owner.phone)) {
+        throw new Error(
+          `Owner phone must be a valid 10-digit Indian number: ${owner.name}`
+        );
+      }
+
+      if (owner.password.length < 6) {
+        throw new Error(
+          `Owner password must contain at least 6 characters: ${owner.name}`
+        );
+      }
+    }
+
+    if (owners[0].phone === owners[1].phone) {
+      throw new Error('Owner phone numbers must be different.');
+    }
+
+    await connectDB();
+
+    if (mongoose.connection.readyState !== 1) {
+      throw new Error('MongoDB connection failed.');
+    }
+
+    let createdCount = 0;
+    let skippedCount = 0;
+
+    for (const data of owners) {
+      const existing = await Owner.findOne({ phone: data.phone });
 
       if (existing) {
-        console.log(`ℹ️ [Owner Exists] Owner "${existing.name}" (${ownerData.phone}) already exists. Password preserved.`);
+        console.log(
+          `[Skipped] Owner account already exists: ${existing.name}. Existing password preserved.`
+        );
         skippedCount++;
-      } else {
-        await Owner.create({
-          name: ownerData.name,
-          phone: ownerData.phone,
-          password: ownerData.password,
-          role: 'owner',
-          isAuthorized: true,
-        });
-        console.log(`✅ [Created] Authorized Owner account created for: ${ownerData.name} (${ownerData.phone})`);
-        createdCount++;
+        continue;
       }
-    } catch (err) {
-      console.error(`❌ Error provisioning owner ${ownerData.phone}:`, err.message);
+
+      await Owner.create({
+        name: data.name,
+        phone: data.phone,
+        password: data.password,
+        role: 'owner',
+        isAuthorized: true,
+      });
+
+      console.log(`[Created] Owner account: ${data.name}`);
+      createdCount++;
+    }
+
+    console.log('\nOwner provisioning completed.');
+    console.log(`Created: ${createdCount}`);
+    console.log(`Skipped: ${skippedCount}`);
+  } catch (error) {
+    console.error('Owner provisioning failed:', error.message);
+    process.exitCode = 1;
+  } finally {
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.connection.close().catch((error) => {
+        console.error('MongoDB disconnect error:', error.message);
+      });
     }
   }
-
-  console.log('\n======================================');
-  console.log(`📊 Owner Provisioning Complete:`);
-  console.log(`   - Created: ${createdCount}`);
-  console.log(`   - Skipped (already exist): ${skippedCount}`);
-  console.log('======================================\n');
-
-  if (mongoose.connection.readyState === 1) {
-    await mongoose.connection.close();
-  }
-  process.exit(0);
 };
 
 provisionOwners();

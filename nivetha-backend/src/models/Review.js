@@ -1,3 +1,4 @@
+
 import mongoose from 'mongoose';
 
 const reviewSchema = new mongoose.Schema(
@@ -11,17 +12,23 @@ const reviewSchema = new mongoose.Schema(
     booking: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Booking',
+      default: null,
     },
     customerName: {
       type: String,
       required: [true, 'Customer name is required'],
       trim: true,
+      maxlength: [100, 'Customer name cannot exceed 100 characters'],
     },
     rating: {
       type: Number,
       required: [true, 'Rating is required'],
       min: [1, 'Rating must be at least 1 star'],
       max: [5, 'Rating cannot exceed 5 stars'],
+      validate: {
+        validator: Number.isInteger,
+        message: 'Rating must be a whole number.',
+      },
     },
     comment: {
       type: String,
@@ -31,7 +38,7 @@ const reviewSchema = new mongoose.Schema(
     },
     isApproved: {
       type: Boolean,
-      default: true,
+      default: false,
       index: true,
     },
   },
@@ -41,6 +48,9 @@ const reviewSchema = new mongoose.Schema(
 );
 
 reviewSchema.index({ isApproved: 1, createdAt: -1 });
+reviewSchema.index({ customer: 1, createdAt: -1 });
 
-export const Review = mongoose.models.Review || mongoose.model('Review', reviewSchema);
+const Review =
+  mongoose.models.Review || mongoose.model('Review', reviewSchema);
+
 export default Review;

@@ -1,34 +1,39 @@
+
+import mongoose from 'mongoose';
 import Review from '../models/Review.js';
 import Booking from '../models/Booking.js';
 
 /**
- * @desc    Get All Approved Reviews (Public)
- * @route   GET /api/reviews
- * @access  Public
+ * GET /api/reviews
+ * Get approved public reviews.
  */
 export const getPublicReviews = async (req, res, next) => {
   try {
-    const reviews = await Review.find({ isApproved: true })
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .lean();
+    const [reviews, avgStats] = await Promise.all([
+      Review.find({ isApproved: true })
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .lean(),
 
-    // Average rating
-    const avgStats = await Review.aggregate([
-      { $match: { isApproved: true } },
-      {
-        $group: {
-          _id: null,
-          avgRating: { $avg: '$rating' },
-          totalReviews: { $sum: 1 },
+      Review.aggregate([
+        { $match: { isApproved: true } },
+        {
+          $group: {
+            _id: null,
+            avgRating: { $avg: '$rating' },
+            totalReviews: { $sum: 1 },
+          },
         },
-      },
+      ]),
     ]);
 
-    const averageRating = avgStats.length > 0 ? Number(avgStats[0].avgRating.toFixed(1)) : 5.0;
-    const totalReviews = avgStats.length > 0 ? avgStats[0].totalReviews : 0;
+    const averageRating = avgStats[0]
+      ? Number(avgStats[0].avgRating.toFixed(1))
+      : 0;
 
-    res.json({
+    const totalReviews = avgStats[0]?.totalReviews ?? 0;
+
+    return res.status(200).json({
       success: true,
       averageRating,
       totalReviews,
@@ -36,43 +41,88 @@ export const getPublicReviews = async (req, res, next) => {
       reviews,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
 /**
- * @desc    Submit a Review (Customer Only)
- * @route   POST /api/reviews
- * @access  Private (Customer)
+ * POST /api/reviews
+ * Submit a review as an authenticated customer.
  */
 export const createReview = async (req, res, next) => {
   try {
+    if (!req.customer?._id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Customer authentication required.',
+      });
+    }
+
     const { rating, comment, bookingId } = req.body;
 
-    if (!rating || !comment) {
+    if (rating === undefined || rating === null || rating === '') {
       return res.status(400).json({
         success: false,
-        message: 'Rating and comment are required.',
+        message: 'Rating is required.',
       });
     }
 
     const numericRating = Number(rating);
-    if (isNaN(numericRating) || numericRating < 1 || numericRating > 5) {
+
+    if (
+      !Number.isInteger(numericRating) ||
+      numericRating < 1 ||
+      numericRating > 5
+    ) {
       return res.status(400).json({
         success: false,
-        message: 'Rating must be a number between 1 and 5.',
+        message: 'Rating must be a whole number between 1 and 5.',
+      });
+    }
+
+    if (typeof comment !== 'string' || !comment.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'A review comment is required.',
+      });
+    }
+
+    if (comment.trim().length > 2000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Review comment cannot exceed 2000 characters.',
       });
     }
 
     let bookingRef = null;
-    if (bookingId) {
-      const booking = await Booking.findOne({
-        $or: [{ _id: bookingId }, { bookingId }],
-        customer: req.customer._id,
-      });
-      if (booking) {
-        bookingRef = booking._id;
+
+    if (bookingId !== undefined && bookingId !== null && bookingId !== '') {
+      if (typeof bookingId !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid booking ID.',
+        });
       }
+
+      const conditions = [{ bookingId }];
+
+      if (mongoose.isValidObjectId(bookingId)) {
+        conditions.push({ _id: bookingId });
+      }
+
+      const booking = await Booking.findOne({
+        $or: conditions,
+        customer: req.customer._id,
+      }).select('_id');
+
+      if (!booking) {
+        return res.status(400).json({
+          success: false,
+          message: 'Booking not found for this customer.',
+        });
+      }
+
+      bookingRef = booking._id;
     }
 
     const review = await Review.create({
@@ -81,46 +131,56 @@ export const createReview = async (req, res, next) => {
       booking: bookingRef,
       rating: numericRating,
       comment: comment.trim(),
-      isApproved: true,
+      isApproved: false,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message: 'Thank you for your feedback!',
+      message: 'Thank you! Your review has been submitted for approval.',
       review,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
 /**
- * @desc    Get All Reviews for Owner Moderation
- * @route   GET /api/reviews/all
- * @access  Private (Owner Only)
+ * GET /api/reviews/all
+ * Get reviews for owner moderation.
  */
 export const getAllReviewsForOwner = async (req, res, next) => {
   try {
-    const reviews = await Review.find().sort({ createdAt: -1 });
+    const reviews = await Review.find()
+      .sort({ createdAt: -1 })
+      .lean();
 
-    res.json({
+    return res.status(200).json({
       success: true,
       count: reviews.length,
       reviews,
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
 /**
- * @desc    Delete a Review
- * @route   DELETE /api/reviews/:id
- * @access  Private (Owner or Author)
+ * DELETE /api/reviews/:id
+ * Review author or owner may delete a review.
  */
 export const deleteReview = async (req, res, next) => {
   try {
-    const review = await Review.findById(req.params.id);
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid review ID.',
+      });
+    }
+
+    const review = await Review.findById(id);
+
     if (!review) {
       return res.status(404).json({
         success: false,
@@ -128,9 +188,20 @@ export const deleteReview = async (req, res, next) => {
       });
     }
 
-    // Check authorization: Owner or author
-    const isAuthor = req.user.role === 'customer' && review.customer.toString() === req.user._id.toString();
-    const isOwner = req.user.role === 'owner';
+    const user = req.user;
+
+    if (!user?._id || !user.role) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required.',
+      });
+    }
+
+    const isAuthor =
+      user.role === 'customer' &&
+      review.customer?.toString() === user._id.toString();
+
+    const isOwner = user.role === 'owner';
 
     if (!isAuthor && !isOwner) {
       return res.status(403).json({
@@ -141,11 +212,11 @@ export const deleteReview = async (req, res, next) => {
 
     await Review.deleteOne({ _id: review._id });
 
-    res.json({
+    return res.status(200).json({
       success: true,
       message: 'Review deleted successfully.',
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };

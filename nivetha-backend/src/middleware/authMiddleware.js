@@ -1,12 +1,18 @@
+
 import jwt from 'jsonwebtoken';
 import Owner from '../models/Owner.js';
 
 export const protectOwner = async (req, res, next) => {
-  let token;
+  const authHeader = req.headers.authorization;
 
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    token = req.headers.authorization.split(' ')[1];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      success: false,
+      message: 'Not authorized. Owner token is missing.',
+    });
   }
+
+  const token = authHeader.slice(7).trim();
 
   if (!token) {
     return res.status(401).json({
@@ -15,12 +21,26 @@ export const protectOwner = async (req, res, next) => {
     });
   }
 
+  const jwtSecret = process.env.JWT_SECRET;
+
+  if (!jwtSecret || jwtSecret.length < 32) {
+    console.error('JWT_SECRET must contain at least 32 characters.');
+
+    return res.status(500).json({
+      success: false,
+      message: 'Server authentication configuration error.',
+    });
+  }
+
   try {
-    const jwtSecret = process.env.JWT_SECRET || 'nivetha_catering_jwt_secret_production_2026';
     const decoded = jwt.verify(token, jwtSecret);
 
-    // Enforce role isolation: Customer tokens MUST NOT access Owner endpoints
-    if (decoded.role !== 'owner') {
+    if (
+      !decoded ||
+      typeof decoded !== 'object' ||
+      decoded.role !== 'owner' ||
+      typeof decoded.id !== 'string'
+    ) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. Owner privileges required.',
@@ -28,6 +48,7 @@ export const protectOwner = async (req, res, next) => {
     }
 
     const owner = await Owner.findById(decoded.id).select('-password');
+
     if (!owner) {
       return res.status(401).json({
         success: false,
@@ -43,20 +64,33 @@ export const protectOwner = async (req, res, next) => {
     }
 
     req.owner = owner;
-    req.user = owner;
-    next();
+    req.user = {
+      ...owner.toObject(),
+      role: 'owner',
+    };
+
+    return next();
   } catch (error) {
-    console.error('Owner auth error:', error.message);
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({
         success: false,
         message: 'Session expired. Please log in again.',
       });
     }
-    return res.status(401).json({
-      success: false,
-      message: 'Not authorized. Invalid token.',
-    });
+
+    if (
+      error.name === 'JsonWebTokenError' ||
+      error.name === 'NotBeforeError'
+    ) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized. Invalid token.',
+      });
+    }
+
+    console.error('Owner authentication error:', error.message);
+
+    return next(error);
   }
 };
 
