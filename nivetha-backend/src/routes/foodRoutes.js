@@ -7,30 +7,31 @@ import {
   createFood,
   updateFood,
   deleteFood,
-  getCatalogStats,
+  getCatalogStats
 } from '../controllers/foodController.js';
 
 import { protectOwner } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Public: list food items with optional filters.
+// Public: get all foods with optional filters
 router.get('/', getAllFoods);
 
-// Owner only: food catalogue statistics.
+// Owner only: catalogue statistics
+// Keep this route before /:id
 router.get('/stats', protectOwner, getCatalogStats);
 
-// Public: retrieve one food item.
+// Public: get one food item by ID
 router.get('/:id', getFoodById);
 
-// Owner only: create a food item.
+// Owner only: create food
 router.post('/', protectOwner, createFood);
 
-// Owner only: update a food item.
+// Owner only: update food
 router.put('/:id', protectOwner, updateFood);
 router.patch('/:id', protectOwner, updateFood);
 
-// Owner only: delete a food item.
+// Owner only: delete food
 router.delete('/:id', protectOwner, deleteFood);
 
 export default router;

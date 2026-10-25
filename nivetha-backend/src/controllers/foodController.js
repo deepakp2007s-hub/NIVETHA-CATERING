@@ -4,19 +4,15 @@ import Food from '../models/Food.js';
 
 const ALLOWED_CATEGORIES = [
   'Breakfast',
-  'Lunch',
-  'Dinner',
   'Meals',
-  'Biryani & Rice',
-  'Breads',
-  'Curries & Gravies',
-  'Sides & Starters',
-  'Dessert',
-  'Sweets & Desserts',
-  'Tiffin & Breakfast',
-  'Breakfast & Tiffin',
-  'Meals & Vegetarian',
-  'Biryani, Rice & Non-Vegetarian',
+  'Rice',
+  'Veg Gravy',
+  'Non-Veg Gravy',
+  'Biryani',
+  'Starter',
+  'Seafood',
+  'Bread',
+  'Sweets'
 ];
 
 const ALLOWED_FIELDS = [
@@ -25,14 +21,14 @@ const ALLOWED_FIELDS = [
   'category',
   'type',
   'description',
-  'image',
-  'available',
+  'imageUrl',
+  'isAvailable'
 ];
 
 const sendError = (res, message, status = 500) =>
   res.status(status).json({
     success: false,
-    message,
+    message
   });
 
 const escapeRegex = (value) =>
@@ -52,8 +48,6 @@ const normalizeType = (value) => {
   ) {
     return 'Non-Veg';
   }
-
-  if (normalized === 'sweet') return 'Sweet';
 
   return null;
 };
@@ -92,7 +86,7 @@ const isValidImageUrl = (value) => {
     const url = new URL(value.trim());
 
     return (
-      (url.protocol === 'https:' || url.protocol === 'http:') &&
+      ['https:', 'http:'].includes(url.protocol) &&
       Boolean(url.hostname)
     );
   } catch {
@@ -123,29 +117,25 @@ export const getAllFoods = async (req, res) => {
       const normalizedType = normalizeType(type);
 
       if (!normalizedType) {
-        return sendError(
-          res,
-          'Type must be Veg, Non-Veg, or Sweet',
-          400
-        );
+        return sendError(res, 'Type must be Veg or Non-Veg', 400);
       }
 
-      filter.type = {
-        $regex: `^${escapeRegex(normalizedType)}$`,
-        $options: 'i',
-      };
+      filter.type = normalizedType;
     }
 
-    if (available !== undefined) {
-      if (!['true', 'false'].includes(available)) {
+    // Support both ?available=true and ?isAvailable=true.
+    const availabilityValue = req.query.isAvailable ?? available;
+
+    if (availabilityValue !== undefined) {
+      if (!['true', 'false'].includes(availabilityValue)) {
         return sendError(
           res,
-          'available must be true or false',
+          'available/isAvailable must be true or false',
           400
         );
       }
 
-      filter.available = available === 'true';
+      filter.isAvailable = availabilityValue === 'true';
     }
 
     if (typeof search === 'string' && search.trim()) {
@@ -157,7 +147,7 @@ export const getAllFoods = async (req, res) => {
       filter.$or = [
         { name: searchRegex },
         { tamilName: searchRegex },
-        { description: searchRegex },
+        { description: searchRegex }
       ];
     }
 
@@ -171,10 +161,10 @@ export const getAllFoods = async (req, res) => {
     return res.status(200).json({
       success: true,
       count: data.length,
-      data,
+      data
     });
   } catch (error) {
-    console.error('getAllFoods error:', error.message);
+    console.error('getAllFoods error:', error);
     return sendError(res, 'Failed to fetch food items');
   }
 };
@@ -198,37 +188,34 @@ export const getFoodById = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: sanitizeFood(food),
+      data: sanitizeFood(food)
     });
   } catch (error) {
-    console.error('getFoodById error:', error.message);
+    console.error('getFoodById error:', error);
     return sendError(res, 'Failed to fetch food item');
   }
 };
 
 // POST /api/foods
-// Protect this route with owner authentication in foodRoutes.js.
+// Owner authentication is applied in foodRoutes.js.
 export const createFood = async (req, res) => {
   try {
     const {
       name,
-      tamilName,
+      tamilName = '',
       category,
       type = 'Veg',
       description = '',
-      image,
-      available = true,
+      imageUrl = '',
+      isAvailable = true
     } = req.body;
 
     if (typeof name !== 'string' || !name.trim()) {
       return sendError(res, 'Food name is required', 400);
     }
 
-    if (
-      typeof tamilName !== 'string' ||
-      !tamilName.trim()
-    ) {
-      return sendError(res, 'Tamil food name is required', 400);
+    if (typeof tamilName !== 'string') {
+      return sendError(res, 'Tamil name must be text', 400);
     }
 
     const normalizedCategory = normalizeCategory(category);
@@ -240,27 +227,19 @@ export const createFood = async (req, res) => {
     const normalizedType = normalizeType(type);
 
     if (!normalizedType) {
+      return sendError(res, 'Type must be Veg or Non-Veg', 400);
+    }
+
+    if (imageUrl && !isValidImageUrl(imageUrl)) {
       return sendError(
         res,
-        'Type must be Veg, Non-Veg, or Sweet',
+        'imageUrl must be a valid HTTP or HTTPS URL',
         400
       );
     }
 
-    if (!isValidImageUrl(image)) {
-      return sendError(
-        res,
-        'A valid HTTP or HTTPS image URL is required',
-        400
-      );
-    }
-
-    if (typeof available !== 'boolean') {
-      return sendError(
-        res,
-        'available must be a boolean',
-        400
-      );
+    if (typeof isAvailable !== 'boolean') {
+      return sendError(res, 'isAvailable must be a boolean', 400);
     }
 
     if (typeof description !== 'string') {
@@ -272,8 +251,8 @@ export const createFood = async (req, res) => {
     const existingFood = await Food.findOne({
       name: {
         $regex: `^${escapeRegex(normalizedName)}$`,
-        $options: 'i',
-      },
+        $options: 'i'
+      }
     });
 
     if (existingFood) {
@@ -290,14 +269,14 @@ export const createFood = async (req, res) => {
       category: normalizedCategory,
       type: normalizedType,
       description: description.trim(),
-      image: image.trim(),
-      available,
+      imageUrl: imageUrl ? imageUrl.trim() : '',
+      isAvailable
     });
 
     return res.status(201).json({
       success: true,
       message: 'Food item created successfully',
-      data: sanitizeFood(food),
+      data: sanitizeFood(food)
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -312,13 +291,12 @@ export const createFood = async (req, res) => {
       return sendError(res, error.message, 400);
     }
 
-    console.error('createFood error:', error.message);
+    console.error('createFood error:', error);
     return sendError(res, 'Failed to create food item');
   }
 };
 
 // PUT/PATCH /api/foods/:id
-// Protect this route with owner authentication in foodRoutes.js.
 export const updateFood = async (req, res) => {
   try {
     const { id } = req.params;
@@ -330,32 +308,18 @@ export const updateFood = async (req, res) => {
     const updates = {};
 
     for (const field of ALLOWED_FIELDS) {
-      if (
-        Object.prototype.hasOwnProperty.call(req.body, field)
-      ) {
+      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
         updates[field] = req.body[field];
       }
     }
 
-    // Price and any other unapproved fields are ignored.
     if (Object.keys(updates).length === 0) {
-      return sendError(
-        res,
-        'No valid food fields provided',
-        400
-      );
+      return sendError(res, 'No valid food fields provided', 400);
     }
 
-    if (Object.prototype.hasOwnProperty.call(updates, 'name')) {
-      if (
-        typeof updates.name !== 'string' ||
-        !updates.name.trim()
-      ) {
-        return sendError(
-          res,
-          'Food name cannot be empty',
-          400
-        );
+    if ('name' in updates) {
+      if (typeof updates.name !== 'string' || !updates.name.trim()) {
+        return sendError(res, 'Food name cannot be empty', 400);
       }
 
       updates.name = updates.name.trim();
@@ -363,9 +327,9 @@ export const updateFood = async (req, res) => {
       const duplicate = await Food.findOne({
         name: {
           $regex: `^${escapeRegex(updates.name)}$`,
-          $options: 'i',
+          $options: 'i'
         },
-        _id: { $ne: id },
+        _id: { $ne: id }
       });
 
       if (duplicate) {
@@ -377,29 +341,16 @@ export const updateFood = async (req, res) => {
       }
     }
 
-    if (
-      Object.prototype.hasOwnProperty.call(updates, 'tamilName')
-    ) {
-      if (
-        typeof updates.tamilName !== 'string' ||
-        !updates.tamilName.trim()
-      ) {
-        return sendError(
-          res,
-          'Tamil name cannot be empty',
-          400
-        );
+    if ('tamilName' in updates) {
+      if (typeof updates.tamilName !== 'string') {
+        return sendError(res, 'Tamil name must be text', 400);
       }
 
       updates.tamilName = updates.tamilName.trim();
     }
 
-    if (
-      Object.prototype.hasOwnProperty.call(updates, 'category')
-    ) {
-      const normalizedCategory = normalizeCategory(
-        updates.category
-      );
+    if ('category' in updates) {
+      const normalizedCategory = normalizeCategory(updates.category);
 
       if (!normalizedCategory) {
         return sendError(res, 'Invalid food category', 400);
@@ -408,56 +359,45 @@ export const updateFood = async (req, res) => {
       updates.category = normalizedCategory;
     }
 
-    if (
-      Object.prototype.hasOwnProperty.call(updates, 'type')
-    ) {
+    if ('type' in updates) {
       const normalizedType = normalizeType(updates.type);
 
       if (!normalizedType) {
-        return sendError(
-          res,
-          'Type must be Veg, Non-Veg, or Sweet',
-          400
-        );
+        return sendError(res, 'Type must be Veg or Non-Veg', 400);
       }
 
       updates.type = normalizedType;
     }
 
-    if (
-      Object.prototype.hasOwnProperty.call(updates, 'image')
-    ) {
-      if (!isValidImageUrl(updates.image)) {
+    if ('imageUrl' in updates) {
+      if (
+        updates.imageUrl !== '' &&
+        !isValidImageUrl(updates.imageUrl)
+      ) {
         return sendError(
           res,
-          'A valid HTTP or HTTPS image URL is required',
+          'imageUrl must be a valid HTTP or HTTPS URL',
           400
         );
       }
 
-      updates.image = updates.image.trim();
+      if (typeof updates.imageUrl !== 'string') {
+        return sendError(res, 'imageUrl must be text', 400);
+      }
+
+      updates.imageUrl = updates.imageUrl.trim();
     }
 
     if (
-      Object.prototype.hasOwnProperty.call(updates, 'available') &&
-      typeof updates.available !== 'boolean'
+      'isAvailable' in updates &&
+      typeof updates.isAvailable !== 'boolean'
     ) {
-      return sendError(
-        res,
-        'available must be a boolean',
-        400
-      );
+      return sendError(res, 'isAvailable must be a boolean', 400);
     }
 
-    if (
-      Object.prototype.hasOwnProperty.call(updates, 'description')
-    ) {
+    if ('description' in updates) {
       if (typeof updates.description !== 'string') {
-        return sendError(
-          res,
-          'Description must be text',
-          400
-        );
+        return sendError(res, 'Description must be text', 400);
       }
 
       updates.description = updates.description.trim();
@@ -468,7 +408,7 @@ export const updateFood = async (req, res) => {
       { $set: updates },
       {
         new: true,
-        runValidators: true,
+        runValidators: true
       }
     ).select('-price');
 
@@ -479,7 +419,7 @@ export const updateFood = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: 'Food item updated successfully',
-      data: sanitizeFood(food),
+      data: sanitizeFood(food)
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -494,13 +434,12 @@ export const updateFood = async (req, res) => {
       return sendError(res, error.message, 400);
     }
 
-    console.error('updateFood error:', error.message);
+    console.error('updateFood error:', error);
     return sendError(res, 'Failed to update food item');
   }
 };
 
 // DELETE /api/foods/:id
-// Protect this route with owner authentication in foodRoutes.js.
 export const deleteFood = async (req, res) => {
   try {
     const { id } = req.params;
@@ -517,16 +456,15 @@ export const deleteFood = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Deleted food item "${food.name}"`,
+      message: `Deleted food item "${food.name}"`
     });
   } catch (error) {
-    console.error('deleteFood error:', error.message);
+    console.error('deleteFood error:', error);
     return sendError(res, 'Failed to delete food item');
   }
 };
 
 // GET /api/foods/stats
-// Protect this route with owner authentication in foodRoutes.js.
 export const getCatalogStats = async (req, res) => {
   try {
     const [
@@ -534,16 +472,12 @@ export const getCatalogStats = async (req, res) => {
       available,
       veg,
       nonVeg,
-      sweets,
-      categories,
+      categories
     ] = await Promise.all([
       Food.countDocuments(),
-      Food.countDocuments({ available: true }),
-      Food.countDocuments({ type: /^Veg$/i }),
-      Food.countDocuments({
-        type: { $regex: '^Non-Veg$', $options: 'i' },
-      }),
-      Food.countDocuments({ type: /^Sweet$/i }),
+      Food.countDocuments({ isAvailable: true }),
+      Food.countDocuments({ type: 'Veg' }),
+      Food.countDocuments({ type: 'Non-Veg' }),
       Food.aggregate([
         {
           $group: {
@@ -551,13 +485,13 @@ export const getCatalogStats = async (req, res) => {
             count: { $sum: 1 },
             available: {
               $sum: {
-                $cond: ['$available', 1, 0],
-              },
-            },
-          },
+                $cond: ['$isAvailable', 1, 0]
+              }
+            }
+          }
         },
-        { $sort: { _id: 1 } },
-      ]),
+        { $sort: { _id: 1 } }
+      ])
     ]);
 
     return res.status(200).json({
@@ -568,12 +502,11 @@ export const getCatalogStats = async (req, res) => {
         unavailable: total - available,
         veg,
         nonVeg,
-        sweets,
-        categories,
-      },
+        categories
+      }
     });
   } catch (error) {
-    console.error('getCatalogStats error:', error.message);
+    console.error('getCatalogStats error:', error);
     return sendError(res, 'Failed to fetch food statistics');
   }
 };

@@ -1,10 +1,4 @@
 
-/**
- * Mongoose Food Model for Nivetha Catering Service
- * File: nivetha-backend/models/Food.js
- * No price field.
- */
-
 import mongoose from 'mongoose';
 
 const foodSchema = new mongoose.Schema(
@@ -67,11 +61,9 @@ const foodSchema = new mongoose.Schema(
   }
 );
 
-// Indexes
 foodSchema.index({ category: 1, type: 1 });
 foodSchema.index({ name: 'text', tamilName: 'text' });
 
-// Reuse existing model if already registered
 const Food =
   mongoose.models.Food ||
   mongoose.model('Food', foodSchema);

@@ -8,13 +8,13 @@ import mongoose from 'mongoose';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load .env from backend root
+// Load environment variables from backend root.
 dotenv.config({
   path: path.resolve(__dirname, '../.env')
 });
 dotenv.config();
 
-// Load existing database configuration
+// Load database configuration if available.
 let connectDB;
 
 const dbPaths = [
@@ -58,7 +58,7 @@ if (typeof connectDB !== 'function') {
   };
 }
 
-// Load existing Food model
+// Load the existing Food model.
 let Food;
 
 const foodPaths = [
@@ -152,8 +152,10 @@ if (!Food) {
     mongoose.model('Food', foodSchema);
 }
 
-// Keep your existing 131-item dataset below this line.
+// Keep the original 131-item food dataset.
 const tamilNaduFoodItems = [
+  // Dataset items continue in Part 2.
+
 
   // 1 - 15
   {
@@ -1223,7 +1225,7 @@ const tamilNaduFoodItems = [
 ];
 
 
-   
+  
 async function seedTamilNaduFoods() {
   try {
     await connectDB();
@@ -1240,12 +1242,15 @@ async function seedTamilNaduFoods() {
         continue;
       }
 
+      const escapedName = name.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        '\\$&'
+      );
+
       const existingFood = await Food.findOne({
         name: {
-          $regex: new RegExp(
-            `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
-            'i'
-          )
+          $regex: `^${escapedName}$`,
+          $options: 'i'
         }
       });
 
@@ -1301,5 +1306,6 @@ if (isDirectExecution) {
 
 export {
   tamilNaduFoodItems,
+  tamilNaduFoodItems as initial131Foods,
   seedTamilNaduFoods
 };
