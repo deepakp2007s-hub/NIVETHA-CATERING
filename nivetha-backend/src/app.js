@@ -67,6 +67,8 @@ const isFlutterWebLocalOrigin = (origin) =>
 app.use(
   cors({
     origin(origin, callback) {
+      // Allow requests without an Origin header, such as server-to-server
+      // calls and local command-line API tests.
       if (!origin) {
         return callback(null, true);
       }
@@ -82,7 +84,6 @@ app.use(
 
       const error = new Error('Origin not allowed by CORS');
       error.status = 403;
-
       return callback(error);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

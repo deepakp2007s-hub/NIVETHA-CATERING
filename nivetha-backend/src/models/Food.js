@@ -6,14 +6,12 @@
 
 import mongoose from 'mongoose';
 
-const ALLOWED_CATEGORIES = [
+export const ALLOWED_CATEGORIES = [
   'Breakfast & Tiffin',
   'Meals & Vegetarian',
   'Biryani, Rice & Non-Vegetarian',
   'Dinner',
   'Sweets & Desserts',
-
-  // Existing database categories
   'Breakfast',
   'Lunch',
   'Dessert',
@@ -25,24 +23,32 @@ const ALLOWED_CATEGORIES = [
   'Tiffin & Breakfast',
 ];
 
-const ALLOWED_TYPES = ['Veg', 'Non-Veg', 'Sweet'];
+export const ALLOWED_TYPES = ['Veg', 'Non-Veg', 'Sweet'];
 
 function normalizeFoodType(value) {
   if (typeof value !== 'string') return value;
 
   const normalized = value.trim().toLowerCase();
 
-  if (['veg', 'vegetarian'].includes(normalized)) return 'Veg';
+  if (['veg', 'vegetarian'].includes(normalized)) {
+    return 'Veg';
+  }
 
   if (
-    ['non-veg', 'non veg', 'nonvegetarian', 'non-vegetarian'].includes(
-      normalized
-    )
+    [
+      'non-veg',
+      'non veg',
+      'nonveg',
+      'nonvegetarian',
+      'non-vegetarian',
+    ].includes(normalized)
   ) {
     return 'Non-Veg';
   }
 
-  if (['sweet', 'dessert'].includes(normalized)) return 'Sweet';
+  if (['sweet', 'dessert'].includes(normalized)) {
+    return 'Sweet';
+  }
 
   return value.trim();
 }
@@ -100,7 +106,20 @@ const foodSchema = new mongoose.Schema(
       trim: true,
       validate: {
         validator(value) {
-          return /^https?:\/\/\S+$/i.test(value);
+          if (typeof value !== 'string' || !value.trim()) {
+            return false;
+          }
+
+          try {
+            const url = new URL(value.trim());
+
+            return (
+              ['http:', 'https:'].includes(url.protocol) &&
+              Boolean(url.hostname)
+            );
+          } catch {
+            return false;
+          }
         },
         message: 'Image must be a valid HTTP or HTTPS URL',
       },
@@ -122,6 +141,7 @@ foodSchema.index({ type: 1 });
 foodSchema.index({ name: 'text', tamilName: 'text' });
 
 const Food =
-  mongoose.models.Food || mongoose.model('Food', foodSchema);
+  mongoose.models.Food ||
+  mongoose.model('Food', foodSchema);
 
 export default Food;
