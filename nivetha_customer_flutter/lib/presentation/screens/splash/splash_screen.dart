@@ -1,11 +1,11 @@
 
-import 'dart:math' as math;
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/services/auth_service.dart';
 import '../auth/login_screen.dart';
 import '../main_shell_screen.dart';
-import '../../../core/services/auth_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,72 +16,82 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
-  late final AnimationController _entranceController;
-  late final AnimationController _floatController;
-  late final AnimationController _rotationController;
+  static const Color _cream = Color(0xFFFFF8ED);
+  static const Color _darkBrown = Color(0xFF402719);
+  static const Color _brown = Color(0xFF765039);
+  static const Color _gold = Color(0xFFD5A64A);
 
-  late final Animation<double> _fadeAnimation;
-  late final Animation<double> _scaleAnimation;
-  late final Animation<Offset> _slideAnimation;
+  late final AnimationController _logoController;
+  late final AnimationController _textController;
 
+  late final Animation<double> _logoScale;
+  late final Animation<double> _logoOpacity;
+  late final Animation<Offset> _textSlide;
+  late final Animation<double> _textOpacity;
+
+  Timer? _navigationTimer;
   bool _navigationStarted = false;
 
   @override
   void initState() {
     super.initState();
 
-    _entranceController = AnimationController(
+    _logoController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1100),
     );
 
-    _floatController = AnimationController(
+    _textController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2400),
+      duration: const Duration(milliseconds: 900),
     );
 
-    _rotationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 6000),
+    _logoScale = CurvedAnimation(
+      parent: _logoController,
+      curve: Curves.elasticOut,
     );
 
-    _fadeAnimation = CurvedAnimation(
-      parent: _entranceController,
-      curve: Curves.easeOut,
+    _logoOpacity = CurvedAnimation(
+      parent: _logoController,
+      curve: Curves.easeIn,
     );
 
-    _scaleAnimation = Tween<double>(
-      begin: 0.55,
-      end: 1,
-    ).animate(
-      CurvedAnimation(
-        parent: _entranceController,
-        curve: Curves.elasticOut,
-      ),
-    );
-
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.22),
+    _textSlide = Tween<Offset>(
+      begin: const Offset(0, 0.25),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(
-        parent: _entranceController,
+        parent: _textController,
         curve: Curves.easeOutCubic,
       ),
     );
 
-    _entranceController.forward();
-    _floatController.repeat(reverse: true);
-    _rotationController.repeat();
-
-    _startNavigation();
-  }
-
-  Future<void> _startNavigation() async {
-    await Future<void>.delayed(
-      const Duration(milliseconds: 2600),
+    _textOpacity = CurvedAnimation(
+      parent: _textController,
+      curve: Curves.easeIn,
     );
 
+    _startAnimations();
+  }
+
+  Future<void> _startAnimations() async {
+    await _logoController.forward();
+
+    if (!mounted) return;
+
+    await _textController.forward();
+
+    if (!mounted) return;
+
+    _navigationTimer = Timer(
+      const Duration(milliseconds: 1200),
+      () {
+        _navigateNext();
+      },
+    );
+  }
+
+  Future<void> _navigateNext() async {
     if (!mounted || _navigationStarted) return;
 
     _navigationStarted = true;
@@ -90,7 +100,8 @@ class _SplashScreenState extends State<SplashScreen>
 
     try {
       loggedIn = await AuthService.instance.isLoggedIn();
-    } catch (_) {
+    } catch (error) {
+      debugPrint('Unable to restore customer session: $error');
       loggedIn = false;
     }
 
@@ -100,25 +111,27 @@ class _SplashScreenState extends State<SplashScreen>
         loggedIn ? const MainShellScreen() : const LoginScreen();
 
     Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
+      PageRouteBuilder<void>(
         pageBuilder: (context, animation, secondaryAnimation) {
           return destination;
         },
         transitionDuration: const Duration(milliseconds: 500),
         transitionsBuilder:
             (context, animation, secondaryAnimation, child) {
-          final curved = CurvedAnimation(
+          final curvedAnimation = CurvedAnimation(
             parent: animation,
             curve: Curves.easeOutCubic,
           );
 
+          final slideAnimation = Tween<Offset>(
+            begin: const Offset(0.04, 0),
+            end: Offset.zero,
+          ).animate(curvedAnimation);
+
           return FadeTransition(
-            opacity: curved,
+            opacity: curvedAnimation,
             child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.04, 0),
-                end: Offset.zero,
-              ).animate(curved),
+              position: slideAnimation,
               child: child,
             ),
           );
@@ -129,263 +142,276 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
-    _entranceController.dispose();
-    _floatController.dispose();
-    _rotationController.dispose();
+    _navigationTimer?.cancel();
+    _logoController.dispose();
+    _textController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    const navy = Color(0xFF102541);
-    const deepNavy = Color(0xFF091629);
-    const gold = Color(0xFFE5B554);
-    const cream = Color(0xFFFFF7E8);
-
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              deepNavy,
-              navy,
-              Color(0xFF25486A),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+      backgroundColor: _cream,
+      body: Stack(
+        children: [
+          Positioned(
+            top: -95,
+            right: -85,
+            child: _decorativeCircle(
+              230,
+              _gold.withValues(alpha: 0.10),
+            ),
           ),
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // Decorative background circles
-            Positioned(
-              top: -100,
-              right: -90,
-              child: _glowCircle(
-                size: 280,
-                color: gold.withValues(alpha: 0.10),
-              ),
+          Positioned(
+            bottom: -100,
+            left: -85,
+            child: _decorativeCircle(
+              245,
+              _brown.withValues(alpha: 0.08),
             ),
-
-            Positioned(
-              bottom: -120,
-              left: -100,
-              child: _glowCircle(
-                size: 330,
-                color: Colors.white.withValues(alpha: 0.05),
-              ),
+          ),
+          Positioned(
+            top: 90,
+            left: 28,
+            child: Icon(
+              Icons.spa_rounded,
+              size: 26,
+              color: _gold.withValues(alpha: 0.55),
             ),
-
-            Positioned(
-              top: MediaQuery.sizeOf(context).height * 0.18,
-              left: 30,
-              child: Icon(
-                Icons.auto_awesome_rounded,
-                size: 22,
-                color: gold.withValues(alpha: 0.65),
-              ),
+          ),
+          Positioned(
+            right: 32,
+            bottom: 155,
+            child: Icon(
+              Icons.auto_awesome_rounded,
+              size: 27,
+              color: _gold.withValues(alpha: 0.65),
             ),
-
-            Positioned(
-              right: 38,
-              bottom: MediaQuery.sizeOf(context).height * 0.24,
-              child: Icon(
-                Icons.star_rounded,
-                size: 28,
-                color: gold.withValues(alpha: 0.65),
-              ),
-            ),
-
-            SafeArea(
-              child: Center(
-                child: AnimatedBuilder(
-                  animation: _entranceController,
-                  builder: (context, child) {
-                    return FadeTransition(
-                      opacity: _fadeAnimation,
+          ),
+          SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Spacer(flex: 2),
+                    FadeTransition(
+                      opacity: _logoOpacity,
+                      child: ScaleTransition(
+                        scale: _logoScale,
+                        child: _buildLogo(),
+                      ),
+                    ),
+                    const SizedBox(height: 35),
+                    FadeTransition(
+                      opacity: _textOpacity,
                       child: SlideTransition(
-                        position: _slideAnimation,
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Animated 3D logo
-                      AnimatedBuilder(
-                        animation: Listenable.merge([
-                          _floatController,
-                          _rotationController,
-                        ]),
-                        builder: (context, child) {
-                          final floatOffset =
-                              math.sin(
-                                _floatController.value * math.pi,
-                              ) *
-                              10;
-
-                          final rotation =
-                              math.sin(
-                                _rotationController.value *
-                                    math.pi *
-                                    2,
-                              ) *
-                              0.045;
-
-                          return Transform.translate(
-                            offset: Offset(0, -floatOffset),
-                            child: Transform(
-                              alignment: Alignment.center,
-                              transform: Matrix4.identity()
-                                ..setEntry(3, 2, 0.0015)
-                                ..rotateY(rotation),
-                              child: ScaleTransition(
-                                scale: _scaleAnimation,
-                                child: child,
+                        position: _textSlide,
+                        child: Column(
+                          children: [
+                            const Text(
+                              'NIVETHA',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: _darkBrown,
+                                fontSize: 34,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 5,
                               ),
                             ),
-                          );
-                        },
-                        child: Container(
-                          width: 150,
-                          height: 150,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [
-                                Color(0xFFFFE8A8),
-                                gold,
-                                Color(0xFFB77B25),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _goldLine(),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                  child: Text(
+                                    'CATERING SERVICE',
+                                    style: TextStyle(
+                                      color: _brown,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 2.2,
+                                    ),
+                                  ),
+                                ),
+                                _goldLine(),
                               ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
                             ),
-                            borderRadius: BorderRadius.circular(42),
-                            border: Border.all(
-                              color: Colors.white.withValues(
-                                alpha: 0.65,
+                            const SizedBox(height: 20),
+                            const Text(
+                              'Every Celebration, A Delicious Memory',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: _brown,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0.2,
                               ),
-                              width: 2,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: gold.withValues(alpha: 0.28),
-                                blurRadius: 35,
-                                spreadRadius: 4,
-                                offset: const Offset(0, 18),
-                              ),
-                              const BoxShadow(
-                                color: Colors.black26,
-                                blurRadius: 18,
-                                offset: Offset(0, 12),
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.restaurant_menu_rounded,
-                            size: 78,
-                            color: navy,
+                          ],
+                        ),
+                      ),
+                    ),
+                    const Spacer(flex: 2),
+                    Column(
+                      children: [
+                        const SizedBox(
+                          width: 27,
+                          height: 27,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(_gold),
                           ),
                         ),
-                      ),
-
-                      const SizedBox(height: 42),
-
-                      const Text(
-                        'NIVETHA',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 34,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 5,
-                          color: cream,
-                          height: 1.2,
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      Container(
-                        width: 85,
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: gold,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-
-                      const SizedBox(height: 18),
-
-                      const Text(
-                        'CATERING SERVICE',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 3,
-                          color: gold,
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      Text(
-                        'Delicious Food • Memorable Moments',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: cream.withValues(alpha: 0.80),
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-
-                      const SizedBox(height: 58),
-
-                      const SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            gold,
+                        const SizedBox(height: 15),
+                        Text(
+                          'PREPARING SOMETHING DELICIOUS',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: _brown.withValues(alpha: 0.8),
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.3,
                           ),
                         ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      Text(
-                        'Preparing something delicious...',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: cream.withValues(alpha: 0.70),
-                        ),
-                      ),
-                    ],
-                  ),
+                        const SizedBox(height: 28),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogo() {
+    return Container(
+      width: 174,
+      height: 174,
+      decoration: BoxDecoration(
+        color: _darkBrown,
+        borderRadius: BorderRadius.circular(48),
+        border: Border.all(
+          color: _gold,
+          width: 2.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _darkBrown.withValues(alpha: 0.18),
+            blurRadius: 30,
+            offset: const Offset(0, 15),
+          ),
+        ],
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            top: 12,
+            left: 12,
+            child: _cornerDecoration(),
+          ),
+          Positioned(
+            top: 12,
+            right: 12,
+            child: Transform.scale(
+              scaleX: -1,
+              child: _cornerDecoration(),
+            ),
+          ),
+          Positioned(
+            bottom: 12,
+            left: 12,
+            child: Transform.scale(
+              scaleY: -1,
+              child: _cornerDecoration(),
+            ),
+          ),
+          Positioned(
+            bottom: 12,
+            right: 12,
+            child: Transform.scale(
+              scaleX: -1,
+              scaleY: -1,
+              child: _cornerDecoration(),
+            ),
+          ),
+          Container(
+            width: 112,
+            height: 112,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: _gold.withValues(alpha: 0.65),
+                width: 1.4,
+              ),
+              color: Colors.white.withValues(alpha: 0.035),
+            ),
+            child: const Icon(
+              Icons.restaurant_rounded,
+              size: 64,
+              color: _gold,
+            ),
+          ),
+          const Positioned(
+            bottom: 31,
+            child: Icon(
+              Icons.auto_awesome_rounded,
+              color: Color(0xFFFFE6A8),
+              size: 17,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cornerDecoration() {
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: _gold.withValues(alpha: 0.8),
+            width: 2,
+          ),
+          left: BorderSide(
+            color: _gold.withValues(alpha: 0.8),
+            width: 2,
+          ),
         ),
       ),
     );
   }
 
-  Widget _glowCircle({
-    required double size,
-    required Color color,
-  }) {
+  Widget _goldLine() {
+    return Container(
+      width: 23,
+      height: 1.5,
+      decoration: BoxDecoration(
+        color: _gold,
+        borderRadius: BorderRadius.circular(5),
+      ),
+    );
+  }
+
+  Widget _decorativeCircle(double size, Color color) {
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
         color: color,
+        shape: BoxShape.circle,
       ),
     );
   }

@@ -11,11 +11,13 @@ class FoodRepository {
   Future<List<FoodModel>> getFoods({
     String? category,
     String? type,
+    String? search,
     bool? available,
   }) async {
     final foods = await _foodService.getFoods(
       category: category,
       type: type,
+      search: search,
       available: available,
     );
 

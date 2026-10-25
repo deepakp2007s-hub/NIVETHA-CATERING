@@ -9,22 +9,34 @@ class ApiConfig {
   static const Duration receiveTimeout = Duration(seconds: 30);
   static const Duration sendTimeout = Duration(seconds: 30);
 
+  // Customer authentication
   static const String loginEndpoint = '/customer-auth/login';
   static const String registerEndpoint = '/customer-auth/register';
 
+  // Customer app features
   static const String foodsEndpoint = '/foods';
   static const String bookingsEndpoint = '/bookings';
   static const String notificationsEndpoint = '/notifications';
 
+  // Backend health check
+  static const String healthEndpoint = '/health';
+
   static String endpoint(String path) {
-    if (path.startsWith('http://') || path.startsWith('https://')) {
-      return path;
+    final trimmedPath = path.trim();
+
+    if (trimmedPath.isEmpty) {
+      return baseUrl;
     }
 
-    if (path.startsWith('/')) {
-      return '$baseUrl$path';
+    if (trimmedPath.startsWith('http://') ||
+        trimmedPath.startsWith('https://')) {
+      return trimmedPath;
     }
 
-    return '$baseUrl/$path';
+    final normalizedPath = trimmedPath.startsWith('/')
+        ? trimmedPath
+        : '/$trimmedPath';
+
+    return '$baseUrl$normalizedPath';
   }
 }

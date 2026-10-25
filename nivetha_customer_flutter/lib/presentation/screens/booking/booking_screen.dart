@@ -1,8 +1,12 @@
 
 import 'package:flutter/material.dart';
 
-import '../../../core/services/booking_service.dart';
-import 'booking_confirmation_screen.dart';
+import '../../../core/services/api_service.dart';
+
+const Color _cream = Color(0xFFFFF7E8);
+const Color _gold = Color(0xFFC58B19);
+const Color _brown = Color(0xFF45250E);
+const Color _muted = Color(0xFF806D59);
 
 class BookingScreen extends StatefulWidget {
   const BookingScreen({super.key});
@@ -11,23 +15,26 @@ class BookingScreen extends StatefulWidget {
   State<BookingScreen> createState() => _BookingScreenState();
 }
 
-class _BookingScreenState extends State<BookingScreen>
-    with SingleTickerProviderStateMixin {
-  static const Color navy = Color(0xFF102541);
-  static const Color gold = Color(0xFFD9A441);
-  static const Color cream = Color(0xFFFFF8EC);
-
+class _BookingScreenState extends State<BookingScreen> {
   final _formKey = GlobalKey<FormState>();
-
   final _locationController = TextEditingController();
-  final _personsController = TextEditingController(text: '100');
-  final _notesController = TextEditingController();
+  final _personsController = TextEditingController();
+  final _requirementsController = TextEditingController();
 
-  late final AnimationController _animationController;
-  late final Animation<double> _fadeAnimation;
-  late final Animation<Offset> _slideAnimation;
+  final ApiService _api = ApiService.instance;
 
-  final List<String> _eventTypes = const [
+  String _eventType = 'Wedding';
+  String _foodType = 'Vegetarian';
+  String _mealType = 'Lunch';
+
+  bool _cookingService = true;
+  bool _servingStaff = true;
+  bool _isSubmitting = false;
+
+  DateTime? _eventDate;
+  TimeOfDay? _eventTime;
+
+  final List<String> _events = const [
     'Wedding',
     'Engagement',
     'Birthday',
@@ -38,89 +45,31 @@ class _BookingScreenState extends State<BookingScreen>
     'Other',
   ];
 
-  final List<String> _mealTypes = const [
-    'Breakfast',
-    'Lunch',
-    'Dinner',
-  ];
-
-  final List<String> _foodTypes = const [
-    'Veg',
-    'Non-Veg',
-    'Both',
-  ];
-
-  final List<String> _cateringTypes = const [
-    'Cooking Service',
-    'Serving Staff',
-    'Both Services',
-  ];
-
-  String _eventType = 'Wedding';
-  String _mealType = 'Lunch';
-  String _foodType = 'Veg';
-  String _cateringType = 'Both Services';
-
-  DateTime? _eventDate;
-  TimeOfDay? _eventTime;
-
-  bool _isSubmitting = false;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 750),
-    );
-
-    _fadeAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOut,
-    );
-
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.08),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOutCubic,
-      ),
-    );
-
-    _animationController.forward();
-  }
-
   @override
   void dispose() {
-    _animationController.dispose();
     _locationController.dispose();
     _personsController.dispose();
-    _notesController.dispose();
+    _requirementsController.dispose();
     super.dispose();
   }
 
-  Future<void> _pickDate() async {
+  Future<void> _selectDate() async {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
 
     final selected = await showDatePicker(
       context: context,
-      initialDate: _eventDate != null &&
-              _eventDate!.isAfter(now.subtract(const Duration(days: 1)))
-          ? _eventDate!
-          : now.add(const Duration(days: 1)),
-      firstDate: DateTime(now.year, now.month, now.day),
+      initialDate: _eventDate ?? today,
+      firstDate: today,
       lastDate: DateTime(now.year + 3),
-      helpText: 'Select function date',
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: navy,
-              secondary: gold,
-              surface: cream,
+              primary: _gold,
+              onPrimary: Colors.white,
+              surface: _cream,
+              onSurface: _brown,
             ),
           ),
           child: child!,
@@ -133,18 +82,18 @@ class _BookingScreenState extends State<BookingScreen>
     }
   }
 
-  Future<void> _pickTime() async {
+  Future<void> _selectTime() async {
     final selected = await showTimePicker(
       context: context,
       initialTime: _eventTime ?? const TimeOfDay(hour: 12, minute: 0),
-      helpText: 'Select function time',
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: navy,
-              secondary: gold,
-              surface: cream,
+              primary: _gold,
+              onPrimary: Colors.white,
+              surface: _cream,
+              onSurface: _brown,
             ),
           ),
           child: child!,
@@ -157,77 +106,216 @@ class _BookingScreenState extends State<BookingScreen>
     }
   }
 
+  String _apiEventType() {
+    switch (_eventType) {
+      case 'Wedding':
+        return 'Wedding';
+      case 'Engagement':
+        return 'Engagement';
+      case 'Birthday':
+        return 'Birthday Party';
+      case 'House Function':
+        return 'Housewarming (Grahapravesam)';
+      case 'Corporate Event':
+        return 'Corporate Event';
+      default:
+        return 'Other Function';
+    }
+  }
+
+  String _formatApiDate(DateTime date) {
+    final year = date.year.toString().padLeft(4, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+
+    return '$year-$month-$day';
+  }
+
+  String _formatApiTime(TimeOfDay time) {
+    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = time.period == DayPeriod.am ? 'AM' : 'PM';
+
+    return '$hour:$minute $period';
+  }
+
+  void _showMessage(String message, {bool success = false}) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: success ? const Color(0xFF247547) : _brown,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+  }
+
   Future<void> _submitBooking() async {
+    FocusScope.of(context).unfocus();
+
     if (_isSubmitting) return;
 
     if (!_formKey.currentState!.validate()) return;
 
-    if (_eventDate == null) {
-      _showMessage('Please select the function date.');
+    if (_eventDate == null || _eventTime == null) {
+      _showMessage('Please select your event date and time.');
       return;
     }
 
-    if (_eventTime == null) {
-      _showMessage('Please select the function time.');
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    if (_eventDate!.isBefore(today)) {
+      _showMessage('Event date cannot be in the past.');
       return;
     }
 
-    FocusScope.of(context).unfocus();
+    final persons = int.tryParse(_personsController.text.trim());
+
+    if (persons == null || persons < 10 || persons > 100000) {
+      _showMessage('Catering requires at least 10 persons.');
+      return;
+    }
+
+    final services = <String>[];
+
+    if (_cookingService) {
+      services.add('Cooking Service');
+    }
+
+    if (_servingStaff) {
+      services.add('Serving Staff');
+    }
+
+    final requirements = <String>[
+      'Food preference: $_foodType',
+      'Meal type: $_mealType',
+      'Cooking service: ${_cookingService ? 'Required' : 'Not required'}',
+      'Serving staff: ${_servingStaff ? 'Required' : 'Not required'}',
+    ];
+
+    final additionalRequirements = _requirementsController.text.trim();
+
+    if (additionalRequirements.isNotEmpty) {
+      requirements.add('Additional requirements: $additionalRequirements');
+    }
 
     setState(() => _isSubmitting = true);
 
-    final date = _eventDate!;
-    final time = _eventTime!;
-
-    final bookingData = <String, dynamic>{
-      'eventType': _eventType,
-      'eventDate':
-          '${date.year.toString().padLeft(4, '0')}-'
-          '${date.month.toString().padLeft(2, '0')}-'
-          '${date.day.toString().padLeft(2, '0')}',
-      'eventTime':
-          '${time.hour.toString().padLeft(2, '0')}:'
-          '${time.minute.toString().padLeft(2, '0')}',
-      'location': _locationController.text.trim(),
-      'numberOfPersons': int.parse(_personsController.text.trim()),
-      'cateringType': _cateringType,
-      'mealType': _mealType,
-      'foodType': _foodType,
-      'notes': _notesController.text.trim(),
-    };
-
     try {
-      final response = await BookingService.instance.createBooking(
-        bookingData: bookingData,
+      final response = await _api.post(
+        'bookings',
+        body: {
+          'eventType': _apiEventType(),
+          'eventDate': _formatApiDate(_eventDate!),
+          'eventTime': _formatApiTime(_eventTime!),
+          'eventLocation': _locationController.text.trim(),
+          'numberOfPersons': persons,
+          'selectedFoods': <Map<String, dynamic>>[],
+          'cateringServices': services,
+          'extraRequirements': requirements.join('\n'),
+        },
       );
 
       if (!mounted) return;
 
-      final responseData = response['booking'] is Map
-          ? Map<String, dynamic>.from(response['booking'] as Map)
-          : response;
+      final message = response['message']?.toString() ??
+          'Your booking request has been submitted.';
 
-      final bookingId = (
-        responseData['_id'] ??
-        responseData['id'] ??
-        responseData['bookingId'] ??
-        ''
-      ).toString();
+      _showMessage(message, success: true);
 
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => BookingConfirmationScreen(
-            bookingId: bookingId,
-            bookingData: bookingData,
-          ),
-        ),
+      final booking = response['booking'];
+      final bookingId = booking is Map
+          ? booking['bookingId']?.toString()
+          : null;
+
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
+            backgroundColor: _cream,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+            ),
+            icon: const Icon(
+              Icons.check_circle_rounded,
+              color: Color(0xFF247547),
+              size: 56,
+            ),
+            title: const Text(
+              'Booking Request Sent!',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: _brown,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Your catering request has been received. '
+                  'Nivetha Catering Service will review your request.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(height: 1.5),
+                ),
+                if (bookingId != null && bookingId.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  SelectableText(
+                    'Booking ID: $bookingId',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: _brown,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _gold,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Done'),
+                ),
+              ),
+            ],
+          );
+        },
       );
+
+      if (!mounted) return;
+
+      Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
 
-      _showMessage(
-        'Booking failed. Please check your connection and try again.',
-      );
+      var message = error.toString();
+
+      message = message
+          .replaceFirst('Exception: ', '')
+          .replaceFirst('ApiException: ', '');
+
+      if (message.toLowerCase().contains('401') ||
+          message.toLowerCase().contains('unauthorized')) {
+        message = 'Please log in again to submit your booking.';
+      } else if (message.toLowerCase().contains('socketexception') ||
+          message.toLowerCase().contains('failed host lookup')) {
+        message = 'Network unavailable. Please check your internet.';
+      } else if (message.trim().isEmpty) {
+        message = 'Unable to submit booking. Please try again.';
+      }
+
+      _showMessage(message);
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -235,12 +323,161 @@ class _BookingScreenState extends State<BookingScreen>
     }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: navy,
+  Widget _sectionTitle(String title, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14, top: 8),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: _gold.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: _brown, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: _brown,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _input({
+    required String label,
+    required IconData icon,
+    required TextEditingController controller,
+    String? hint,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+    int maxLines = 1,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      validator: validator,
+      maxLines: maxLines,
+      enabled: !_isSubmitting,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        prefixIcon: Icon(icon, color: _muted),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 16,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFE8DCC8)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFE8DCC8)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _gold, width: 1.5),
+        ),
+      ),
+    );
+  }
+
+  Widget _choiceCard({
+    required String title,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: _isSubmitting ? null : onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(
+          vertical: 15,
+          horizontal: 8,
+        ),
+        decoration: BoxDecoration(
+          color: selected ? _gold.withValues(alpha: 0.13) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? _gold : const Color(0xFFE8DCC8),
+            width: selected ? 1.7 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: selected ? _brown : _muted, size: 25),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                color: _brown,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dateTimeTile({
+    required IconData icon,
+    required String title,
+    required String value,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: _isSubmitting ? null : onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE8DCC8)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: _gold, size: 23),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(color: _muted, fontSize: 12),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      color: _brown,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.keyboard_arrow_down, color: _muted),
+          ],
+        ),
       ),
     );
   }
@@ -248,701 +485,296 @@ class _BookingScreenState extends State<BookingScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: cream,
-      body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                SliverToBoxAdapter(child: _buildHeader()),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-                  sliver: SliverToBoxAdapter(
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildHeroCard(),
-                          const SizedBox(height: 25),
-                          _sectionHeading(
-                            'Event Details',
-                            'உங்கள் விழா விவரங்கள்',
-                            Icons.event_note_rounded,
-                          ),
-                          const SizedBox(height: 16),
-                          _buildEventType(),
-                          const SizedBox(height: 19),
-                          _buildDateTimeFields(),
-                          const SizedBox(height: 19),
-                          _buildLocationField(),
-                          const SizedBox(height: 19),
-                          _buildPersonsField(),
-                          const SizedBox(height: 28),
-                          _sectionHeading(
-                            'Catering Preferences',
-                            'உணவு மற்றும் சேவை தேர்வுகள்',
-                            Icons.restaurant_menu_rounded,
-                          ),
-                          const SizedBox(height: 16),
-                          _buildMealType(),
-                          const SizedBox(height: 19),
-                          _buildFoodType(),
-                          const SizedBox(height: 19),
-                          _buildCateringType(),
-                          const SizedBox(height: 19),
-                          _buildNotesField(),
-                          const SizedBox(height: 27),
-                          _buildSubmitButton(),
-                          const SizedBox(height: 14),
-                          Text(
-                            'Your booking will be submitted for confirmation.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 12,
-                              height: 1.5,
-                              color: Colors.blueGrey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
+      backgroundColor: _cream,
+      appBar: AppBar(
+        backgroundColor: _cream,
+        foregroundColor: _brown,
+        elevation: 0,
+        title: const Text(
+          'Book Catering',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                gradient: const LinearGradient(
+                  colors: [_brown, Color(0xFF75451E)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.restaurant_menu, color: _gold, size: 34),
+                  SizedBox(height: 12),
+                  Text(
+                    'Make Your Event Special',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 23,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 15, 20, 22),
-      child: Row(
-        children: [
-          _iconButton(
-            Icons.arrow_back_rounded,
-            () => Navigator.of(context).maybePop(),
-          ),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Book Catering',
-                  style: TextStyle(
-                    color: navy,
-                    fontSize: 23,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Plan your special occasion',
-                  style: TextStyle(
-                    color: Color(0xFF987022),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFFE6A2), gold],
-              ),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: const Icon(
-              Icons.calendar_month_rounded,
-              color: navy,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _iconButton(IconData icon, VoidCallback onTap) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(15),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(15),
-        child: Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: const Color(0xFFE9DFD0)),
-          ),
-          child: Icon(icon, color: navy),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeroCard() {
-    return Container(
-      padding: const EdgeInsets.all(21),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF25496C), navy, Color(0xFF091629)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: navy.withValues(alpha: 0.17),
-            blurRadius: 18,
-            offset: const Offset(0, 9),
-          ),
-        ],
-      ),
-      child: const Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Make it Memorable!',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 21,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  'சிறப்பான விழாவிற்கு சிறந்த உணவு',
-                  style: TextStyle(
-                    color: Color(0xFFFFE6A2),
-                    fontSize: 12,
-                    height: 1.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(width: 12),
-          Icon(
-            Icons.celebration_rounded,
-            color: gold,
-            size: 53,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _sectionHeading(
-    String title,
-    String subtitle,
-    IconData icon,
-  ) {
-    return Row(
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: gold.withValues(alpha: 0.17),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(icon, color: navy, size: 23),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: navy,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  color: Color(0xFF987022),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEventType() {
-    return _fieldCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _label('Event Type', 'விழா வகை'),
-          const SizedBox(height: 11),
-          DropdownButtonFormField<String>(
-            initialValue: _eventType,
-            isExpanded: true,
-            decoration: _inputDecoration(
-              icon: Icons.celebration_outlined,
-              hint: 'Select event type',
-            ),
-            items: _eventTypes.map((event) {
-              return DropdownMenuItem<String>(
-                value: event,
-                child: Text(
-                  event,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              );
-            }).toList(),
-            onChanged: (value) {
-              if (value != null) {
-                setState(() => _eventType = value);
-              }
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDateTimeFields() {
-    return Row(
-      children: [
-        Expanded(
-          child: _dateTimeCard(
-            title: 'Function Date',
-            subtitle: 'விழா தேதி',
-            icon: Icons.calendar_today_rounded,
-            value: _eventDate == null
-                ? 'Select date'
-                : '${_eventDate!.day.toString().padLeft(2, '0')}/'
-                    '${_eventDate!.month.toString().padLeft(2, '0')}/'
-                    '${_eventDate!.year}',
-            onTap: _pickDate,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _dateTimeCard(
-            title: 'Function Time',
-            subtitle: 'விழா நேரம்',
-            icon: Icons.access_time_rounded,
-            value: _eventTime == null
-                ? 'Select time'
-                : _eventTime!.format(context),
-            onTap: _pickTime,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _dateTimeCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required String value,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(19),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(19),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(19),
-            border: Border.all(color: const Color(0xFFE9DFD0)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: gold, size: 23),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: navy,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  color: Color(0xFF987022),
-                  fontSize: 10,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: (_eventDate == null && title == 'Function Date') ||
-                          (_eventTime == null && title == 'Function Time')
-                      ? Colors.blueGrey.shade400
-                      : navy,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLocationField() {
-    return _fieldCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _label('Event Location', 'விழா நடைபெறும் இடம்'),
-          const SizedBox(height: 11),
-          TextFormField(
-            controller: _locationController,
-            textCapitalization: TextCapitalization.words,
-            decoration: _inputDecoration(
-              icon: Icons.location_on_outlined,
-              hint: 'Enter event address',
-            ),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Please enter the event location';
-              }
-              return null;
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPersonsField() {
-    return _fieldCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _label('Number of Persons', 'எத்தனை நபர்கள்?'),
-          const SizedBox(height: 11),
-          TextFormField(
-            controller: _personsController,
-            keyboardType: TextInputType.number,
-            decoration: _inputDecoration(
-              icon: Icons.groups_rounded,
-              hint: 'Enter guest count',
-            ),
-            validator: (value) {
-              final persons = int.tryParse(value?.trim() ?? '');
-
-              if (persons == null || persons < 1) {
-                return 'Enter a valid number of persons';
-              }
-
-              if (persons > 100000) {
-                return 'Please enter a valid guest count';
-              }
-
-              return null;
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMealType() {
-    return _optionSelector(
-      title: 'Meal Session',
-      subtitle: 'உணவு நேரம்',
-      options: _mealTypes,
-      selected: _mealType,
-      icon: Icons.schedule_rounded,
-      onSelected: (value) => setState(() => _mealType = value),
-    );
-  }
-
-  Widget _buildFoodType() {
-    return _optionSelector(
-      title: 'Food Preference',
-      subtitle: 'உணவு விருப்பம்',
-      options: _foodTypes,
-      selected: _foodType,
-      icon: Icons.restaurant_rounded,
-      onSelected: (value) => setState(() => _foodType = value),
-    );
-  }
-
-  Widget _buildCateringType() {
-    return _optionSelector(
-      title: 'Catering Service',
-      subtitle: 'சேவை தேர்வு',
-      options: _cateringTypes,
-      selected: _cateringType,
-      icon: Icons.room_service_rounded,
-      onSelected: (value) => setState(() => _cateringType = value),
-    );
-  }
-
-  Widget _optionSelector({
-    required String title,
-    required String subtitle,
-    required List<String> options,
-    required String selected,
-    required IconData icon,
-    required ValueChanged<String> onSelected,
-  }) {
-    return _fieldCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _label(title, subtitle),
-          const SizedBox(height: 13),
-          Wrap(
-            spacing: 9,
-            runSpacing: 9,
-            children: options.map((option) {
-              final isSelected = option == selected;
-
-              return ChoiceChip(
-                label: Text(option),
-                selected: isSelected,
-                onSelected: (_) => onSelected(option),
-                avatar: isSelected
-                    ? const Icon(
-                        Icons.check_circle_rounded,
-                        size: 17,
-                        color: Colors.white,
-                      )
-                    : Icon(icon, size: 16, color: navy),
-                showCheckmark: false,
-                backgroundColor: cream,
-                selectedColor: navy,
-                side: BorderSide(
-                  color: isSelected ? navy : const Color(0xFFE8DECE),
-                ),
-                labelStyle: TextStyle(
-                  color: isSelected ? Colors.white : navy,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(13),
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNotesField() {
-    return _fieldCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _label('Extra Requirements', 'கூடுதல் தேவைகள்'),
-          const SizedBox(height: 11),
-          TextFormField(
-            controller: _notesController,
-            maxLines: 4,
-            maxLength: 500,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: _inputDecoration(
-              icon: Icons.edit_note_rounded,
-              hint: 'Any special requests or instructions?',
-            ).copyWith(
-              alignLabelWithHint: true,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSubmitButton() {
-    return Container(
-      height: 58,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFFFFE5A0),
-            gold,
-            Color(0xFFBB852C),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: gold.withValues(alpha: 0.28),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: ElevatedButton(
-        onPressed: _isSubmitting ? null : _submitBooking,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          disabledBackgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-        ),
-        child: _isSubmitting
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: navy,
-                  strokeWidth: 2.5,
-                ),
-              )
-            : const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.event_available_rounded,
-                    color: navy,
-                  ),
-                  SizedBox(width: 10),
+                  SizedBox(height: 8),
                   Text(
-                    'SUBMIT BOOKING',
+                    'Delicious food and exceptional service for every occasion.',
                     style: TextStyle(
-                      color: navy,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
+                      color: Color(0xFFF2E3CF),
+                      height: 1.5,
                     ),
                   ),
                 ],
               ),
-      ),
-    );
-  }
+            ),
+            const SizedBox(height: 24),
+            _sectionTitle('Choose Your Function', Icons.celebration),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _events.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 1.65,
+              ),
+              itemBuilder: (context, index) {
+                final event = _events[index];
+                const icons = <IconData>[
+                  Icons.favorite,
+                  Icons.volunteer_activism,
+                  Icons.cake,
+                  Icons.home,
+                  Icons.business,
+                  Icons.school,
+                  Icons.temple_hindu,
+                  Icons.event,
+                ];
 
-  Widget _fieldCard({required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFFECE3D5),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: navy.withValues(alpha: 0.025),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
+                return _choiceCard(
+                  title: event,
+                  icon: icons[index],
+                  selected: _eventType == event,
+                  onTap: () => setState(() => _eventType = event),
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+            _sectionTitle('Event Details', Icons.event_note),
+            Row(
+              children: [
+                Expanded(
+                  child: _dateTimeTile(
+                    icon: Icons.calendar_month,
+                    title: 'Event Date',
+                    value: _eventDate == null
+                        ? 'Select date'
+                        : '${_eventDate!.day.toString().padLeft(2, '0')}/'
+                            '${_eventDate!.month.toString().padLeft(2, '0')}/'
+                            '${_eventDate!.year}',
+                    onTap: _selectDate,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _dateTimeTile(
+                    icon: Icons.access_time,
+                    title: 'Event Time',
+                    value: _eventTime?.format(context) ?? 'Select time',
+                    onTap: _selectTime,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+            _input(
+              label: 'Event Location / Address',
+              icon: Icons.location_on_outlined,
+              controller: _locationController,
+              hint: 'Enter complete event address',
+              validator: (value) =>
+                  value == null || value.trim().isEmpty
+                      ? 'Enter your event location'
+                      : null,
+            ),
+            const SizedBox(height: 15),
+            _input(
+              label: 'Number of Persons',
+              icon: Icons.groups_outlined,
+              controller: _personsController,
+              hint: 'Minimum 10 persons',
+              keyboardType: TextInputType.number,
+              validator: (value) {
+                final count = int.tryParse(value?.trim() ?? '');
 
-  Widget _label(String title, String subtitle) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: navy,
-            fontSize: 14,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: const TextStyle(
-            color: Color(0xFF987022),
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
+                if (count == null || count < 10 || count > 100000) {
+                  return 'Enter 10 to 100000 persons';
+                }
 
-  InputDecoration _inputDecoration({
-    required IconData icon,
-    required String hint,
-  }) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: TextStyle(
-        color: Colors.blueGrey.shade300,
-        fontSize: 12,
-      ),
-      prefixIcon: Icon(icon, color: gold, size: 22),
-      filled: true,
-      fillColor: cream,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 15,
-      ),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(15),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(15),
-        borderSide: const BorderSide(
-          color: Color(0xFFE8DECE),
-        ),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(15),
-        borderSide: const BorderSide(
-          color: gold,
-          width: 1.5,
-        ),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(15),
-        borderSide: const BorderSide(color: Colors.red),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(15),
-        borderSide: const BorderSide(
-          color: Colors.red,
-          width: 1.5,
+                return null;
+              },
+            ),
+            const SizedBox(height: 24),
+            _sectionTitle('Food Preferences', Icons.restaurant),
+            const Text(
+              'Food Type',
+              style: TextStyle(
+                color: _brown,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _choiceCard(
+                    title: 'Vegetarian',
+                    icon: Icons.eco,
+                    selected: _foodType == 'Vegetarian',
+                    onTap: () => setState(() => _foodType = 'Vegetarian'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _choiceCard(
+                    title: 'Non-Vegetarian',
+                    icon: Icons.dinner_dining,
+                    selected: _foodType == 'Non-Vegetarian',
+                    onTap: () => setState(() => _foodType = 'Non-Vegetarian'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Meal Type',
+              style: TextStyle(
+                color: _brown,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              children: ['Breakfast', 'Lunch', 'Dinner'].map((meal) {
+                return ChoiceChip(
+                  label: Text(meal),
+                  selected: _mealType == meal,
+                  selectedColor: const Color(0xFFF0D79F),
+                  onSelected: _isSubmitting
+                      ? null
+                      : (_) => setState(() => _mealType = meal),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 18),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE8DCC8)),
+              ),
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    value: _cookingService,
+                    activeThumbColor: _gold,
+                    title: const Text(
+                      'Cooking Service',
+                      style: TextStyle(
+                        color: _brown,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: const Text('Professional cooking team'),
+                    onChanged: _isSubmitting
+                        ? null
+                        : (value) =>
+                            setState(() => _cookingService = value),
+                  ),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    value: _servingStaff,
+                    activeThumbColor: _gold,
+                    title: const Text(
+                      'Serving Staff',
+                      style: TextStyle(
+                        color: _brown,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: const Text('Staff to serve your guests'),
+                    onChanged: _isSubmitting
+                        ? null
+                        : (value) =>
+                            setState(() => _servingStaff = value),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            _sectionTitle('Special Requirements', Icons.edit_note),
+            _input(
+              label: 'Additional Requirements (Optional)',
+              icon: Icons.notes,
+              controller: _requirementsController,
+              hint: 'Describe any special requests...',
+              maxLines: 4,
+            ),
+            const SizedBox(height: 25),
+            SizedBox(
+              height: 56,
+              child: ElevatedButton(
+                onPressed: _isSubmitting ? null : _submitBooking,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _gold,
+                  disabledBackgroundColor: Colors.grey.shade400,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  elevation: 2,
+                ),
+                child: _isSubmitting
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.event_available),
+                          SizedBox(width: 10),
+                          Text(
+                            'Submit Booking Request',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Your booking will need confirmation from Nivetha Catering Service.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: _muted, fontSize: 12),
+            ),
+          ],
         ),
       ),
     );

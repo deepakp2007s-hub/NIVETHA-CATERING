@@ -8,17 +8,20 @@ class LocaleProvider extends ChangeNotifier {
 
   bool get isTamil => _locale.languageCode == 'ta';
 
+  bool get isEnglish => _locale.languageCode == 'en';
+
   String get languageName => isTamil ? 'தமிழ்' : 'English';
 
   void setLocale(Locale locale) {
-    if (locale.languageCode != 'en' &&
-        locale.languageCode != 'ta') {
+    if (locale.languageCode != 'en' && locale.languageCode != 'ta') {
       return;
     }
 
-    if (_locale == locale) return;
+    if (_locale.languageCode == locale.languageCode) {
+      return;
+    }
 
-    _locale = locale;
+    _locale = Locale(locale.languageCode);
     notifyListeners();
   }
 
@@ -31,10 +34,8 @@ class LocaleProvider extends ChangeNotifier {
   }
 
   void toggleLanguage() {
-    if (isTamil) {
-      setEnglish();
-    } else {
-      setTamil();
-    }
+    setLocale(
+      isEnglish ? const Locale('ta') : const Locale('en'),
+    );
   }
 }

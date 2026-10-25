@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../../../data/models/food_model.dart';
@@ -14,14 +13,12 @@ class FoodMenuScreen extends StatefulWidget {
 
 class _FoodMenuScreenState extends State<FoodMenuScreen>
     with SingleTickerProviderStateMixin {
-  static const Color navy = Color(0xFF102541);
-  static const Color gold = Color(0xFFD9A441);
-  static const Color cream = Color(0xFFFFF8EC);
+  static const Color navy = Color(0xFF402719);
+  static const Color gold = Color(0xFFD5A64A);
+  static const Color cream = Color(0xFFFFF8ED);
 
   final FoodRepository _repository = FoodRepository();
-
-  final TextEditingController _searchController =
-      TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
 
   late final AnimationController _animationController;
 
@@ -31,15 +28,17 @@ class _FoodMenuScreenState extends State<FoodMenuScreen>
   String _selectedCategory = 'All';
   String _searchQuery = '';
 
-  final List<String> _categories = const [
-    'All',
-    'Breakfast',
-    'Lunch',
-    'Dinner',
-    'Snacks',
-    'Sweets',
-    'Drinks',
-  ];
+  List<String> get _categories {
+    final categories = _foods
+        .map((food) => food.category.trim())
+        .where((category) => category.isNotEmpty)
+        .toSet()
+        .toList();
+
+    categories.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    return ['All', ...categories];
+  }
 
   @override
   void initState() {
@@ -87,6 +86,15 @@ class _FoodMenuScreenState extends State<FoodMenuScreen>
       setState(() {
         _foods = foods;
         _isLoading = false;
+
+        if (_selectedCategory != 'All' &&
+            !foods.any(
+              (food) =>
+                  food.category.toLowerCase() ==
+                  _selectedCategory.toLowerCase(),
+            )) {
+          _selectedCategory = 'All';
+        }
       });
 
       _animationController
@@ -97,7 +105,8 @@ class _FoodMenuScreenState extends State<FoodMenuScreen>
 
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Unable to load food menu. Please try again.';
+        _errorMessage =
+            'Unable to load food menu. Please check your internet connection and try again.';
       });
     }
   }
@@ -122,10 +131,18 @@ class _FoodMenuScreenState extends State<FoodMenuScreen>
 
   void _openFoodDetails(FoodModel food) {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      MaterialPageRoute<void>(
         builder: (_) => FoodDetailsScreen(food: food),
       ),
     );
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _selectedCategory = 'All';
+      _searchController.clear();
+      _searchQuery = '';
+    });
   }
 
   @override
@@ -169,9 +186,7 @@ class _FoodMenuScreenState extends State<FoodMenuScreen>
                 const SliverFillRemaining(
                   hasScrollBody: false,
                   child: Center(
-                    child: CircularProgressIndicator(
-                      color: gold,
-                    ),
+                    child: CircularProgressIndicator(color: gold),
                   ),
                 )
               else if (_errorMessage != null)
@@ -193,9 +208,11 @@ class _FoodMenuScreenState extends State<FoodMenuScreen>
                         final food = _filteredFoods[index];
 
                         return _FoodCard(
-                          key: ValueKey(food.id.isNotEmpty
-                              ? food.id
-                              : '${food.name}-$index'),
+                          key: ValueKey(
+                            food.id.isNotEmpty
+                                ? food.id
+                                : '${food.name}-$index',
+                          ),
                           food: food,
                           index: index,
                           onTap: () => _openFoodDetails(food),
@@ -233,7 +250,9 @@ class _FoodMenuScreenState extends State<FoodMenuScreen>
               height: 46,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: const Color(0xFFE9DFD0)),
+                border: Border.all(
+                  color: const Color(0xFFE9DFD0),
+                ),
               ),
               child: const Icon(
                 Icons.arrow_back_rounded,
@@ -343,23 +362,27 @@ class _FoodMenuScreenState extends State<FoodMenuScreen>
   }
 
   Widget _buildCategoryFilters() {
+    final categories = _categories;
+
     return ListView.separated(
       padding: const EdgeInsets.symmetric(
         horizontal: 20,
         vertical: 17,
       ),
       scrollDirection: Axis.horizontal,
-      itemCount: _categories.length,
+      itemCount: categories.length,
       separatorBuilder: (_, __) => const SizedBox(width: 9),
       itemBuilder: (context, index) {
-        final category = _categories[index];
+        final category = categories[index];
         final selected = _selectedCategory == category;
 
         return ChoiceChip(
           label: Text(category),
           selected: selected,
           onSelected: (_) {
-            setState(() => _selectedCategory = category);
+            setState(() {
+              _selectedCategory = category;
+            });
           },
           backgroundColor: Colors.white,
           selectedColor: navy,
@@ -496,13 +519,7 @@ class _FoodMenuScreenState extends State<FoodMenuScreen>
             ),
             const SizedBox(height: 16),
             TextButton(
-              onPressed: () {
-                setState(() {
-                  _selectedCategory = 'All';
-                  _searchController.clear();
-                  _searchQuery = '';
-                });
-              },
+              onPressed: _clearFilters,
               child: const Text('Clear Filters'),
             ),
           ],
@@ -531,11 +548,10 @@ class _FoodCard extends StatefulWidget {
 class _FoodCardState extends State<_FoodCard>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-
   bool _pressed = false;
 
-  static const Color navy = Color(0xFF102541);
-  static const Color gold = Color(0xFFD9A441);
+  static const Color navy = Color(0xFF402719);
+  static const Color gold = Color(0xFFD5A64A);
 
   @override
   void initState() {
@@ -543,7 +559,7 @@ class _FoodCardState extends State<_FoodCard>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 180),
+      duration: const Duration(milliseconds: 450),
     );
 
     _controller.forward();
@@ -616,6 +632,7 @@ class _FoodCardState extends State<_FoodCard>
                         top: 10,
                         left: 10,
                         child: Container(
+                          constraints: const BoxConstraints(maxWidth: 130),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 9,
                             vertical: 6,
@@ -625,9 +642,7 @@ class _FoodCardState extends State<_FoodCard>
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
-                            food.category.isEmpty
-                                ? 'Food'
-                                : food.category,
+                            food.category.isEmpty ? 'Food' : food.category,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -713,7 +728,7 @@ class _FoodCardState extends State<_FoodCard>
                               ),
                             ),
                             const Icon(
-                              Icons.star_rounded,
+                              Icons.restaurant_rounded,
                               color: gold,
                               size: 17,
                             ),

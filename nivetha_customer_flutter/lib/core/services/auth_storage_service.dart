@@ -10,7 +10,7 @@ class AuthStorageService {
   static const String _customerEmailKey = 'customer_email';
   static const String _customerPhoneKey = 'customer_phone';
 
-  // Save login session
+  /// Save the authentication token and customer details.
   static Future<void> saveSession({
     required String token,
     String? customerId,
@@ -18,107 +18,83 @@ class AuthStorageService {
     String? customerEmail,
     String? customerPhone,
   }) async {
-    final SharedPreferences prefs =
-        await SharedPreferences.getInstance();
+    final cleanToken = token.trim();
 
-    await prefs.setString(_tokenKey, token);
+    if (cleanToken.isEmpty) {
+      throw ArgumentError('Authentication token cannot be empty.');
+    }
 
-    await _saveOptional(
-      prefs: prefs,
-      key: _customerIdKey,
-      value: customerId,
-    );
+    final prefs = await SharedPreferences.getInstance();
 
-    await _saveOptional(
-      prefs: prefs,
-      key: _customerNameKey,
-      value: customerName,
-    );
+    await prefs.setString(_tokenKey, cleanToken);
 
-    await _saveOptional(
-      prefs: prefs,
-      key: _customerEmailKey,
-      value: customerEmail,
-    );
-
-    await _saveOptional(
-      prefs: prefs,
-      key: _customerPhoneKey,
-      value: customerPhone,
-    );
+    await _saveOptional(prefs, _customerIdKey, customerId);
+    await _saveOptional(prefs, _customerNameKey, customerName);
+    await _saveOptional(prefs, _customerEmailKey, customerEmail);
+    await _saveOptional(prefs, _customerPhoneKey, customerPhone);
   }
 
-  // Save or remove optional customer details
-  static Future<void> _saveOptional({
-    required SharedPreferences prefs,
-    required String key,
-    required String? value,
-  }) async {
-    final String cleanedValue = value?.trim() ?? '';
+  static Future<void> _saveOptional(
+    SharedPreferences prefs,
+    String key,
+    String? value,
+  ) async {
+    final cleanValue = value?.trim() ?? '';
 
-    if (cleanedValue.isEmpty) {
+    if (cleanValue.isEmpty) {
       await prefs.remove(key);
     } else {
-      await prefs.setString(key, cleanedValue);
+      await prefs.setString(key, cleanValue);
     }
   }
 
-  // Get authentication token
+  /// Get the saved authentication token.
   static Future<String?> getToken() async {
-    final SharedPreferences prefs =
-        await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_tokenKey);
 
-    return prefs.getString(_tokenKey);
+    if (token == null || token.trim().isEmpty) {
+      return null;
+    }
+
+    return token.trim();
   }
 
-  // Get customer ID
   static Future<String?> getCustomerId() async {
-    final SharedPreferences prefs =
-        await SharedPreferences.getInstance();
-
+    final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_customerIdKey);
   }
 
-  // Get customer name
   static Future<String?> getCustomerName() async {
-    final SharedPreferences prefs =
-        await SharedPreferences.getInstance();
-
+    final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_customerNameKey);
   }
 
-  // Get customer email
   static Future<String?> getCustomerEmail() async {
-    final SharedPreferences prefs =
-        await SharedPreferences.getInstance();
-
+    final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_customerEmailKey);
   }
 
-  // Get customer phone
   static Future<String?> getCustomerPhone() async {
-    final SharedPreferences prefs =
-        await SharedPreferences.getInstance();
-
+    final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_customerPhoneKey);
   }
 
-  // Check login status
+  /// Check whether a token is stored locally.
   static Future<bool> isLoggedIn() async {
-    final String? token = await getToken();
-
-    return token != null && token.trim().isNotEmpty;
+    return (await getToken()) != null;
   }
 
-  // Clear session during logout
+  /// Clear the saved authentication session.
   static Future<void> clearSession() async {
-    final SharedPreferences prefs =
-        await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
 
-    await prefs.remove(_tokenKey);
-    await prefs.remove(_customerIdKey);
-    await prefs.remove(_customerNameKey);
-    await prefs.remove(_customerEmailKey);
-    await prefs.remove(_customerPhoneKey);
+    await Future.wait([
+      prefs.remove(_tokenKey),
+      prefs.remove(_customerIdKey),
+      prefs.remove(_customerNameKey),
+      prefs.remove(_customerEmailKey),
+      prefs.remove(_customerPhoneKey),
+    ]);
   }
 }

@@ -17,9 +17,11 @@ class FoodDetailsScreen extends StatefulWidget {
 
 class _FoodDetailsScreenState extends State<FoodDetailsScreen>
     with SingleTickerProviderStateMixin {
-  static const Color navy = Color(0xFF102541);
-  static const Color gold = Color(0xFFD9A441);
-  static const Color cream = Color(0xFFFFF8EC);
+  static const Color brown = Color(0xFF45250E);
+  static const Color darkBrown = Color(0xFF2E1B12);
+  static const Color gold = Color(0xFFD5A64A);
+  static const Color cream = Color(0xFFFFF8ED);
+  static const Color muted = Color(0xFF806D59);
 
   late final AnimationController _controller;
   late final Animation<double> _fadeAnimation;
@@ -31,7 +33,7 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 750),
+      duration: const Duration(milliseconds: 650),
     );
 
     _fadeAnimation = CurvedAnimation(
@@ -40,7 +42,7 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
     );
 
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.09),
+      begin: const Offset(0, 0.06),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(
@@ -76,7 +78,7 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
                   child: _buildImageHeader(food),
                 ),
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(22, 24, 22, 30),
+                  padding: const EdgeInsets.fromLTRB(22, 24, 22, 32),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
                       _buildCategory(food.category),
@@ -86,9 +88,9 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
                         style: const TextStyle(
                           fontSize: 29,
                           height: 1.2,
-                          color: navy,
+                          color: darkBrown,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: -0.6,
+                          letterSpacing: -0.5,
                         ),
                       ),
                       if (food.tamilName.trim().isNotEmpty) ...[
@@ -102,8 +104,6 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
                           ),
                         ),
                       ],
-                      const SizedBox(height: 22),
-                      _buildPriceCard(food.price),
                       const SizedBox(height: 26),
                       _sectionTitle(
                         'About this dish',
@@ -122,7 +122,7 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
                         ),
                         child: Text(
                           food.description.trim().isEmpty
-                              ? 'Enjoy this delicious selection from Nivetha Catering Service.'
+                              ? 'Discover this delicious selection from Nivetha Catering Service.'
                               : food.description,
                           style: TextStyle(
                             fontSize: 14,
@@ -134,7 +134,18 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
                       const SizedBox(height: 22),
                       _buildInformationCard(food),
                       const SizedBox(height: 25),
-                      _buildBookingButton(),
+                      _buildBookingButton(food),
+                      const SizedBox(height: 18),
+                      const Center(
+                        child: Text(
+                          'Nivetha Catering Service',
+                          style: TextStyle(
+                            color: muted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     ]),
                   ),
                 ),
@@ -162,9 +173,9 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withValues(alpha: 0.32),
+                  Colors.black.withValues(alpha: 0.35),
                   Colors.transparent,
-                  Colors.black.withValues(alpha: 0.12),
+                  Colors.black.withValues(alpha: 0.22),
                 ],
               ),
             ),
@@ -195,13 +206,13 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
                   Icon(
                     Icons.restaurant_rounded,
                     size: 16,
-                    color: navy,
+                    color: brown,
                   ),
                   SizedBox(width: 6),
                   Text(
                     'NIVETHA',
                     style: TextStyle(
-                      color: navy,
+                      color: brown,
                       fontSize: 11,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0.8,
@@ -220,7 +231,7 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
                 vertical: 8,
               ),
               decoration: BoxDecoration(
-                color: navy.withValues(alpha: 0.88),
+                color: brown.withValues(alpha: 0.92),
                 borderRadius: BorderRadius.circular(13),
               ),
               child: const Text(
@@ -234,6 +245,29 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
               ),
             ),
           ),
+          if (!food.available)
+            Positioned(
+              bottom: 20,
+              right: 20,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade700,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'UNAVAILABLE',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -241,26 +275,14 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
 
   Widget _foodImage(String image) {
     if (image.trim().isEmpty) {
-      return const Center(
-        child: Icon(
-          Icons.restaurant_rounded,
-          color: Color(0xFFB7A17B),
-          size: 100,
-        ),
-      );
+      return _imagePlaceholder();
     }
 
     return Image.network(
       image,
       fit: BoxFit.cover,
       errorBuilder: (context, error, stackTrace) {
-        return const Center(
-          child: Icon(
-            Icons.restaurant_rounded,
-            color: Color(0xFFB7A17B),
-            size: 100,
-          ),
-        );
+        return _imagePlaceholder();
       },
       loadingBuilder: (context, child, progress) {
         if (progress == null) return child;
@@ -271,6 +293,16 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
           ),
         );
       },
+    );
+  }
+
+  Widget _imagePlaceholder() {
+    return const Center(
+      child: Icon(
+        Icons.restaurant_rounded,
+        color: Color(0xFFB7A17B),
+        size: 100,
+      ),
     );
   }
 
@@ -289,7 +321,7 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
           height: 46,
           child: Icon(
             icon,
-            color: navy,
+            color: brown,
             size: 23,
           ),
         ),
@@ -298,7 +330,7 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
   }
 
   Widget _buildCategory(String category) {
-    final text = category.trim().isEmpty ? 'Food' : category;
+    final text = category.trim().isEmpty ? 'Food' : category.trim();
 
     return Align(
       alignment: Alignment.centerLeft,
@@ -311,7 +343,7 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
           color: gold.withValues(alpha: 0.17),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: gold.withValues(alpha: 0.35),
+            color: gold.withValues(alpha: 0.4),
           ),
         ),
         child: Text(
@@ -327,79 +359,6 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
     );
   }
 
-  Widget _buildPriceCard(double price) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF25496C),
-            navy,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: navy.withValues(alpha: 0.16),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 49,
-            height: 49,
-            decoration: BoxDecoration(
-              color: gold.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: const Icon(
-              Icons.currency_rupee_rounded,
-              color: gold,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Menu Price',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  price > 0
-                      ? '₹${price.toStringAsFixed(0)}'
-                      : 'Price on request',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 23,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Icon(
-            Icons.verified_rounded,
-            color: gold,
-            size: 25,
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _sectionTitle(String title, String subtitle) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -407,7 +366,7 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
         Text(
           title,
           style: const TextStyle(
-            color: navy,
+            color: darkBrown,
             fontSize: 20,
             fontWeight: FontWeight.w900,
           ),
@@ -440,13 +399,18 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
           _infoRow(
             Icons.restaurant_menu_rounded,
             'Category',
-            food.category.isEmpty ? 'Food' : food.category,
+            food.category.trim().isEmpty ? 'Food' : food.category,
           ),
           const Divider(height: 25),
           _infoRow(
-            Icons.check_circle_outline_rounded,
+            food.available
+                ? Icons.check_circle_outline_rounded
+                : Icons.cancel_outlined,
             'Availability',
             food.available ? 'Available' : 'Currently unavailable',
+            valueColor: food.available
+                ? const Color(0xFF247547)
+                : Colors.red.shade700,
           ),
           const Divider(height: 25),
           _infoRow(
@@ -462,9 +426,11 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
   Widget _infoRow(
     IconData icon,
     String label,
-    String value,
-  ) {
+    String value, {
+    Color? valueColor,
+  }) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
           width: 42,
@@ -475,7 +441,7 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
           ),
           child: Icon(
             icon,
-            color: navy,
+            color: brown,
             size: 21,
           ),
         ),
@@ -486,16 +452,16 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
             children: [
               Text(
                 label,
-                style: TextStyle(
-                  color: Colors.blueGrey.shade500,
+                style: const TextStyle(
+                  color: muted,
                   fontSize: 11,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 value,
-                style: const TextStyle(
-                  color: navy,
+                style: TextStyle(
+                  color: valueColor ?? darkBrown,
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
                 ),
@@ -507,27 +473,37 @@ class _FoodDetailsScreenState extends State<FoodDetailsScreen>
     );
   }
 
-  Widget _buildBookingButton() {
+  Widget _buildBookingButton(FoodModel food) {
+    final isAvailable = food.available;
+
     return SizedBox(
       height: 56,
       width: double.infinity,
       child: ElevatedButton.icon(
-        onPressed: () {
-          Navigator.of(context).pushNamed('/booking');
-        },
-        icon: const Icon(Icons.calendar_month_rounded),
-        label: const Text(
-          'Book Catering Service',
-          style: TextStyle(
+        onPressed: isAvailable
+            ? () {
+                Navigator.of(context).pushNamed('/booking');
+              }
+            : null,
+        icon: Icon(
+          isAvailable
+              ? Icons.calendar_month_rounded
+              : Icons.block_rounded,
+        ),
+        label: Text(
+          isAvailable ? 'Book Catering Service' : 'Currently Unavailable',
+          style: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w900,
           ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: navy,
+          backgroundColor: brown,
+          disabledBackgroundColor: Colors.grey.shade400,
           foregroundColor: Colors.white,
+          disabledForegroundColor: Colors.white,
           elevation: 4,
-          shadowColor: navy.withValues(alpha: 0.25),
+          shadowColor: brown.withValues(alpha: 0.25),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),

@@ -17,23 +17,23 @@ class CustomerModel {
   });
 
   factory CustomerModel.fromJson(Map<String, dynamic> json) {
-    final idValue = json['_id'] ?? json['id'];
-
     return CustomerModel(
-      id: idValue?.toString() ?? '',
-      name: (json['name'] ?? json['fullName'] ?? '').toString(),
-      email: (json['email'] ?? '').toString(),
-      phone: (json['phone'] ?? json['mobile'] ?? '').toString(),
-      address: json['address']?.toString(),
-      profileImage:
-          (json['profileImage'] ?? json['avatar'] ?? json['image'])
-              ?.toString(),
+      id: _readString(json['_id'] ?? json['id']),
+      name: _readString(json['name'] ?? json['fullName']),
+      email: _readString(json['email']),
+      phone: _readString(
+        json['phone'] ?? json['phoneNumber'] ?? json['mobile'],
+      ),
+      address: _readNullableString(json['address']),
+      profileImage: _readNullableString(
+        json['profileImage'] ?? json['avatar'] ?? json['image'],
+      ),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      if (id.isNotEmpty) '_id': id,
       'name': name,
       'email': email,
       'phone': phone,
@@ -43,20 +43,36 @@ class CustomerModel {
   }
 
   CustomerModel copyWith({
-    String? id,
     String? name,
     String? email,
     String? phone,
     String? address,
     String? profileImage,
+    bool clearAddress = false,
+    bool clearProfileImage = false,
   }) {
     return CustomerModel(
-      id: id ?? this.id,
+      id: id,
       name: name ?? this.name,
       email: email ?? this.email,
       phone: phone ?? this.phone,
-      address: address ?? this.address,
-      profileImage: profileImage ?? this.profileImage,
+      address: clearAddress ? null : address ?? this.address,
+      profileImage:
+          clearProfileImage ? null : profileImage ?? this.profileImage,
     );
+  }
+
+  static String _readString(dynamic value) {
+    return value?.toString().trim() ?? '';
+  }
+
+  static String? _readNullableString(dynamic value) {
+    final result = value?.toString().trim();
+
+    if (result == null || result.isEmpty) {
+      return null;
+    }
+
+    return result;
   }
 }

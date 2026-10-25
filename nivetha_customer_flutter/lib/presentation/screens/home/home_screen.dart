@@ -1,10 +1,8 @@
-
 import 'package:flutter/material.dart';
 
 import '../booking/booking_screen.dart';
 import '../bookings/my_bookings_screen.dart';
 import '../food/food_menu_screen.dart';
-import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -14,110 +12,159 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _animationController;
-  late final Animation<double> _fadeAnimation;
-  late final Animation<Offset> _slideAnimation;
+class _HomeScreenState extends State<HomeScreen> {
+  int _selectedIndex = 0;
 
-  static const Color navy = Color(0xFF102541);
-  static const Color gold = Color(0xFFD9A441);
-  static const Color cream = Color(0xFFFFF8EC);
+  static const Color _cream = Color(0xFFFFF8ED);
+  static const Color _darkBrown = Color(0xFF402719);
+  static const Color _brown = Color(0xFF765039);
+  static const Color _gold = Color(0xFFD5A64A);
+  static const Color _lightGold = Color(0xFFF5E5C2);
 
-  @override
-  void initState() {
-    super.initState();
+  late final List<Widget> _screens = [
+    _buildHomeContent(),
+    const FoodMenuScreen(),
+    const BookingScreen(),
+    const MyBookingsScreen(),
+    const ProfileScreen(),
+  ];
 
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    );
-
-    _fadeAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOut,
-    );
-
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.08),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOutCubic,
-      ),
-    );
-
-    _animationController.forward();
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  void _openPage(Widget page) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => page,
-      ),
-    );
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+      if (index == 0) {
+        _screens[0] = _buildHomeContent();
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: cream,
+      backgroundColor: _cream,
       body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 30),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      _buildHeader(),
-                      const SizedBox(height: 25),
-                      _buildHeroBanner(),
-                      const SizedBox(height: 30),
-                      _buildSectionTitle(
-                        'Our Services',
-                        'உங்கள் விழாவிற்கு சிறந்த சேவை',
-                      ),
-                      const SizedBox(height: 17),
-                      _buildServiceGrid(),
-                      const SizedBox(height: 30),
-                      _buildSectionTitle(
-                        'Why Choose Us?',
-                        'உங்கள் மகிழ்ச்சியே எங்கள் நோக்கம்',
-                      ),
-                      const SizedBox(height: 17),
-                      _buildBenefits(),
-                      const SizedBox(height: 28),
-                      _buildContactCard(),
-                      const SizedBox(height: 18),
-                      Center(
-                        child: Text(
-                          'Nivetha Catering Service • Made with care',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.blueGrey.shade500,
-                          ),
-                        ),
-                      ),
-                    ]),
-                  ),
-                ),
+        child: IndexedStack(
+          index: _selectedIndex,
+          children: _screens,
+        ),
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: _darkBrown.withValues(alpha: 0.08),
+              blurRadius: 18,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 8,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _navItem(Icons.home_rounded, 'Home', 0),
+                _navItem(Icons.restaurant_menu_rounded, 'Food Menu', 1),
+                _navItem(Icons.event_available_rounded, 'Book', 2),
+                _navItem(Icons.receipt_long_rounded, 'My Bookings', 3),
+                _navItem(Icons.person_rounded, 'Profile', 4),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _navItem(IconData icon, String label, int index) {
+    final bool selected = _selectedIndex == index;
+
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _onItemTapped(index),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 13,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: selected ? _lightGold : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  size: 22,
+                  color: selected ? _darkBrown : Colors.grey.shade500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 9.5,
+                  fontWeight:
+                      selected ? FontWeight.w800 : FontWeight.w500,
+                  color: selected ? _darkBrown : Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeContent() {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHeader(),
+          const SizedBox(height: 24),
+          _buildWelcomeBanner(),
+          const SizedBox(height: 26),
+          _buildSectionHeading(
+            'What are you planning?',
+            'Choose a service for your function',
+          ),
+          const SizedBox(height: 16),
+          _buildServiceGrid(),
+          const SizedBox(height: 28),
+          _buildSectionHeading(
+            'Popular Food Categories',
+            'Delicious choices for every occasion',
+          ),
+          const SizedBox(height: 16),
+          _buildFoodCategories(),
+          const SizedBox(height: 28),
+          _buildSpecialBanner(),
+          const SizedBox(height: 28),
+          _buildSectionHeading(
+            'Why Choose Nivetha?',
+            'We make your special day memorable',
+          ),
+          const SizedBox(height: 16),
+          _buildBenefits(),
+          const SizedBox(height: 24),
+          _buildContactCard(),
+        ],
       ),
     );
   }
@@ -126,121 +173,92 @@ class _HomeScreenState extends State<HomeScreen>
     return Row(
       children: [
         Container(
-          width: 54,
           height: 54,
+          width: 54,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [
-                Color(0xFFFFE6A2),
-                gold,
-                Color(0xFFB77B25),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: gold.withValues(alpha: 0.25),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            color: _darkBrown,
+            borderRadius: BorderRadius.circular(17),
+            border: Border.all(color: _gold, width: 1.5),
           ),
           child: const Icon(
-            Icons.restaurant_menu_rounded,
-            color: navy,
-            size: 30,
+            Icons.restaurant_rounded,
+            color: _gold,
+            size: 29,
           ),
         ),
-        const SizedBox(width: 13),
-        const Expanded(
+        const SizedBox(width: 12),
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'NIVETHA',
                 style: TextStyle(
-                  color: navy,
-                  fontSize: 20,
+                  color: _darkBrown,
+                  fontSize: 21,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 1.3,
+                  letterSpacing: 2,
                 ),
               ),
-              SizedBox(height: 3),
               Text(
-                'Catering Service',
+                'CATERING SERVICE',
                 style: TextStyle(
-                  color: Color(0xFF9B762D),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  color: _brown.withValues(alpha: 0.85),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 2,
                 ),
               ),
             ],
           ),
         ),
-        _roundIconButton(
-          icon: Icons.notifications_none_rounded,
-          onTap: () => _openPage(const NotificationsScreen()),
-        ),
-        const SizedBox(width: 9),
-        _roundIconButton(
-          icon: Icons.person_outline_rounded,
-          onTap: () => _openPage(const ProfileScreen()),
+        Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(15),
+            onTap: () => _onItemTapped(4),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: _lightGold),
+              ),
+              child: const Icon(
+                Icons.person_outline_rounded,
+                color: _darkBrown,
+                size: 25,
+              ),
+            ),
+          ),
         ),
       ],
     );
   }
 
-  Widget _roundIconButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(15),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(15),
-        child: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(
-              color: const Color(0xFFECE2D1),
-            ),
-          ),
-          child: Icon(
-            icon,
-            color: navy,
-            size: 23,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeroBanner() {
+  Widget _buildWelcomeBanner() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(23),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [
-            Color(0xFF25496C),
-            navy,
-            Color(0xFF091629),
+            Color(0xFF503322),
+            Color(0xFF2E1B12),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(27),
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(
+          color: _gold.withValues(alpha: 0.65),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: navy.withValues(alpha: 0.20),
-            blurRadius: 22,
-            offset: const Offset(0, 12),
+            color: _darkBrown.withValues(alpha: 0.15),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -248,11 +266,11 @@ class _HomeScreenState extends State<HomeScreen>
         children: [
           Positioned(
             right: -15,
-            top: -10,
+            top: -12,
             child: Icon(
-              Icons.auto_awesome_rounded,
-              size: 100,
-              color: gold.withValues(alpha: 0.10),
+              Icons.spa_rounded,
+              size: 120,
+              color: _gold.withValues(alpha: 0.09),
             ),
           ),
           Column(
@@ -260,73 +278,73 @@ class _HomeScreenState extends State<HomeScreen>
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
+                  horizontal: 11,
+                  vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: gold.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(30),
+                  color: _gold.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: gold.withValues(alpha: 0.45),
+                    color: _gold.withValues(alpha: 0.6),
                   ),
                 ),
                 child: const Text(
-                  '✨  MAKE YOUR EVENT SPECIAL',
+                  '✦  MADE WITH LOVE',
                   style: TextStyle(
-                    color: Color(0xFFFFE6A2),
+                    color: _gold,
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: 0.7,
+                    letterSpacing: 1.1,
                   ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Make Every\nCelebration Special',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  height: 1.2,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Authentic taste. Beautiful memories.\nExceptional catering for your special day.',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.78),
+                  fontSize: 12,
+                  height: 1.6,
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Every Celebration\nDeserves Great Food!',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 27,
-                  height: 1.25,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.5,
+              ElevatedButton(
+                onPressed: () => _onItemTapped(2),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _gold,
+                  foregroundColor: _darkBrown,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 19,
+                    vertical: 13,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 13),
-              Text(
-                'சுவையான உணவு • சிறப்பான சேவை',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.82),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 23),
-              SizedBox(
-                height: 49,
-                child: ElevatedButton.icon(
-                  onPressed: () => _openPage(const BookingScreen()),
-                  icon: const Icon(
-                    Icons.calendar_month_rounded,
-                    size: 19,
-                  ),
-                  label: const Text(
-                    'Book Your Event',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Book Your Function',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
                     ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    foregroundColor: navy,
-                    backgroundColor: gold,
-                    elevation: 3,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 19,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                  ),
+                    SizedBox(width: 8),
+                    Icon(Icons.arrow_forward_rounded, size: 17),
+                  ],
                 ),
               ),
             ],
@@ -336,26 +354,24 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildSectionTitle(String title, String subtitle) {
+  Widget _buildSectionHeading(String title, String subtitle) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
           style: const TextStyle(
-            color: navy,
-            fontSize: 22,
+            color: _darkBrown,
+            fontSize: 19,
             fontWeight: FontWeight.w900,
-            letterSpacing: -0.4,
           ),
         ),
         const SizedBox(height: 5),
         Text(
           subtitle,
           style: TextStyle(
-            color: Colors.blueGrey.shade600,
+            color: _brown.withValues(alpha: 0.75),
             fontSize: 12,
-            height: 1.5,
           ),
         ),
       ],
@@ -364,38 +380,42 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildServiceGrid() {
     final services = [
-      _ServiceItem(
-        title: 'Food Menu',
-        subtitle: 'Explore our dishes',
-        tamil: 'உணவு வகைகள்',
-        icon: Icons.restaurant_rounded,
-        color: const Color(0xFFDAA441),
-        onTap: () => _openPage(const FoodMenuScreen()),
-      ),
-      _ServiceItem(
-        title: 'Book Catering',
-        subtitle: 'Plan your event',
-        tamil: 'விழாவை பதிவு செய்க',
-        icon: Icons.event_available_rounded,
-        color: const Color(0xFF2C7894),
-        onTap: () => _openPage(const BookingScreen()),
-      ),
-      _ServiceItem(
-        title: 'My Bookings',
-        subtitle: 'View your bookings',
-        tamil: 'என் பதிவுகள்',
-        icon: Icons.receipt_long_rounded,
-        color: const Color(0xFF6C65AD),
-        onTap: () => _openPage(const MyBookingsScreen()),
-      ),
-      _ServiceItem(
-        title: 'My Profile',
-        subtitle: 'Your account details',
-        tamil: 'என் விவரங்கள்',
-        icon: Icons.account_circle_rounded,
-        color: const Color(0xFF45866A),
-        onTap: () => _openPage(const ProfileScreen()),
-      ),
+      {
+        'title': 'Wedding',
+        'subtitle': 'Grand celebrations',
+        'icon': Icons.favorite_rounded,
+        'color': const Color(0xFFF8E5D8),
+      },
+      {
+        'title': 'Engagement',
+        'subtitle': 'Beautiful beginnings',
+        'icon': Icons.diamond_rounded,
+        'color': const Color(0xFFF3E9D0),
+      },
+      {
+        'title': 'Birthday',
+        'subtitle': 'Celebrate with joy',
+        'icon': Icons.cake_rounded,
+        'color': const Color(0xFFF7E2E5),
+      },
+      {
+        'title': 'House Function',
+        'subtitle': 'Family gatherings',
+        'icon': Icons.home_rounded,
+        'color': const Color(0xFFE7ECDD),
+      },
+      {
+        'title': 'Corporate',
+        'subtitle': 'Professional events',
+        'icon': Icons.business_center_rounded,
+        'color': const Color(0xFFE2EAF3),
+      },
+      {
+        'title': 'Other Events',
+        'subtitle': 'Your special occasion',
+        'icon': Icons.celebration_rounded,
+        'color': const Color(0xFFECE2F3),
+      },
     ];
 
     return GridView.builder(
@@ -404,60 +424,248 @@ class _HomeScreenState extends State<HomeScreen>
       itemCount: services.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: 13,
-        mainAxisSpacing: 13,
-        childAspectRatio: 0.98,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.42,
       ),
       itemBuilder: (context, index) {
-        return _AnimatedServiceCard(item: services[index]);
+        final service = services[index];
+
+        return Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () => _onItemTapped(2),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: _lightGold),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      color: service['color'] as Color,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      service['icon'] as IconData,
+                      color: _darkBrown,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    service['title'] as String,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _darkBrown,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    service['subtitle'] as String,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
       },
+    );
+  }
+
+  Widget _buildFoodCategories() {
+    final categories = [
+      {
+        'name': 'Breakfast',
+        'emoji': '🥞',
+        'description': 'Morning favourites',
+      },
+      {
+        'name': 'Lunch',
+        'emoji': '🍛',
+        'description': 'Traditional meals',
+      },
+      {
+        'name': 'Dinner',
+        'emoji': '🍽️',
+        'description': 'Delicious dinners',
+      },
+      {
+        'name': 'Sweets',
+        'emoji': '🍮',
+        'description': 'Sweet memories',
+      },
+    ];
+
+    return SizedBox(
+      height: 125,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: categories.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final category = categories[index];
+
+          return InkWell(
+            onTap: () => _onItemTapped(1),
+            borderRadius: BorderRadius.circular(17),
+            child: Container(
+              width: 142,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(17),
+                border: Border.all(color: _lightGold),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    category['emoji']!,
+                    style: const TextStyle(fontSize: 28),
+                  ),
+                  const Spacer(),
+                  Text(
+                    category['name']!,
+                    style: const TextStyle(
+                      color: _darkBrown,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    category['description']!,
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSpecialBanner() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3E6CA),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: _darkBrown,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(
+              Icons.restaurant_rounded,
+              color: _gold,
+              size: 29,
+            ),
+          ),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'A Feast to Remember',
+                  style: TextStyle(
+                    color: _darkBrown,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                SizedBox(height: 5),
+                Text(
+                  'Explore our menu and plan your perfect feast.',
+                  style: TextStyle(
+                    color: _brown,
+                    fontSize: 11,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => _onItemTapped(1),
+            icon: const Icon(
+              Icons.arrow_forward_rounded,
+              color: _darkBrown,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildBenefits() {
     final benefits = [
-      (
-        Icons.restaurant_menu_rounded,
-        'Delicious Food',
-        'சுவையான உணவு வகைகள்',
-      ),
-      (
-        Icons.groups_rounded,
-        'Professional Service',
-        'சிறந்த சேவை',
-      ),
-      (
-        Icons.event_available_rounded,
-        'Events Made Easy',
-        'எளிய முன்பதிவு',
-      ),
+      {
+        'icon': Icons.restaurant_menu_rounded,
+        'title': 'Authentic Taste',
+        'description': 'Delicious food prepared with care.',
+      },
+      {
+        'icon': Icons.groups_rounded,
+        'title': 'Experienced Team',
+        'description': 'Friendly cooking and serving staff.',
+      },
+      {
+        'icon': Icons.event_available_rounded,
+        'title': 'Easy Booking',
+        'description': 'Plan your event in a few simple steps.',
+      },
     ];
 
     return Column(
       children: benefits.map((benefit) {
         return Container(
-          margin: const EdgeInsets.only(bottom: 11),
+          margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(15),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(17),
-            border: Border.all(
-              color: const Color(0xFFEDE4D6),
-            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _lightGold),
           ),
           child: Row(
             children: [
               Container(
-                width: 47,
-                height: 47,
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: gold.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(14),
+                  color: _lightGold.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(13),
                 ),
                 child: Icon(
-                  benefit.$1,
-                  color: navy,
-                  size: 24,
+                  benefit['icon'] as IconData,
+                  color: _darkBrown,
+                  size: 23,
                 ),
               ),
               const SizedBox(width: 14),
@@ -466,19 +674,19 @@ class _HomeScreenState extends State<HomeScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      benefit.$2,
+                      benefit['title'] as String,
                       style: const TextStyle(
-                        color: navy,
-                        fontSize: 14,
+                        color: _darkBrown,
+                        fontSize: 13,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      benefit.$3,
+                      benefit['description'] as String,
                       style: TextStyle(
-                        color: Colors.blueGrey.shade600,
-                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        fontSize: 11,
                       ),
                     ),
                   ],
@@ -486,8 +694,8 @@ class _HomeScreenState extends State<HomeScreen>
               ),
               const Icon(
                 Icons.check_circle_rounded,
-                color: Color(0xFF42856A),
-                size: 21,
+                color: Color(0xFF65814D),
+                size: 20,
               ),
             ],
           ),
@@ -498,301 +706,62 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildContactCard() {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFEBC0),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: gold.withValues(alpha: 0.45),
-        ),
+        color: _darkBrown,
+        borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            width: 51,
-            height: 51,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.8),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Icon(
-              Icons.support_agent_rounded,
-              color: navy,
-              size: 29,
+          const Icon(
+            Icons.support_agent_rounded,
+            color: _gold,
+            size: 34,
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Need Help Planning Your Event?',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Need Help?',
-                  style: TextStyle(
-                    color: navy,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  'Contact us for your event needs.',
-                  style: TextStyle(
-                    color: Color(0xFF655431),
-                    fontSize: 12,
-                    height: 1.4,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 7),
+          Text(
+            'Choose your menu, share your requirements, and plan your special day.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.75),
+              fontSize: 11,
+              height: 1.5,
             ),
           ),
-          IconButton(
-            tooltip: 'Contact details',
-            onPressed: _showContactDialog,
-            icon: const Icon(
-              Icons.arrow_forward_rounded,
-              color: navy,
+          const SizedBox(height: 16),
+          OutlinedButton(
+            onPressed: () => _onItemTapped(2),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _gold,
+              side: const BorderSide(color: _gold),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 22,
+                vertical: 12,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'Plan My Function',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showContactDialog() {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: cream,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          icon: const Icon(
-            Icons.restaurant_menu_rounded,
-            color: gold,
-            size: 42,
-          ),
-          title: const Text(
-            'Nivetha Catering Service',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: navy,
-              fontWeight: FontWeight.w900,
-              fontSize: 19,
-            ),
-          ),
-          content: const Text(
-            'For booking assistance, please contact the catering service directly.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              height: 1.6,
-              fontSize: 14,
-            ),
-          ),
-          actionsAlignment: MainAxisAlignment.center,
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: navy,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(13),
-                ),
-              ),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _ServiceItem {
-  final String title;
-  final String subtitle;
-  final String tamil;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _ServiceItem({
-    required this.title,
-    required this.subtitle,
-    required this.tamil,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-}
-
-class _AnimatedServiceCard extends StatefulWidget {
-  final _ServiceItem item;
-
-  const _AnimatedServiceCard({
-    required this.item,
-  });
-
-  @override
-  State<_AnimatedServiceCard> createState() =>
-      _AnimatedServiceCardState();
-}
-
-class _AnimatedServiceCardState extends State<_AnimatedServiceCard>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  bool _pressed = false;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 170),
-      lowerBound: 0,
-      upperBound: 1,
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _setPressed(bool value) {
-    if (_pressed == value) return;
-
-    setState(() => _pressed = value);
-
-    if (value) {
-      _controller.forward();
-    } else {
-      _controller.reverse();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final item = widget.item;
-
-    return GestureDetector(
-      onTapDown: (_) => _setPressed(true),
-      onTapCancel: () => _setPressed(false),
-      onTapUp: (_) => _setPressed(false),
-      onTap: item.onTap,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          final scale = 1 - (_controller.value * 0.035);
-          final tilt = _controller.value * 0.025;
-
-          return Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.identity()
-              ..setEntry(3, 2, 0.001)
-              ..rotateX(tilt)
-              ..scaleByDouble(scale, scale, 1, 1),
-            child: child,
-          );
-        },
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(15, 16, 13, 14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: const Color(0xFFECE3D5),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: item.color.withValues(alpha: 0.11),
-                blurRadius: 15,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 51,
-                height: 51,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      item.color.withValues(alpha: 0.18),
-                      item.color.withValues(alpha: 0.08),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  item.icon,
-                  color: item.color,
-                  size: 27,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                item.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF102541),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                item.subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.blueGrey.shade600,
-                  fontSize: 10.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                item.tamil,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF9B762D),
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 9),
-              Row(
-                children: [
-                  const Text(
-                    'Explore',
-                    style: TextStyle(
-                      color: Color(0xFF102541),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const Spacer(),
-                  Icon(
-                    Icons.arrow_forward_rounded,
-                    size: 16,
-                    color: item.color,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

@@ -1,401 +1,254 @@
 
 import 'package:flutter/material.dart';
 
-import '../bookings/my_bookings_screen.dart';
-
-class BookingConfirmationScreen extends StatefulWidget {
+class BookingConfirmationScreen extends StatelessWidget {
   final String bookingId;
-  final Map<String, dynamic> bookingData;
+  final String eventType;
+  final DateTime? eventDate;
+  final String eventTime;
+  final String location;
+  final int persons;
+  final String foodType;
+  final String mealType;
 
   const BookingConfirmationScreen({
     super.key,
-    required this.bookingId,
-    required this.bookingData,
+    this.bookingId = '',
+    this.eventType = '',
+    this.eventDate,
+    this.eventTime = '',
+    this.location = '',
+    this.persons = 0,
+    this.foodType = '',
+    this.mealType = '',
   });
 
-  @override
-  State<BookingConfirmationScreen> createState() =>
-      _BookingConfirmationScreenState();
-}
+  static const Color _cream = Color(0xFFFFF9F0);
+  static const Color _darkBrown = Color(0xFF3E2723);
+  static const Color _brown = Color(0xFF795548);
+  static const Color _gold = Color(0xFFD4AF37);
+  static const Color _lightGold = Color(0xFFFFF0C2);
+  static const Color _muted = Color(0xFF82736A);
 
-class _BookingConfirmationScreenState
-    extends State<BookingConfirmationScreen>
-    with SingleTickerProviderStateMixin {
-  static const Color navy = Color(0xFF102541);
-  static const Color gold = Color(0xFFD9A441);
-  static const Color cream = Color(0xFFFFF8EC);
-  static const Color success = Color(0xFF26845B);
-
-  late final AnimationController _controller;
-  late final Animation<double> _scaleAnimation;
-  late final Animation<double> _fadeAnimation;
-  late final Animation<Offset> _slideAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    );
-
-    _scaleAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.elasticOut,
-    );
-
-    _fadeAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOut,
-    );
-
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.10),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOutCubic,
-      ),
-    );
-
-    _controller.forward();
+  String get _displayBookingId {
+    final id = bookingId.trim();
+    return id.isEmpty ? 'Pending Confirmation' : id;
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  String get _displayDate {
+    if (eventDate == null) return 'Not specified';
+
+    final date = eventDate!;
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString();
+
+    return '$day/$month/$year';
   }
 
-  String _value(String key, {String fallback = '-'}) {
-    final value = widget.bookingData[key];
-
-    if (value == null || value.toString().trim().isEmpty) {
-      return fallback;
-    }
-
-    return value.toString();
+  String _display(String value) {
+    return value.trim().isEmpty ? 'Not specified' : value.trim();
   }
 
-  String _formatDate(String value) {
-    final date = DateTime.tryParse(value);
+  String get _displayPersons {
+    return persons > 0 ? '$persons persons' : 'Not specified';
+  }
 
-    if (date == null) return value;
-
-    return '${date.day.toString().padLeft(2, '0')}/'
-        '${date.month.toString().padLeft(2, '0')}/'
-        '${date.year}';
+  void _goHome(BuildContext context) {
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
   Widget build(BuildContext context) {
-    final eventDate = _value('eventDate');
-    final bookingNumber = widget.bookingId.trim().isEmpty
-        ? 'Pending server confirmation'
-        : widget.bookingId;
-
     return Scaffold(
-      backgroundColor: cream,
+      backgroundColor: _cream,
       body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(22, 28, 22, 30),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      const SizedBox(height: 10),
-
-                      // Animated success icon
-                      ScaleTransition(
-                        scale: _scaleAnimation,
-                        child: Center(
-                          child: Container(
-                            width: 126,
-                            height: 126,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFFBCEBD2),
-                                  Color(0xFF65C797),
-                                  Color(0xFF26845B),
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 52,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 12),
+                    _buildSuccessIcon(),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Booking Request\nSubmitted!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _darkBrown,
+                        fontSize: 29,
+                        height: 1.25,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Thank you for choosing Nivetha Catering Service.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _muted,
+                        fontSize: 14,
+                        height: 1.6,
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    _buildBookingReference(),
+                    const SizedBox(height: 22),
+                    _buildEventSummary(),
+                    const SizedBox(height: 20),
+                    _buildPendingNotice(),
+                    const SizedBox(height: 28),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: ElevatedButton(
+                        onPressed: () => _goHome(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _darkBrown,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.home_rounded, size: 21),
+                            SizedBox(width: 10),
+                            Text(
+                              'Back to Home',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
                               ),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 5,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: success.withValues(alpha: 0.23),
-                                  blurRadius: 28,
-                                  offset: const Offset(0, 12),
-                                ),
-                              ],
                             ),
-                            child: const Icon(
-                              Icons.check_rounded,
-                              size: 76,
-                              color: Colors.white,
-                            ),
-                          ),
+                          ],
                         ),
                       ),
-
-                      const SizedBox(height: 28),
-
-                      const Text(
-                        'Booking Submitted!',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: navy,
-                          fontSize: 27,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.6,
-                        ),
-                      ),
-
-                      const SizedBox(height: 10),
-
-                      Text(
-                        'உங்கள் முன்பதிவு விவரங்கள் அனுப்பப்பட்டுள்ளன.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.blueGrey.shade600,
-                          fontSize: 13,
-                          height: 1.6,
-                        ),
-                      ),
-
-                      const SizedBox(height: 26),
-
-                      _buildBookingIdCard(bookingNumber),
-
-                      const SizedBox(height: 25),
-
-                      const Text(
-                        'Event Summary',
-                        style: TextStyle(
-                          color: navy,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-
-                      const SizedBox(height: 5),
-
-                      const Text(
-                        'உங்கள் விழா விவரங்கள்',
-                        style: TextStyle(
-                          color: Color(0xFF987022),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-
-                      const SizedBox(height: 15),
-
-                      _buildDetailsCard(
-                        details: [
-                          _DetailItem(
-                            icon: Icons.celebration_rounded,
-                            label: 'Event Type',
-                            value: _value('eventType'),
-                          ),
-                          _DetailItem(
-                            icon: Icons.calendar_month_rounded,
-                            label: 'Function Date',
-                            value: eventDate == '-'
-                                ? '-'
-                                : _formatDate(eventDate),
-                          ),
-                          _DetailItem(
-                            icon: Icons.access_time_rounded,
-                            label: 'Function Time',
-                            value: _value('eventTime'),
-                          ),
-                          _DetailItem(
-                            icon: Icons.location_on_rounded,
-                            label: 'Location',
-                            value: _value('location'),
-                          ),
-                          _DetailItem(
-                            icon: Icons.groups_rounded,
-                            label: 'Number of Persons',
-                            value: _value('numberOfPersons'),
-                          ),
-                          _DetailItem(
-                            icon: Icons.restaurant_menu_rounded,
-                            label: 'Catering Service',
-                            value: _value('cateringType'),
-                          ),
-                          _DetailItem(
-                            icon: Icons.dinner_dining_rounded,
-                            label: 'Meal Session',
-                            value: _value('mealType'),
-                          ),
-                          _DetailItem(
-                            icon: Icons.restaurant_rounded,
-                            label: 'Food Preference',
-                            value: _value('foodType'),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 19),
-
-                      _buildStatusCard(),
-
-                      const SizedBox(height: 27),
-
-                      SizedBox(
-                        height: 56,
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.of(context).pushAndRemoveUntil(
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    const MyBookingsScreen(),
-                              ),
-                              (route) => route.isFirst,
-                            );
-                          },
-                          icon: const Icon(
-                            Icons.receipt_long_rounded,
-                          ),
-                          label: const Text(
-                            'View My Bookings',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: navy,
-                            foregroundColor: Colors.white,
-                            elevation: 4,
-                            shadowColor: navy.withValues(alpha: 0.20),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 13),
-
-                      OutlinedButton(
-                        onPressed: () {
-                          Navigator.of(context).popUntil(
-                            (route) => route.isFirst,
-                          );
-                        },
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.maybePop(context),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: navy,
-                          minimumSize: const Size.fromHeight(52),
+                          foregroundColor: _darkBrown,
                           side: const BorderSide(
-                            color: Color(0xFFD9A441),
+                            color: _gold,
+                            width: 1.3,
                           ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(17),
+                            borderRadius: BorderRadius.circular(16),
                           ),
                         ),
                         child: const Text(
-                          'Back to Home',
+                          'Go Back',
                           style: TextStyle(
-                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
-
-                      const SizedBox(height: 25),
-
-                      Text(
-                        'Thank you for choosing Nivetha Catering Service!',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.blueGrey.shade600,
-                          fontSize: 12,
-                          height: 1.6,
-                        ),
-                      ),
-                    ]),
-                  ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildBookingIdCard(String bookingNumber) {
+  Widget _buildSuccessIcon() {
+    return Container(
+      width: 112,
+      height: 112,
+      decoration: BoxDecoration(
+        color: _lightGold,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: _gold.withValues(alpha: 0.65),
+          width: 2,
+        ),
+      ),
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        decoration: const BoxDecoration(
+          color: _gold,
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(
+          Icons.check_rounded,
+          size: 55,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBookingReference() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF25496C),
-            navy,
-            Color(0xFF091629),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _gold.withValues(alpha: 0.55),
         ),
-        borderRadius: BorderRadius.circular(23),
         boxShadow: [
           BoxShadow(
-            color: navy.withValues(alpha: 0.18),
-            blurRadius: 20,
-            offset: const Offset(0, 9),
+            color: _darkBrown.withValues(alpha: 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
       child: Column(
         children: [
           const Icon(
-            Icons.confirmation_number_rounded,
-            color: gold,
-            size: 35,
+            Icons.confirmation_number_outlined,
+            color: _gold,
+            size: 30,
           ),
-          const SizedBox(height: 12),
-          Text(
-            'YOUR BOOKING ID',
+          const SizedBox(height: 10),
+          const Text(
+            'YOUR BOOKING REFERENCE',
+            textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.72),
+              color: _muted,
               fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.5,
+              letterSpacing: 1.4,
+              fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 9),
           SelectableText(
-            bookingNumber,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFFFFE6A2),
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Please keep this ID for reference.',
+            _displayBookingId,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white70,
-              fontSize: 11,
+              color: _darkBrown,
+              fontSize: bookingId.length > 22 ? 15 : 21,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Keep this reference for future enquiries.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: _muted,
+              fontSize: 12,
             ),
           ),
         ],
@@ -403,71 +256,146 @@ class _BookingConfirmationScreenState
     );
   }
 
-  Widget _buildDetailsCard({
-    required List<_DetailItem> details,
-  }) {
+  Widget _buildEventSummary() {
     return Container(
-      padding: const EdgeInsets.all(17),
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: const Color(0xFFECE3D5),
-        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: _darkBrown.withValues(alpha: 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (int index = 0; index < details.length; index++) ...[
-            _detailRow(details[index]),
-            if (index != details.length - 1)
-              const Divider(
-                height: 24,
-                color: Color(0xFFF0E8DC),
+          const Row(
+            children: [
+              Icon(
+                Icons.event_note_rounded,
+                color: _gold,
+                size: 23,
               ),
+              SizedBox(width: 10),
+              Text(
+                'Event Summary',
+                style: TextStyle(
+                  color: _darkBrown,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _summaryRow(
+            icon: Icons.celebration_outlined,
+            label: 'Event Type',
+            value: _display(eventType),
+          ),
+          _summaryDivider(),
+          _summaryRow(
+            icon: Icons.calendar_month_outlined,
+            label: 'Event Date',
+            value: _displayDate,
+          ),
+          _summaryDivider(),
+          _summaryRow(
+            icon: Icons.access_time_rounded,
+            label: 'Event Time',
+            value: _display(eventTime),
+          ),
+          _summaryDivider(),
+          _summaryRow(
+            icon: Icons.location_on_outlined,
+            label: 'Location',
+            value: _display(location),
+          ),
+          _summaryDivider(),
+          _summaryRow(
+            icon: Icons.people_outline_rounded,
+            label: 'Guests',
+            value: _displayPersons,
+          ),
+          if (foodType.trim().isNotEmpty) ...[
+            _summaryDivider(),
+            _summaryRow(
+              icon: Icons.restaurant_menu_rounded,
+              label: 'Food Preference',
+              value: foodType,
+            ),
+          ],
+          if (mealType.trim().isNotEmpty) ...[
+            _summaryDivider(),
+            _summaryRow(
+              icon: Icons.dinner_dining_rounded,
+              label: 'Meal Type',
+              value: mealType,
+            ),
           ],
         ],
       ),
     );
   }
 
-  Widget _detailRow(_DetailItem detail) {
+  Widget _summaryDivider() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 13),
+      child: Divider(
+        height: 1,
+        thickness: 1,
+        color: _darkBrown.withValues(alpha: 0.07),
+      ),
+    );
+  }
+
+  Widget _summaryRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 42,
-          height: 42,
+          width: 38,
+          height: 38,
           decoration: BoxDecoration(
-            color: gold.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(13),
+            color: _lightGold.withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(11),
           ),
           child: Icon(
-            detail.icon,
-            color: navy,
-            size: 21,
+            icon,
+            color: _brown,
+            size: 20,
           ),
         ),
-        const SizedBox(width: 13),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                detail.label,
-                style: TextStyle(
-                  color: Colors.blueGrey.shade500,
-                  fontSize: 11,
+                label,
+                style: const TextStyle(
+                  color: _muted,
+                  fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 4),
               Text(
-                detail.value,
+                value,
                 style: const TextStyle(
-                  color: navy,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
+                  color: _darkBrown,
+                  fontSize: 14,
                   height: 1.4,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
@@ -477,14 +405,15 @@ class _BookingConfirmationScreenState
     );
   }
 
-  Widget _buildStatusCard() {
+  Widget _buildPendingNotice() {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFEFCB),
-        borderRadius: BorderRadius.circular(18),
+        color: const Color(0xFFFFF4E5),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: gold.withValues(alpha: 0.40),
+          color: const Color(0xFFE8C98B),
         ),
       ),
       child: const Row(
@@ -492,8 +421,8 @@ class _BookingConfirmationScreenState
         children: [
           Icon(
             Icons.info_outline_rounded,
-            color: Color(0xFF89621D),
-            size: 25,
+            color: _brown,
+            size: 23,
           ),
           SizedBox(width: 12),
           Expanded(
@@ -503,16 +432,18 @@ class _BookingConfirmationScreenState
                 Text(
                   'Awaiting Confirmation',
                   style: TextStyle(
-                    color: navy,
+                    color: _darkBrown,
                     fontSize: 14,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
                 SizedBox(height: 6),
                 Text(
-                  'Your request has been submitted. The catering team must confirm your booking before it is finalized.',
+                  'Your booking request has been submitted. '
+                  'The catering team must review and approve it '
+                  'before it becomes a confirmed booking.',
                   style: TextStyle(
-                    color: Color(0xFF655431),
+                    color: _brown,
                     fontSize: 12,
                     height: 1.6,
                   ),
@@ -524,16 +455,4 @@ class _BookingConfirmationScreenState
       ),
     );
   }
-}
-
-class _DetailItem {
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _DetailItem({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
 }

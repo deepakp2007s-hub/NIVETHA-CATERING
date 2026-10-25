@@ -18,9 +18,12 @@ class BookingDetailsScreen extends StatefulWidget {
 
 class _BookingDetailsScreenState extends State<BookingDetailsScreen>
     with SingleTickerProviderStateMixin {
-  static const Color navy = Color(0xFF102541);
-  static const Color gold = Color(0xFFD9A441);
-  static const Color cream = Color(0xFFFFF8EC);
+  static const Color _brown = Color(0xFF402719);
+  static const Color _darkBrown = Color(0xFF2E1B12);
+  static const Color _gold = Color(0xFFD5A64A);
+  static const Color _cream = Color(0xFFFFF8ED);
+  static const Color _lightGold = Color(0xFFF5E5C2);
+  static const Color _muted = Color(0xFF786B60);
 
   late final AnimationController _controller;
   late final Animation<double> _fadeAnimation;
@@ -32,7 +35,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 650),
     );
 
     _fadeAnimation = CurvedAnimation(
@@ -41,7 +44,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
     );
 
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.06),
+      begin: const Offset(0, 0.05),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(
@@ -67,31 +70,49 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
         '${date.year}';
   }
 
-  String _formatMoney(num? amount) {
-    return '₹${(amount ?? 0).toStringAsFixed(2)}';
+  String _formatMoney(num amount) {
+    return '₹${amount.toStringAsFixed(2)}';
   }
 
   String _display(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'Not provided';
     }
+
     return value.trim();
   }
 
   String _normalizedStatus(String? value) {
-    final status = (value ?? '').trim().toLowerCase();
+    final status = (value ?? 'pending').trim().toLowerCase();
 
-    if (status == 'approved') return 'confirmed';
-    if (status == 'cancel' || status == 'canceled') {
-      return 'cancelled';
+    switch (status) {
+      case 'approved':
+        return 'confirmed';
+      case 'cancel':
+      case 'canceled':
+        return 'cancelled';
+      case 'complete':
+        return 'completed';
+      default:
+        return status.isEmpty ? 'pending' : status;
     }
-    if (status == 'complete') return 'completed';
-
-    return status;
   }
 
-  Color _statusColor(String? value) {
-    switch (_normalizedStatus(value)) {
+  String _capitalize(String value) {
+    if (value.isEmpty) return 'Unknown';
+
+    return value
+        .split(RegExp(r'\s+'))
+        .map(
+          (word) => word.isEmpty
+              ? word
+              : '${word[0].toUpperCase()}${word.substring(1)}',
+        )
+        .join(' ');
+  }
+
+  Color _statusColor(String status) {
+    switch (_normalizedStatus(status)) {
       case 'confirmed':
         return const Color(0xFF21865B);
       case 'completed':
@@ -106,8 +127,8 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
     }
   }
 
-  IconData _statusIcon(String? value) {
-    switch (_normalizedStatus(value)) {
+  IconData _statusIcon(String status) {
+    switch (_normalizedStatus(status)) {
       case 'confirmed':
         return Icons.verified_rounded;
       case 'completed':
@@ -125,21 +146,23 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
   @override
   Widget build(BuildContext context) {
     final booking = widget.booking;
-    final statusValue = booking.status;
-    final statusColor = _statusColor(statusValue);
-    final normalized = _normalizedStatus(statusValue);
-    final status = normalized.isEmpty
-        ? 'Unknown'
-        : '${normalized[0].toUpperCase()}${normalized.substring(1)}';
-
-    final notes = (booking.notes ?? '').trim();
+    final normalizedStatus = _normalizedStatus(booking.status);
+    final status = _capitalize(normalizedStatus);
+    final statusColor = _statusColor(booking.status);
+    final notes = _display(
+      booking.extraRequirements ?? booking.notes,
+    );
 
     return Scaffold(
-      backgroundColor: cream,
+      backgroundColor: _cream,
       appBar: AppBar(
-        backgroundColor: cream,
-        foregroundColor: navy,
-        title: const Text('Booking Details'),
+        backgroundColor: _cream,
+        foregroundColor: _brown,
+        elevation: 0,
+        title: const Text(
+          'Booking Details',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
       ),
       body: SafeArea(
         child: FadeTransition(
@@ -151,9 +174,12 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
               children: [
                 _buildHeroCard(
-                  booking.id,
+                  booking.bookingId.trim().isNotEmpty
+                      ? booking.bookingId
+                      : booking.id,
                   status,
                   statusColor,
+                  booking.status,
                 ),
                 const SizedBox(height: 23),
                 _sectionHeading(
@@ -186,8 +212,16 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
                   _DetailRowData(
                     icon: Icons.groups_rounded,
                     label: 'Number of Persons',
-                    value: '${booking.numberOfPersons}',
+                    value: booking.numberOfPersons > 0
+                        ? '${booking.numberOfPersons} persons'
+                        : 'Not provided',
                   ),
+                  if (booking.createdAt != null)
+                    _DetailRowData(
+                      icon: Icons.history_rounded,
+                      label: 'Booking Created',
+                      value: _formatDate(booking.createdAt),
+                    ),
                 ]),
                 const SizedBox(height: 23),
                 _sectionHeading(
@@ -212,7 +246,24 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
                     label: 'Food Preference',
                     value: _display(booking.foodType),
                   ),
+                  _DetailRowData(
+                    icon: Icons.people_outline_rounded,
+                    label: 'Catering Services',
+                    value: booking.cateringServices.isEmpty
+                        ? 'Not provided'
+                        : booking.cateringServices.join(', '),
+                  ),
                 ]),
+                if (booking.selectedFoods.isNotEmpty) ...[
+                  const SizedBox(height: 23),
+                  _sectionHeading(
+                    'Selected Food Items',
+                    'தேர்வு செய்த உணவுகள்',
+                    Icons.restaurant_menu_rounded,
+                  ),
+                  const SizedBox(height: 13),
+                  _buildSelectedFoods(),
+                ],
                 const SizedBox(height: 23),
                 _sectionHeading(
                   'Payment Summary',
@@ -221,7 +272,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
                 ),
                 const SizedBox(height: 13),
                 _buildPaymentCard(booking),
-                if (notes.isNotEmpty) ...[
+                if (notes != 'Not provided') ...[
                   const SizedBox(height: 23),
                   _sectionHeading(
                     'Additional Requirements',
@@ -241,7 +292,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
                     child: Text(
                       notes,
                       style: const TextStyle(
-                        color: navy,
+                        color: _brown,
                         fontSize: 13,
                         height: 1.7,
                       ),
@@ -249,20 +300,20 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
                   ),
                 ],
                 const SizedBox(height: 23),
-                _buildStatusMessage(statusValue),
+                _buildStatusMessage(booking.status),
                 const SizedBox(height: 22),
                 SizedBox(
                   height: 52,
                   child: OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => Navigator.of(context).maybePop(),
                     icon: const Icon(Icons.arrow_back_rounded),
                     label: const Text(
                       'Back to My Bookings',
                       style: TextStyle(fontWeight: FontWeight.w800),
                     ),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: navy,
-                      side: const BorderSide(color: gold),
+                      foregroundColor: _brown,
+                      side: const BorderSide(color: _gold),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -281,15 +332,16 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
     String bookingId,
     String status,
     Color statusColor,
+    String rawStatus,
   ) {
     return Container(
       padding: const EdgeInsets.all(21),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [
-            Color(0xFF294D70),
-            navy,
-            Color(0xFF091629),
+            Color(0xFF765039),
+            _brown,
+            _darkBrown,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -297,7 +349,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
         borderRadius: BorderRadius.circular(25),
         boxShadow: [
           BoxShadow(
-            color: navy.withValues(alpha: 0.19),
+            color: _brown.withValues(alpha: 0.18),
             blurRadius: 20,
             offset: const Offset(0, 9),
           ),
@@ -312,15 +364,15 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
                 width: 53,
                 height: 53,
                 decoration: BoxDecoration(
-                  color: gold.withValues(alpha: 0.18),
+                  color: _gold.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(17),
                   border: Border.all(
-                    color: gold.withValues(alpha: 0.35),
+                    color: _gold.withValues(alpha: 0.35),
                   ),
                 ),
                 child: const Icon(
                   Icons.confirmation_number_rounded,
-                  color: gold,
+                  color: _gold,
                   size: 29,
                 ),
               ),
@@ -342,7 +394,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        _statusIcon(status),
+                        _statusIcon(rawStatus),
                         color: statusColor == Colors.blueGrey
                             ? Colors.white70
                             : statusColor,
@@ -380,7 +432,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
           ),
           const SizedBox(height: 8),
           SelectableText(
-            bookingId,
+            bookingId.trim().isEmpty ? 'Not available' : bookingId,
             style: const TextStyle(
               color: Color(0xFFFFE6A2),
               fontSize: 20,
@@ -412,10 +464,14 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
           width: 43,
           height: 43,
           decoration: BoxDecoration(
-            color: gold.withValues(alpha: 0.16),
+            color: _gold.withValues(alpha: 0.16),
             borderRadius: BorderRadius.circular(14),
           ),
-          child: Icon(icon, color: navy, size: 23),
+          child: Icon(
+            icon,
+            color: _brown,
+            size: 23,
+          ),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -425,7 +481,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
               Text(
                 title,
                 style: const TextStyle(
-                  color: navy,
+                  color: _brown,
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
                 ),
@@ -475,7 +531,11 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(detail.icon, color: gold, size: 21),
+        Icon(
+          detail.icon,
+          color: _gold,
+          size: 21,
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -483,8 +543,8 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
             children: [
               Text(
                 detail.label,
-                style: TextStyle(
-                  color: Colors.blueGrey.shade500,
+                style: const TextStyle(
+                  color: _muted,
                   fontSize: 11,
                 ),
               ),
@@ -492,7 +552,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
               Text(
                 detail.value,
                 style: const TextStyle(
-                  color: navy,
+                  color: _brown,
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
                   height: 1.4,
@@ -505,10 +565,85 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
     );
   }
 
+  Widget _buildSelectedFoods() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(21),
+        border: Border.all(
+          color: const Color(0xFFECE3D5),
+        ),
+      ),
+      child: Column(
+        children: [
+          for (int index = 0;
+              index < widget.booking.selectedFoods.length;
+              index++) ...[
+            _foodRow(widget.booking.selectedFoods[index]),
+            if (index < widget.booking.selectedFoods.length - 1)
+              const Divider(
+                height: 22,
+                color: Color(0xFFF0E8DC),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _foodRow(Map<String, dynamic> food) {
+    final name = (food['name'] ??
+            food['foodName'] ??
+            food['title'] ??
+            'Food item')
+        .toString();
+
+    final quantity = food['quantity'] ?? food['count'];
+    final subtitle = quantity == null ? '' : 'Quantity: $quantity';
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(
+          Icons.restaurant_rounded,
+          color: _gold,
+          size: 21,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style: const TextStyle(
+                  color: _brown,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (subtitle.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: _muted,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildPaymentCard(BookingModel booking) {
     final total = booking.totalAmount;
     final advance = booking.advanceAmount;
-    final balance = (total - advance).clamp(0, double.infinity);
+    final balance = (total - advance).clamp(0.0, double.infinity);
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -538,7 +673,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: gold.withValues(alpha: 0.12),
+              color: _lightGold.withValues(alpha: 0.65),
               borderRadius: BorderRadius.circular(13),
             ),
             child: const Text(
@@ -566,7 +701,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
           child: Text(
             label,
             style: TextStyle(
-              color: emphasize ? navy : Colors.blueGrey.shade600,
+              color: emphasize ? _brown : _muted,
               fontSize: emphasize ? 13 : 12,
               fontWeight:
                   emphasize ? FontWeight.w900 : FontWeight.w500,
@@ -576,7 +711,9 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
         Text(
           value,
           style: TextStyle(
-            color: emphasize ? const Color(0xFF21865B) : navy,
+            color: emphasize
+                ? const Color(0xFF21865B)
+                : _brown,
             fontSize: emphasize ? 17 : 13,
             fontWeight: FontWeight.w900,
           ),
@@ -650,7 +787,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen>
                 Text(
                   message,
                   style: const TextStyle(
-                    color: navy,
+                    color: _brown,
                     fontSize: 12,
                     height: 1.6,
                   ),

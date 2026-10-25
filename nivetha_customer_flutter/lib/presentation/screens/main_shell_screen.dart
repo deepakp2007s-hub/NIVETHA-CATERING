@@ -1,13 +1,19 @@
 
 import 'package:flutter/material.dart';
 
+import 'booking/booking_screen.dart';
 import 'bookings/my_bookings_screen.dart';
 import 'food/food_menu_screen.dart';
 import 'home/home_screen.dart';
 import 'profile/profile_screen.dart';
 
 class MainShellScreen extends StatefulWidget {
-  const MainShellScreen({super.key});
+  const MainShellScreen({
+    super.key,
+    this.initialIndex = 0,
+  });
+
+  final int initialIndex;
 
   @override
   State<MainShellScreen> createState() => _MainShellScreenState();
@@ -15,23 +21,26 @@ class MainShellScreen extends StatefulWidget {
 
 class _MainShellScreenState extends State<MainShellScreen>
     with SingleTickerProviderStateMixin {
-  static const Color navy = Color(0xFF102541);
-  static const Color gold = Color(0xFFD9A441);
-  static const Color cream = Color(0xFFFFF8EC);
+  static const Color _cream = Color(0xFFFFF8ED);
+  static const Color _darkBrown = Color(0xFF402719);
+  static const Color _brown = Color(0xFF765039);
+  static const Color _gold = Color(0xFFD5A64A);
+  static const Color _lightGold = Color(0xFFF5E5C2);
 
-  int _selectedIndex = 0;
+  late int _selectedIndex;
 
-  late final AnimationController _controller;
+  late final AnimationController _fadeController;
   late final Animation<double> _fadeAnimation;
 
   final List<Widget> _screens = const [
     HomeScreen(),
     FoodMenuScreen(),
+    BookingScreen(),
     MyBookingsScreen(),
     ProfileScreen(),
   ];
 
-  final List<_NavigationItem> _items = const [
+  final List<_NavigationItem> _navigationItems = const [
     _NavigationItem(
       label: 'Home',
       tamilLabel: 'முகப்பு',
@@ -39,16 +48,22 @@ class _MainShellScreenState extends State<MainShellScreen>
       selectedIcon: Icons.home_rounded,
     ),
     _NavigationItem(
-      label: 'Menu',
+      label: 'Food Menu',
       tamilLabel: 'உணவு',
       icon: Icons.restaurant_menu_outlined,
       selectedIcon: Icons.restaurant_menu_rounded,
     ),
     _NavigationItem(
-      label: 'Bookings',
+      label: 'Book',
       tamilLabel: 'முன்பதிவு',
-      icon: Icons.calendar_month_outlined,
-      selectedIcon: Icons.calendar_month_rounded,
+      icon: Icons.event_available_outlined,
+      selectedIcon: Icons.event_available_rounded,
+    ),
+    _NavigationItem(
+      label: 'My Bookings',
+      tamilLabel: 'என் முன்பதிவுகள்',
+      icon: Icons.receipt_long_outlined,
+      selectedIcon: Icons.receipt_long_rounded,
     ),
     _NavigationItem(
       label: 'Profile',
@@ -62,123 +77,141 @@ class _MainShellScreenState extends State<MainShellScreen>
   void initState() {
     super.initState();
 
-    _controller = AnimationController(
+    _selectedIndex = widget.initialIndex
+        .clamp(0, _screens.length - 1)
+        .toInt();
+
+    _fadeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 280),
+      value: 1,
     );
 
     _fadeAnimation = CurvedAnimation(
-      parent: _controller,
+      parent: _fadeController,
       curve: Curves.easeOut,
     );
-
-    _controller.value = 1;
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 
-  void _selectTab(int index) {
-    if (index == _selectedIndex) return;
+  void _onItemTapped(int index) {
+    if (index < 0 || index >= _screens.length) return;
+    if (_selectedIndex == index) return;
 
     setState(() {
       _selectedIndex = index;
     });
 
-    _controller.forward(from: 0);
+    _fadeController.forward(from: 0);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: cream,
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: [
-          for (int index = 0; index < _screens.length; index++)
-            FadeTransition(
-              opacity: _selectedIndex == index
-                  ? _fadeAnimation
-                  : const AlwaysStoppedAnimation<double>(1),
-              child: _screens[index],
-            ),
-        ],
+    return PopScope(
+      canPop: _selectedIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _selectedIndex != 0 && mounted) {
+          _onItemTapped(0);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: _cream,
+        body: IndexedStack(
+          index: _selectedIndex,
+          children: List<Widget>.generate(
+            _screens.length,
+            (index) {
+              if (index == _selectedIndex) {
+                return FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: _screens[index],
+                );
+              }
+
+              return _screens[index];
+            },
+          ),
+        ),
+        bottomNavigationBar: _buildBottomNavigationBar(),
       ),
-      bottomNavigationBar: _buildBottomNavigation(),
     );
   }
 
-  Widget _buildBottomNavigation() {
+  Widget _buildBottomNavigationBar() {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(24),
+          top: Radius.circular(22),
         ),
-        border: Border.all(
-          color: const Color(0xFFECE3D5),
-          width: 0.7,
+        border: const Border(
+          top: BorderSide(
+            color: _lightGold,
+            width: 1,
+          ),
         ),
         boxShadow: [
           BoxShadow(
-            color: navy.withValues(alpha: 0.10),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
+            color: _darkBrown.withValues(alpha: 0.09),
+            blurRadius: 18,
+            offset: const Offset(0, -4),
           ),
         ],
       ),
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
+          padding: const EdgeInsets.fromLTRB(5, 9, 5, 7),
           child: Row(
-            children: [
-              for (int index = 0; index < _items.length; index++)
-                Expanded(
-                  child: _buildNavigationItem(
-                    index,
-                    _items[index],
-                  ),
+            children: List.generate(
+              _navigationItems.length,
+              (index) => Expanded(
+                child: _buildNavigationItem(
+                  item: _navigationItems[index],
+                  index: index,
                 ),
-            ],
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildNavigationItem(
-    int index,
-    _NavigationItem item,
-  ) {
+  Widget _buildNavigationItem({
+    required _NavigationItem item,
+    required int index,
+  }) {
     final selected = _selectedIndex == index;
 
     return Semantics(
       button: true,
       selected: selected,
       label: '${item.label}, ${item.tamilLabel}',
-      child: GestureDetector(
-        onTap: () => _selectTab(index),
-        behavior: HitTestBehavior.opaque,
+      child: InkWell(
+        onTap: () => _onItemTapped(index),
+        borderRadius: BorderRadius.circular(16),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
+          duration: const Duration(milliseconds: 230),
           curve: Curves.easeOutCubic,
-          margin: const EdgeInsets.symmetric(horizontal: 3),
+          margin: const EdgeInsets.symmetric(horizontal: 2),
           padding: const EdgeInsets.symmetric(
-            horizontal: 3,
-            vertical: 8,
+            horizontal: 2,
+            vertical: 5,
           ),
           decoration: BoxDecoration(
             color: selected
-                ? gold.withValues(alpha: 0.15)
+                ? _gold.withValues(alpha: 0.12)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(17),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: selected
-                  ? gold.withValues(alpha: 0.38)
+                  ? _gold.withValues(alpha: 0.28)
                   : Colors.transparent,
             ),
           ),
@@ -186,15 +219,18 @@ class _MainShellScreenState extends State<MainShellScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                width: selected ? 43 : 38,
-                height: selected ? 36 : 33,
+                duration: const Duration(milliseconds: 230),
+                curve: Curves.easeOutCubic,
+                padding: EdgeInsets.symmetric(
+                  horizontal: selected ? 13 : 11,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   gradient: selected
                       ? const LinearGradient(
                           colors: [
                             Color(0xFFFFE6A2),
-                            gold,
+                            _gold,
                           ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
@@ -204,7 +240,7 @@ class _MainShellScreenState extends State<MainShellScreen>
                   boxShadow: selected
                       ? [
                           BoxShadow(
-                            color: gold.withValues(alpha: 0.20),
+                            color: _gold.withValues(alpha: 0.20),
                             blurRadius: 9,
                             offset: const Offset(0, 3),
                           ),
@@ -213,23 +249,29 @@ class _MainShellScreenState extends State<MainShellScreen>
                 ),
                 child: Icon(
                   selected ? item.selectedIcon : item.icon,
-                  color: selected ? navy : Colors.blueGrey.shade400,
-                  size: selected ? 23 : 22,
+                  size: selected ? 22 : 21,
+                  color: selected
+                      ? _darkBrown
+                      : Colors.blueGrey.shade400,
                 ),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 4),
               AnimatedDefaultTextStyle(
                 duration: const Duration(milliseconds: 200),
                 style: TextStyle(
-                  color: selected ? navy : Colors.blueGrey.shade500,
-                  fontSize: 10,
-                  fontWeight:
-                      selected ? FontWeight.w900 : FontWeight.w600,
+                  color: selected
+                      ? _darkBrown
+                      : Colors.blueGrey.shade600,
+                  fontSize: 9,
+                  fontWeight: selected
+                      ? FontWeight.w900
+                      : FontWeight.w600,
                 ),
                 child: Text(
                   item.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                 ),
               ),
               const SizedBox(height: 2),
@@ -237,13 +279,15 @@ class _MainShellScreenState extends State<MainShellScreen>
                 item.tamilLabel,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   color: selected
-                      ? const Color(0xFF987022)
+                      ? _brown
                       : Colors.blueGrey.shade400,
                   fontSize: 8,
-                  fontWeight:
-                      selected ? FontWeight.w700 : FontWeight.w500,
+                  fontWeight: selected
+                      ? FontWeight.w700
+                      : FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 3),
@@ -252,7 +296,7 @@ class _MainShellScreenState extends State<MainShellScreen>
                 width: selected ? 5 : 0,
                 height: 5,
                 decoration: const BoxDecoration(
-                  color: gold,
+                  color: _gold,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -265,15 +309,15 @@ class _MainShellScreenState extends State<MainShellScreen>
 }
 
 class _NavigationItem {
-  final String label;
-  final String tamilLabel;
-  final IconData icon;
-  final IconData selectedIcon;
-
   const _NavigationItem({
     required this.label,
     required this.tamilLabel,
     required this.icon,
     required this.selectedIcon,
   });
+
+  final String label;
+  final String tamilLabel;
+  final IconData icon;
+  final IconData selectedIcon;
 }
