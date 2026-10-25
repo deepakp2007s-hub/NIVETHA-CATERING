@@ -1,73 +1,36 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
 
-import mongoose from 'mongoose';
+import express from 'express';
 
-const foodSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: [true, 'Food name is required'],
-      trim: true,
-      unique: true,
-    },
+import {
+  getAllFoods,
+  getFoodById,
+  createFood,
+  updateFood,
+  deleteFood,
+  getCatalogStats,
+} from '../controllers/foodController.js';
 
-    tamilName: {
-      type: String,
-      required: [true, 'Tamil name is required'],
-      trim: true,
-    },
+import { protectOwner } from '../middleware/authMiddleware.js';
 
-    category: {
-      type: String,
-      required: [true, 'Category is required'],
-      enum: [
-        'Breakfast & Tiffin',
-        'Meals & Vegetarian',
-        'Biryani, Rice & Non-Vegetarian',
-        'Dinner',
-        'Sweets & Desserts',
-      ],
-      trim: true,
-    },
+const router = express.Router();
 
-    type: {
-      type: String,
-      required: [true, 'Food type is required'],
-      enum: ['Veg', 'Non-Veg', 'Sweet'],
-      default: 'Veg',
-      trim: true,
-    },
+// Public: customers and owner app can view available foods
+router.get('/', getAllFoods);
 
-    description: {
-      type: String,
-      default: '',
-      trim: true,
-      maxlength: 1000,
-    },
+// Owner only: food catalog statistics
+router.get('/stats', protectOwner, getCatalogStats);
 
-    image: {
-      type: String,
-      required: [true, 'Image URL is required'],
-      trim: true,
-    },
+// Public: get a single food item
+router.get('/:id', getFoodById);
 
-    available: {
-      type: Boolean,
-      default: true,
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
+// Owner only: add a food item
+router.post('/', protectOwner, createFood);
 
-foodSchema.index({ category: 1, available: 1 });
-foodSchema.index({ type: 1 });
-foodSchema.index({ name: 'text', tamilName: 'text' });
+// Owner only: update a food item
+router.put('/:id', protectOwner, updateFood);
+router.patch('/:id', protectOwner, updateFood);
 
-const Food = mongoose.models.Food || mongoose.model('Food', foodSchema);
+// Owner only: delete a food item
+router.delete('/:id', protectOwner, deleteFood);
 
-export default Food;
+export default router;
