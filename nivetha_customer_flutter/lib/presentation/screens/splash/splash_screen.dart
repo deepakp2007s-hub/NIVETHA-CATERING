@@ -84,13 +84,15 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     _navigationTimer = Timer(
-      const Duration(milliseconds: 1200),
+      const Duration(milliseconds: 500),
       () {
         _navigateNext();
       },
     );
   }
 
+  /// First launch: Splash -> Login.
+  /// Saved session: Splash -> Home.
   Future<void> _navigateNext() async {
     if (!mounted || _navigationStarted) return;
 
@@ -107,8 +109,9 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
-    final Widget destination =
-        loggedIn ? const MainShellScreen() : const LoginScreen();
+    final Widget destination = loggedIn
+        ? const MainShellScreen()
+        : const LoginScreen();
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
@@ -116,8 +119,12 @@ class _SplashScreenState extends State<SplashScreen>
           return destination;
         },
         transitionDuration: const Duration(milliseconds: 500),
-        transitionsBuilder:
-            (context, animation, secondaryAnimation, child) {
+        transitionsBuilder: (
+          context,
+          animation,
+          secondaryAnimation,
+          child,
+        ) {
           final curvedAnimation = CurvedAnimation(
             parent: animation,
             curve: Curves.easeOutCubic,

@@ -10,11 +10,18 @@ class AuthService {
 
   static final AuthService instance = AuthService._();
 
+  /// Checks whether a saved authentication session exists.
   Future<bool> isLoggedIn() async {
-    return AuthStorageService.isLoggedIn();
+    try {
+      final loggedIn = await AuthStorageService.isLoggedIn();
+      return loggedIn;
+    } catch (error) {
+      debugPrint('Unable to restore customer session: $error');
+      return false;
+    }
   }
 
-  /// Login with the backend-supported mobile number and password.
+  /// Login using the registered mobile number and password.
   Future<void> login({
     required String emailOrPhone,
     required String password,
@@ -52,7 +59,7 @@ class AuthService {
     }
   }
 
-  /// Register a customer using the backend-supported fields.
+  /// Register a customer and save the returned session.
   Future<void> register({
     required String name,
     required String phone,
@@ -119,6 +126,7 @@ class AuthService {
     return phone;
   }
 
+  /// Persist the token and customer details after successful authentication.
   Future<void> _saveLoginSession(dynamic response) async {
     if (response is! Map) {
       throw Exception('Invalid server response. Please try again.');
@@ -162,8 +170,10 @@ class AuthService {
     }
 
     final rawCustomer =
-        data['customer'] ?? data['user'] ??
-        root['customer'] ?? root['user'];
+        data['customer'] ??
+        data['user'] ??
+        root['customer'] ??
+        root['user'];
 
     final customer = rawCustomer is Map
         ? Map<String, dynamic>.from(rawCustomer)
@@ -195,7 +205,7 @@ class AuthService {
       ]),
     );
 
-    debugPrint('Customer authentication successful.');
+    debugPrint('Customer authentication session saved.');
   }
 
   String _readString(List<dynamic> values) {
@@ -208,6 +218,7 @@ class AuthService {
     return '';
   }
 
+  /// Logout clears the saved session.
   Future<void> logout() async {
     await AuthStorageService.clearSession();
   }

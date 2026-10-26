@@ -77,9 +77,8 @@ class _MainShellScreenState extends State<MainShellScreen>
   void initState() {
     super.initState();
 
-    _selectedIndex = widget.initialIndex
-        .clamp(0, _screens.length - 1)
-        .toInt();
+    _selectedIndex =
+        widget.initialIndex.clamp(0, _screens.length - 1).toInt();
 
     _fadeController = AnimationController(
       vsync: this,
@@ -263,9 +262,8 @@ class _MainShellScreenState extends State<MainShellScreen>
                       ? _darkBrown
                       : Colors.blueGrey.shade600,
                   fontSize: 9,
-                  fontWeight: selected
-                      ? FontWeight.w900
-                      : FontWeight.w600,
+                  fontWeight:
+                      selected ? FontWeight.w900 : FontWeight.w600,
                 ),
                 child: Text(
                   item.label,
@@ -281,13 +279,10 @@ class _MainShellScreenState extends State<MainShellScreen>
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: selected
-                      ? _brown
-                      : Colors.blueGrey.shade400,
+                  color: selected ? _brown : Colors.blueGrey.shade400,
                   fontSize: 8,
-                  fontWeight: selected
-                      ? FontWeight.w700
-                      : FontWeight.w500,
+                  fontWeight:
+                      selected ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 3),
