@@ -14,8 +14,9 @@ import { protectOwner } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Public: get all foods with optional filters
+// Public: get all foods with optional filters (supports both / and /customer)
 router.get('/', getAllFoods);
+router.get('/customer', getAllFoods);
 
 // Owner only: catalogue statistics
 // Keep this route before /:id

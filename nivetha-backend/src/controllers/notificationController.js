@@ -124,3 +124,47 @@ export const markAllNotificationsAsRead = async (req, res, next) => {
     return next(error);
   }
 };
+
+/**
+ * DELETE /api/notifications/:id
+ * Delete a single notification for the authenticated customer.
+ */
+export const deleteNotification = async (req, res, next) => {
+  try {
+    if (!req.customer?._id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Customer authentication required.',
+      });
+    }
+
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid notification ID.',
+      });
+    }
+
+    const notification = await Notification.findOneAndDelete({
+      _id: id,
+      recipient: req.customer._id,
+    });
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Notification deleted successfully.',
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+

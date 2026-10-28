@@ -144,13 +144,15 @@ const protectAnyUser = async (req, res, next) => {
   }
 };
 
-// Customer booking routes
+// Customer booking routes (supports both /my and /my-bookings)
 router.post('/', protectCustomer, createBooking);
 router.get('/my', protectCustomer, getMyBookings);
+router.get('/my-bookings', protectCustomer, getMyBookings);
 
 // Owner-only routes
 router.get('/', protectOwner, getAllBookings);
 router.patch('/:id/status', protectOwner, updateBookingStatus);
+router.patch('/:id', protectOwner, updateBookingStatus);
 
 // Shared routes with role and booking ownership checks
 router.get('/:id', protectAnyUser, getBookingById);

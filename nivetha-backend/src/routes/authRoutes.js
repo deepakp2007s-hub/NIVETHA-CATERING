@@ -11,7 +11,8 @@ const router = express.Router();
 // Owner login
 router.post('/login', loginOwner);
 
-// Authenticated owner profile
+// Authenticated owner profile (supports both /me and /profile)
 router.get('/me', protectOwner, getOwnerProfile);
+router.get('/profile', protectOwner, getOwnerProfile);
 
 export default router;

@@ -220,3 +220,78 @@ export const deleteReview = async (req, res, next) => {
     return next(error);
   }
 };
+
+/**
+ * GET /api/reviews/:id
+ * Get a single review by ID.
+ */
+export const getReviewById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid review ID.',
+      });
+    }
+
+    const review = await Review.findById(id).lean();
+
+    if (!review) {
+      return res.status(404).json({
+        success: false,
+        message: 'Review not found.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      review,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * PATCH /api/reviews/:id/status
+ * Owner can approve/reject review.
+ */
+export const updateReviewStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { isApproved } = req.body || {};
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid review ID.',
+      });
+    }
+
+    const review = await Review.findById(id);
+
+    if (!review) {
+      return res.status(404).json({
+        success: false,
+        message: 'Review not found.',
+      });
+    }
+
+    if (isApproved !== undefined) {
+      review.isApproved = Boolean(isApproved);
+    }
+
+    await review.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Review ${review.isApproved ? 'approved' : 'hidden'} successfully.`,
+      review,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+

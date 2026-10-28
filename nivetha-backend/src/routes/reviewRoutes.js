@@ -6,6 +6,8 @@ import {
   getPublicReviews,
   createReview,
   getAllReviewsForOwner,
+  getReviewById,
+  updateReviewStatus,
   deleteReview,
 } from '../controllers/reviewController.js';
 
@@ -114,6 +116,14 @@ router.post('/', protectCustomer, createReview);
 
 // Owner: view reviews for moderation.
 router.get('/all', protectOwner, getAllReviewsForOwner);
+
+// Single review detail
+router.get('/:id', getReviewById);
+
+// Owner: moderate / approve / reject review
+router.patch('/:id/approve', protectOwner, updateReviewStatus);
+router.patch('/:id/status', protectOwner, updateReviewStatus);
+router.patch('/:id', protectOwner, updateReviewStatus);
 
 // Review author or owner: delete a review.
 // Ownership authorization must also be checked inside deleteReview.

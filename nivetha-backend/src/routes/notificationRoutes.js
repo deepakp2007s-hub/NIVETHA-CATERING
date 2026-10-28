@@ -3,6 +3,7 @@ import {
   getMyNotifications,
   markNotificationAsRead,
   markAllNotificationsAsRead,
+  deleteNotification,
 } from '../controllers/notificationController.js';
 import { protectCustomer } from '../middleware/customerAuthMiddleware.js';
 
@@ -13,5 +14,7 @@ router.use(protectCustomer);
 router.get('/', getMyNotifications);
 router.patch('/read-all', markAllNotificationsAsRead);
 router.patch('/:id/read', markNotificationAsRead);
+router.delete('/:id', deleteNotification);
 
 export default router;
+
