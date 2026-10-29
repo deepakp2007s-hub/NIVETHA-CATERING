@@ -1,7 +1,13 @@
-const authService = {
-  // No owner login required
 
-  // Clear local owner session
+const authService = {
+  // No owner login page required.
+
+  // Check whether an owner token exists.
+  getToken: () => {
+    return localStorage.getItem("ownerToken");
+  },
+
+  // Clear the local owner session.
   logout: () => {
     localStorage.removeItem("ownerToken");
   },

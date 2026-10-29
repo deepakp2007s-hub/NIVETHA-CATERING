@@ -1,7 +1,5 @@
-import { useState } from "react";
-import { useLocation } from "react-router-dom";
 
-import { useAuth } from "./context/AuthContext";
+import { useState } from "react";
 import AppRoutes from "./routes/AppRoutes";
 
 import Sidebar from "./components/layout/Sidebar";
@@ -9,24 +7,17 @@ import Header from "./components/layout/Header";
 
 import "./App.css";
 
-function OwnerLayout() {
+export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const closeSidebar = () => {
-    setSidebarOpen(false);
-  };
+  const closeSidebar = () => setSidebarOpen(false);
 
   return (
     <div className="owner-layout">
-      <Sidebar
-        open={sidebarOpen}
-        onClose={closeSidebar}
-      />
+      <Sidebar open={sidebarOpen} onClose={closeSidebar} />
 
       <div className="owner-main">
-        <Header
-          onMenuClick={() => setSidebarOpen(true)}
-        />
+        <Header onMenuClick={() => setSidebarOpen(true)} />
 
         <main className="owner-content">
           <div className="page-container">
@@ -45,25 +36,4 @@ function OwnerLayout() {
       )}
     </div>
   );
-}
-
-export default function App() {
-  const { user, loading } = useAuth();
-  const location = useLocation();
-
-  const isLoginPage = location.pathname === "/login";
-
-  if (loading) {
-    return (
-      <div className="app-loading">
-        <p>Loading Nivetha Owner App...</p>
-      </div>
-    );
-  }
-
-  if (!user || user.role !== "owner" || isLoginPage) {
-    return <AppRoutes />;
-  }
-
-  return <OwnerLayout />;
 }

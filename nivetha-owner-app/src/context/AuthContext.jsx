@@ -1,7 +1,6 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useState,
 } from "react";
 
@@ -10,64 +9,27 @@ import authService from "../services/authService";
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
   const [token, setToken] = useState(
     () => localStorage.getItem("ownerToken")
   );
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  // Login page is not required.
+  // The dashboard can open without a local user session.
+  const [user, setUser] = useState({
+    role: "owner",
+    name: "Anna",
+  });
 
-    const restoreSession = async () => {
-      const savedToken = localStorage.getItem("ownerToken");
+  const [loading] = useState(false);
 
-      if (!savedToken) {
-        if (!cancelled) {
-          setUser(null);
-          setToken(null);
-          setLoading(false);
-        }
-        return;
-      }
-
-      try {
-        const response = await authService.getProfile();
-        const owner = response?.owner || response?.user;
-
-        if (response?.success === false || !owner) {
-          throw new Error("Invalid owner session");
-        }
-
-        if (!cancelled) {
-          setUser({
-            ...owner,
-            role: owner.role || "owner",
-          });
-          setToken(savedToken);
-        }
-      } catch (error) {
-        localStorage.removeItem("ownerToken");
-
-        if (!cancelled) {
-          setUser(null);
-          setToken(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    restoreSession();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  // Optional login function for future use.
   const login = async ({ phone, password }) => {
+    if (typeof authService.login !== "function") {
+      throw new Error(
+        "Owner login is not configured in authService."
+      );
+    }
+
     const response = await authService.login(
       phone.trim(),
       password
@@ -75,45 +37,34 @@ export function AuthProvider({ children }) {
 
     const owner = response?.owner || response?.user;
 
-    if (!response?.success || !response?.token || !owner) {
-      throw new Error(response?.message || "Login failed");
+    if (!response?.token || !owner) {
+      throw new Error(
+        response?.message || "Owner login failed."
+      );
     }
-
-    const loggedInOwner = {
-      ...owner,
-      role: owner.role || "owner",
-    };
 
     localStorage.setItem("ownerToken", response.token);
 
     setToken(response.token);
-    setUser(loggedInOwner);
+    setUser({
+      ...owner,
+      role: owner.role || "owner",
+    });
 
-    return {
-      ...response,
-      owner: loggedInOwner,
-      user: loggedInOwner,
-    };
+    return response;
   };
 
   const logout = () => {
-    // Clear the local session immediately.
+    authService.logout?.();
     localStorage.removeItem("ownerToken");
+
     setToken(null);
-    setUser(null);
 
-    // Server-side logout is optional; local logout must still work.
-    try {
-      const result = authService.logout?.();
-
-      if (result && typeof result.catch === "function") {
-        result.catch((error) => {
-          console.error("Server logout failed:", error);
-        });
-      }
-    } catch (error) {
-      console.error("Server logout failed:", error);
-    }
+    // Keep the dashboard accessible without a login page.
+    setUser({
+      role: "owner",
+      name: "Anna",
+    });
   };
 
   const value = {
@@ -121,7 +72,7 @@ export function AuthProvider({ children }) {
     owner: user,
     token,
     loading,
-    isAuthenticated: Boolean(token && user?.role === "owner"),
+    isAuthenticated: true,
     login,
     logout,
   };
@@ -137,7 +88,9 @@ export function useAuth() {
   const context = useContext(AuthContext);
 
   if (!context) {
-    throw new Error("useAuth must be used inside AuthProvider");
+    throw new Error(
+      "useAuth must be used inside AuthProvider"
+    );
   }
 
   return context;

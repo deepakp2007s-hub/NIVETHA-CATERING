@@ -1,3 +1,4 @@
+
 import axios from "axios";
 
 const API_BASE_URL = (
@@ -31,34 +32,42 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Handle API errors.
+// Handle API errors without redirecting to the login page.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status;
-    const requestUrl = error.config?.url || "";
-
-    const isLoginRequest =
-      /\/auth\/login(?:[/?]|$)/.test(requestUrl) ||
-      /\/login(?:[/?]|$)/.test(requestUrl);
-
-    if (status === 401 && !isLoginRequest) {
-      localStorage.removeItem("ownerToken");
-
-      if (window.location.pathname !== "/login") {
-        window.location.replace("/login");
-      }
-    }
 
     if (!error.response) {
       error.message =
         error.code === "ECONNABORTED"
           ? "Request timed out. Please try again."
-          : "Cannot connect to the server. Check your connection.";
+          : "Cannot connect to the server. Check your internet connection.";
+    } else if (status === 401) {
+      // Remove an invalid or expired token.
+      localStorage.removeItem("ownerToken");
+
+      // Do not redirect automatically to /login.
+      error.message =
+        error.response.data?.detail ||
+        error.response.data?.message ||
+        "Authentication required. Please check the Owner API access.";
+    } else if (status === 403) {
+      error.message =
+        error.response.data?.detail ||
+        error.response.data?.message ||
+        "Access denied. Owner permission is required.";
     } else if (status >= 500) {
       error.message =
+        error.response.data?.detail ||
         error.response.data?.message ||
         "Server error. Please try again later.";
+    } else {
+      error.message =
+        error.response.data?.detail ||
+        error.response.data?.message ||
+        error.message ||
+        "Something went wrong. Please try again.";
     }
 
     return Promise.reject(error);
