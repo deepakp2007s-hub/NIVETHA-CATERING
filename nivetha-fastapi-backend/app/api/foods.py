@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 from pymongo.errors import PyMongoError
 
 from app.core.security import decode_access_token
-from app.db.mongo import owner_db
+from app.db.mongo import customer_db
 
 
 logger = logging.getLogger(__name__)
@@ -19,8 +19,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/foods", tags=["Food Management"])
 bearer_scheme = HTTPBearer(auto_error=False)
 
+# Both apps use the same collection.
+foods_collection = customer_db["foods"]
 
-# -------------------- AUTHENTICATION --------------------
 
 def require_owner(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
@@ -28,33 +29,27 @@ def require_owner(
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Please log in with an owner account.",
+            detail="Owner authorization required.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
     try:
         payload = decode_access_token(credentials.credentials)
 
-        if not isinstance(payload, dict):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid access token.",
-            )
-
-        if payload.get("role") != "owner":
+        if not isinstance(payload, dict) or payload.get("role") != "owner":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Owner account required.",
+                detail="Owner access required.",
             )
 
         owner_id = payload.get("sub")
-        if not owner_id:
+        if not isinstance(owner_id, str) or not owner_id.strip():
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid owner token.",
             )
 
-        return str(owner_id)
+        return owner_id
 
     except HTTPException:
         raise
@@ -65,8 +60,6 @@ def require_owner(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-
-# -------------------- REQUEST MODELS --------------------
 
 class FoodCreate(BaseModel):
     name: str = Field(min_length=2, max_length=150)
@@ -110,8 +103,6 @@ class FoodUpdate(BaseModel):
         return value.strip() if value is not None else None
 
 
-# -------------------- RESPONSE SERIALIZATION --------------------
-
 def serialize_food(food: dict[str, Any]) -> dict[str, Any]:
     created_at = food.get("created_at")
     updated_at = food.get("updated_at")
@@ -122,39 +113,42 @@ def serialize_food(food: dict[str, Any]) -> dict[str, Any]:
         "category": food.get("category", ""),
         "description": food.get("description", ""),
         "is_available": food.get("is_available", True),
-        "created_at": created_at.isoformat() if isinstance(created_at, datetime) else created_at,
-        "updated_at": updated_at.isoformat() if isinstance(updated_at, datetime) else updated_at,
+        "created_at": (
+            created_at.isoformat()
+            if isinstance(created_at, datetime)
+            else created_at
+        ),
+        "updated_at": (
+            updated_at.isoformat()
+            if isinstance(updated_at, datetime)
+            else updated_at
+        ),
     }
 
 
-# -------------------- LIST FOODS --------------------
-
 @router.get("/")
 def get_foods():
-    """Read-only food list; no owner token required."""
+    """List available foods for the customer app."""
     try:
-        foods = list(
-            owner_db["foods"]
-            .find()
+        items = list(
+            foods_collection.find({"is_available": {"$ne": False}})
             .sort("created_at", -1)
             .limit(500)
         )
 
         return {
             "success": True,
-            "count": len(foods),
-            "foods": [serialize_food(food) for food in foods],
+            "count": len(items),
+            "foods": [serialize_food(item) for item in items],
         }
 
-    except PyMongoError:
+    except PyMongoError as exc:
         logger.exception("Unable to retrieve foods.")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to load foods.",
-        )
+        ) from exc
 
-
-# -------------------- GET ONE FOOD --------------------
 
 @router.get("/{food_id}")
 def get_food(food_id: str):
@@ -165,27 +159,30 @@ def get_food(food_id: str):
         )
 
     try:
-        food = owner_db["foods"].find_one({"_id": ObjectId(food_id)})
+        item = foods_collection.find_one(
+            {
+                "_id": ObjectId(food_id),
+                "is_available": {"$ne": False},
+            }
+        )
 
-        if food is None:
+        if item is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Food not found.",
             )
 
-        return {"success": True, "food": serialize_food(food)}
+        return {"success": True, "food": serialize_food(item)}
 
     except HTTPException:
         raise
-    except PyMongoError:
+    except PyMongoError as exc:
         logger.exception("Unable to retrieve food.")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to load food.",
-        )
+        ) from exc
 
-
-# -------------------- ADD FOOD: OWNER ONLY --------------------
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def add_food(
@@ -204,10 +201,8 @@ def add_food(
     }
 
     try:
-        result = owner_db["foods"].insert_one(food)
+        result = foods_collection.insert_one(food)
         food["_id"] = result.inserted_id
-
-        logger.info("Food created by authenticated owner.")
 
         return {
             "success": True,
@@ -215,15 +210,13 @@ def add_food(
             "food": serialize_food(food),
         }
 
-    except PyMongoError:
+    except PyMongoError as exc:
         logger.exception("Unable to add food.")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to add food.",
-        )
+        ) from exc
 
-
-# -------------------- EDIT FOOD: OWNER ONLY --------------------
 
 @router.patch("/{food_id}")
 def edit_food(
@@ -242,19 +235,21 @@ def edit_food(
     if not updates:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Provide at least one field to update.",
+            detail="Provide fields to update.",
         )
 
-    try:
-        collection = owner_db["foods"]
-        food_object_id = ObjectId(food_id)
+    if any(value is None for value in updates.values()):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Food fields cannot be null.",
+        )
 
-        result = collection.update_one(
-            {"_id": food_object_id},
-            {"$set": {
-                **updates,
-                "updated_at": datetime.now(timezone.utc),
-            }},
+    updates["updated_at"] = datetime.now(timezone.utc)
+
+    try:
+        result = foods_collection.update_one(
+            {"_id": ObjectId(food_id)},
+            {"$set": updates},
         )
 
         if result.matched_count == 0:
@@ -263,25 +258,23 @@ def edit_food(
                 detail="Food not found.",
             )
 
-        updated_food = collection.find_one({"_id": food_object_id})
+        item = foods_collection.find_one({"_id": ObjectId(food_id)})
 
         return {
             "success": True,
             "message": "Food updated successfully.",
-            "food": serialize_food(updated_food),
+            "food": serialize_food(item),
         }
 
     except HTTPException:
         raise
-    except PyMongoError:
+    except PyMongoError as exc:
         logger.exception("Unable to update food.")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to edit food.",
-        )
+        ) from exc
 
-
-# -------------------- DELETE FOOD: OWNER ONLY --------------------
 
 @router.delete("/{food_id}")
 def delete_food(
@@ -295,7 +288,7 @@ def delete_food(
         )
 
     try:
-        result = owner_db["foods"].delete_one(
+        result = foods_collection.delete_one(
             {"_id": ObjectId(food_id)}
         )
 
@@ -312,9 +305,9 @@ def delete_food(
 
     except HTTPException:
         raise
-    except PyMongoError:
+    except PyMongoError as exc:
         logger.exception("Unable to delete food.")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to delete food.",
-        )
+        ) from exc

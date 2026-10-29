@@ -1,11 +1,14 @@
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo.errors import PyMongoError
 
+from app.core.config import settings
 from app.api.auth import router as auth_router
+from app.api.customers import router as customers_router
 from app.api.profiles import router as profiles_router
 from app.api.foods import router as foods_router
 from app.api.bookings import router as bookings_router
@@ -16,56 +19,60 @@ from app.api.notifications import router as notifications_router
 from app.db.mongo import (
     check_mongodb,
     create_customer_indexes,
+    create_application_indexes,
     close_mongodb,
 )
 
 
+logger = logging.getLogger(__name__)
+
+API_PREFIX = "/api/v1"
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    check_mongodb()
-    create_customer_indexes()
+    """Check MongoDB and initialize application indexes."""
+    try:
+        check_mongodb()
+        create_customer_indexes()
+        create_application_indexes()
 
-    yield
-
-    close_mongodb()
+        logger.info(
+            "MongoDB connected and application indexes initialized."
+        )
+        yield
+    finally:
+        close_mongodb()
+        logger.info("MongoDB client closed.")
 
 
 app = FastAPI(
-    title="Nivetha Catering API",
-    description="Backend API for Nivetha Catering Service",
-    version="1.0.0",
+    title=settings.APP_NAME,
+    description="Shared backend for Nivetha Customer and Anna Owner Apps",
+    version=settings.APP_VERSION,
     lifespan=lifespan,
 )
 
 
-allowed_origins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://localhost:8080",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-    "https://nivetha-catering.vercel.app",
-    "https://nivetha-catering-kjh1.vercel.app",
-]
-
-
+# Centralized CORS configuration from app/core/config.py
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 
-# Register API routers
-app.include_router(auth_router, prefix="/api/v1")
-app.include_router(profiles_router, prefix="/api/v1")
-app.include_router(foods_router, prefix="/api/v1")
-app.include_router(bookings_router, prefix="/api/v1")
-app.include_router(reviews_router, prefix="/api/v1")
-app.include_router(reports_router, prefix="/api/v1")
-app.include_router(notifications_router, prefix="/api/v1")
+# Register API routers.
+app.include_router(auth_router, prefix=API_PREFIX)
+app.include_router(customers_router, prefix=API_PREFIX)
+app.include_router(profiles_router, prefix=API_PREFIX)
+app.include_router(foods_router, prefix=API_PREFIX)
+app.include_router(bookings_router, prefix=API_PREFIX)
+app.include_router(reviews_router, prefix=API_PREFIX)
+app.include_router(reports_router, prefix=API_PREFIX)
+app.include_router(notifications_router, prefix=API_PREFIX)
 
 
 @app.get("/", tags=["Health"])
@@ -76,7 +83,7 @@ def root():
     }
 
 
-@app.get("/api/v1/health", tags=["Health"])
+@app.get(f"{API_PREFIX}/health", tags=["Health"])
 def health_check():
     return {
         "success": True,
@@ -84,16 +91,19 @@ def health_check():
     }
 
 
-@app.get("/api/v1/health/database", tags=["Health"])
+@app.get(f"{API_PREFIX}/health/database", tags=["Health"])
 def database_health_check():
     try:
         check_mongodb()
+
         return {
             "success": True,
             "message": "MongoDB connected",
         }
 
     except PyMongoError as exc:
+        logger.exception("MongoDB health check failed.")
+
         raise HTTPException(
             status_code=503,
             detail={

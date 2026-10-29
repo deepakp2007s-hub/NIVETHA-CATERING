@@ -1,9 +1,12 @@
 
+import logging
+
 from fastapi import APIRouter, HTTPException
 from pymongo.errors import PyMongoError
 
 from app.db.mongo import check_mongodb
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Health"])
 
@@ -19,7 +22,7 @@ def health_check():
 
 @router.get("/health/database")
 def database_health_check():
-    """Check the MongoDB connection."""
+    """Check whether MongoDB is reachable."""
     try:
         check_mongodb()
 
@@ -28,11 +31,13 @@ def database_health_check():
             "message": "MongoDB connected",
         }
 
-    except PyMongoError:
+    except PyMongoError as exc:
+        logger.exception("MongoDB health check failed.")
+
         raise HTTPException(
             status_code=503,
             detail={
                 "success": False,
                 "message": "MongoDB connection failed",
             },
-        )
+        ) from exc
