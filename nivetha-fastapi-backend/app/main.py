@@ -31,7 +31,7 @@ API_PREFIX = "/api/v1"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Check MongoDB and initialize application indexes."""
+    """Initialize MongoDB and application indexes."""
     try:
         check_mongodb()
         create_customer_indexes()
@@ -54,13 +54,15 @@ app = FastAPI(
 )
 
 
-# Centralized CORS configuration from app/core/config.py
+# CORS configuration for Customer and Anna Owner applications.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    max_age=600,
 )
 
 
