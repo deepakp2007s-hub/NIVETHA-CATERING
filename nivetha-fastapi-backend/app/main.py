@@ -19,6 +19,7 @@ from app.db.mongo import (
     close_mongodb,
     create_application_indexes,
     create_customer_indexes,
+    create_login_rate_limit_index,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,9 +33,9 @@ async def lifespan(app: FastAPI):
 
     try:
         check_mongodb()
-
         create_customer_indexes()
         create_application_indexes()
+        create_login_rate_limit_index()
 
         logger.info("MongoDB connected and application indexes initialized.")
 
@@ -51,7 +52,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description=("Shared backend for Nivetha Customer and Anna Owner Apps"),
+    description="Shared backend for Nivetha Customer and Anna Owner Apps",
     version=settings.APP_VERSION,
     lifespan=lifespan,
 )
@@ -67,8 +68,6 @@ app.add_middleware(
     max_age=600,
 )
 
-
-# Register API routers.
 
 app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(customers_router, prefix=API_PREFIX)

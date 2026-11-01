@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     OWNER_EMAIL: str = ""
     OWNER_PASSWORD: SecretStr = Field(default=SecretStr(""))
 
+    # Store bcrypt/Pwdlib password hashes in these settings.
+    ADMIN_PASSWORD_HASH: SecretStr = Field(default=SecretStr(""))
+    OWNER_PASSWORD_HASH: SecretStr = Field(default=SecretStr(""))
+
+    LOGIN_RATE_LIMIT_WINDOW_SECONDS: int = Field(default=900, gt=0)
+    LOGIN_RATE_LIMIT_MAX_ATTEMPTS: int = Field(default=5, gt=0)
+
     CORS_ORIGINS: str = (
         "http://localhost:3000,"
         "http://localhost:5173,"
@@ -58,7 +65,9 @@ class Settings(BaseSettings):
         value = value.strip()
 
         if not value:
-            raise ValueError("This configuration value cannot be empty.")
+            raise ValueError(
+                "This configuration value cannot be empty."
+            )
 
         return value
 
@@ -66,7 +75,9 @@ class Settings(BaseSettings):
     @classmethod
     def validate_jwt_algorithm(cls, value: str) -> str:
         if value != "HS256":
-            raise ValueError("This application currently supports HS256 only.")
+            raise ValueError(
+                "This application currently supports HS256 only."
+            )
 
         return value
 
@@ -74,7 +85,22 @@ class Settings(BaseSettings):
     @classmethod
     def validate_token_expiry(cls, value: int) -> int:
         if value <= 0:
-            raise ValueError("ACCESS_TOKEN_EXPIRE_MINUTES must be greater than zero.")
+            raise ValueError(
+                "ACCESS_TOKEN_EXPIRE_MINUTES must be greater than zero."
+            )
+
+        return value
+
+    @field_validator(
+        "LOGIN_RATE_LIMIT_WINDOW_SECONDS",
+        "LOGIN_RATE_LIMIT_MAX_ATTEMPTS",
+    )
+    @classmethod
+    def validate_rate_limit(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError(
+                "Login rate-limit settings must be greater than zero."
+            )
 
         return value
 
@@ -93,6 +119,14 @@ class Settings(BaseSettings):
     @property
     def owner_password_value(self) -> str:
         return self.OWNER_PASSWORD.get_secret_value()
+
+    @property
+    def admin_password_hash_value(self) -> str:
+        return self.ADMIN_PASSWORD_HASH.get_secret_value().strip()
+
+    @property
+    def owner_password_hash_value(self) -> str:
+        return self.OWNER_PASSWORD_HASH.get_secret_value().strip()
 
     @property
     def cors_origins_list(self) -> list[str]:

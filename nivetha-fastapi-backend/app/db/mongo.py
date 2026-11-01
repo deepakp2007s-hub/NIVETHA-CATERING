@@ -55,7 +55,6 @@ class LazyDatabase:
 
 
 customer_db = LazyDatabase(settings.CUSTOMER_DATABASE_NAME)
-
 owner_db = LazyDatabase(settings.OWNER_DATABASE_NAME)
 
 
@@ -127,6 +126,16 @@ def create_application_indexes() -> None:
             ("created_at", DESCENDING),
         ],
         name="reviews_customer_created_at",
+    )
+
+
+def create_login_rate_limit_index() -> None:
+    """Create a TTL index for expired login rate-limit buckets."""
+
+    customer_db["login_rate_limits"].create_index(
+        [("expires_at", ASCENDING)],
+        expireAfterSeconds=0,
+        name="login_rate_limits_ttl",
     )
 
 

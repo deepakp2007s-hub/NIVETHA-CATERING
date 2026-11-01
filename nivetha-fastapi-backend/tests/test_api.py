@@ -1,20 +1,3 @@
-"""
-Nivetha Catering Service - FastAPI Automated API Tests
-
-Covers:
-- Root and health endpoints
-- Required API route registration
-- Customer and staff authentication checks
-- Customer registration and login
-- Duplicate email and phone validation
-- Owner and admin authentication
-- All registered API paths and HTTP methods
-- Automatic test ID generation
-
-These tests use the in-memory MongoDB mock from conftest.py.
-They do not connect to the real MongoDB database.
-"""
-
 import re
 from uuid import uuid4
 
@@ -29,10 +12,13 @@ client = TestClient(app)
 
 AUTH_URL = "/api/v1/auth"
 
-
-# =====================================================
-# AUTOMATIC TEST ID GENERATION
-# =====================================================
+SUPPORTED_METHODS = {
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+}
 
 
 def generate_test_id(parameter_name: str) -> str:
@@ -59,19 +45,6 @@ def resolve_path(path: str) -> str:
     )
 
 
-# =====================================================
-# API ROUTE DISCOVERY
-# =====================================================
-
-SUPPORTED_METHODS = {
-    "GET",
-    "POST",
-    "PUT",
-    "PATCH",
-    "DELETE",
-}
-
-
 def collect_api_cases():
     cases = []
 
@@ -96,56 +69,52 @@ def collect_api_cases():
 API_CASES = collect_api_cases()
 
 
-# =====================================================
-# TEST CONFIGURATION
-# =====================================================
-
-
 @pytest.fixture
 def auth_settings(monkeypatch):
+    owner_email = "owner@example.com"
+    owner_password = "OwnerTestPassword123!"
+
+    admin_email = "admin@example.com"
+    admin_password = "AdminTestPassword123!"
+
     monkeypatch.setattr(
         settings,
         "JWT_SECRET",
         SecretStr("test-only-jwt-secret-key-12345678901234567890"),
     )
 
-    monkeypatch.setattr(
-        settings,
-        "OWNER_EMAIL",
-        "owner@example.com",
-    )
+    monkeypatch.setattr(settings, "JWT_ALGORITHM", "HS256")
+    monkeypatch.setattr(settings, "OWNER_EMAIL", owner_email)
+    monkeypatch.setattr(settings, "ADMIN_EMAIL", admin_email)
 
     monkeypatch.setattr(
         settings,
         "OWNER_PASSWORD",
-        SecretStr("OwnerTestPassword123!"),
-    )
-
-    monkeypatch.setattr(
-        settings,
-        "ADMIN_EMAIL",
-        "admin@example.com",
+        SecretStr(owner_password),
     )
 
     monkeypatch.setattr(
         settings,
         "ADMIN_PASSWORD",
-        SecretStr("AdminTestPassword123!"),
+        SecretStr(admin_password),
     )
 
-    return settings
+    return {
+        "owner_email": owner_email,
+        "owner_password": owner_password,
+        "admin_email": admin_email,
+        "admin_password": admin_password,
+    }
 
 
 @pytest.fixture
 def customer_payload():
-    """Generate unique and valid customer registration data."""
-
-    unique = str(uuid4().int)
+    unique = uuid4().hex
 
     return {
         "name": "Test Customer",
         "email": f"customer-{unique[:8]}@example.com",
-        "phone": f"9{unique[:9]}",
+        "phone": f"9{str(uuid4().int)[:9]}",
         "password": "CustomerTest123!",
     }
 
@@ -169,8 +138,8 @@ def test_health_endpoint():
 
     data = response.json()
 
-    assert data.get("success") is True
-    assert data.get("message") == "Nivetha Catering API is running"
+    assert data["success"] is True
+    assert data["message"] == "Nivetha Catering API is running"
 
 
 def test_database_health_endpoint():
@@ -181,10 +150,11 @@ def test_database_health_endpoint():
     data = response.json()
 
     if response.status_code == 200:
-        assert data.get("success") is True
-        assert data.get("message") == "MongoDB connected"
+        assert data["success"] is True
+        assert data["status"] == "healthy"
+        assert data["message"] == "MongoDB connected successfully"
     else:
-        assert data.get("detail") is not None
+        assert data["detail"] is not None
 
 
 # =====================================================
@@ -195,12 +165,13 @@ def test_database_health_endpoint():
 def test_api_routes_are_registered():
     paths = app.openapi()["paths"]
 
-    assert paths, "No API paths are registered"
+    assert paths
 
     required_paths = [
         "/api/v1/auth/register",
         "/api/v1/auth/login",
         "/api/v1/auth/owner/login",
+        "/api/v1/auth/admin/login",
         "/api/v1/customers/me",
         "/api/v1/customers/",
         "/api/v1/profile/me",
@@ -212,6 +183,7 @@ def test_api_routes_are_registered():
         "/api/v1/reviews/my-reviews",
         "/api/v1/reports/my-bookings",
         "/api/v1/reports/owner/summary",
+        "/api/v1/reports/admin/summary",
         "/api/v1/notifications/",
         "/api/v1/notifications/owner",
     ]
@@ -233,38 +205,30 @@ def test_admin_report_route_is_registered():
 # =====================================================
 
 
-def test_customer_profile_requires_login():
-    response = client.get("/api/v1/customers/me")
-    assert response.status_code == 401
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/v1/customers/me",
+        "/api/v1/profile/me",
+        "/api/v1/bookings/my-bookings",
+        "/api/v1/reviews/my-reviews",
+        "/api/v1/notifications/",
+        "/api/v1/notifications/owner",
+        "/api/v1/reports/owner/summary",
+        "/api/v1/reports/admin/summary",
+    ],
+)
+def test_protected_routes_require_authentication(path):
+    response = client.get(path)
 
-
-def test_owner_report_requires_login():
-    response = client.get("/api/v1/reports/owner/summary")
-    assert response.status_code == 401
-
-
-def test_admin_report_requires_login():
-    response = client.get("/api/v1/reports/admin/summary")
-    assert response.status_code == 401
-
-
-def test_customer_reviews_require_login():
-    response = client.get("/api/v1/reviews/my-reviews")
-    assert response.status_code == 401
-
-
-def test_customer_notifications_require_login():
-    response = client.get("/api/v1/notifications/")
-    assert response.status_code == 401
-
-
-def test_staff_notifications_require_login():
-    response = client.get("/api/v1/notifications/owner")
-    assert response.status_code == 401
+    assert response.status_code == 401, (
+        f"{path} should require authentication. "
+        f"Received {response.status_code}: {response.text}"
+    )
 
 
 # =====================================================
-# CUSTOMER AUTHENTICATION FUNCTIONAL TESTS
+# CUSTOMER AUTHENTICATION TESTS
 # =====================================================
 
 
@@ -308,7 +272,7 @@ def test_customer_register_duplicate_email(
         json=duplicate_payload,
     )
 
-    assert response.status_code == 409, response.text
+    assert response.status_code == 409
 
 
 def test_customer_register_duplicate_phone(
@@ -332,7 +296,21 @@ def test_customer_register_duplicate_phone(
         json=duplicate_payload,
     )
 
-    assert response.status_code == 409, response.text
+    assert response.status_code == 409
+
+
+def test_customer_register_invalid_email(auth_settings):
+    response = client.post(
+        f"{AUTH_URL}/register",
+        json={
+            "name": "Test Customer",
+            "email": "invalid-email",
+            "phone": f"9{str(uuid4().int)[:9]}",
+            "password": "CustomerTest123!",
+        },
+    )
+
+    assert response.status_code == 422
 
 
 def test_customer_login_success(customer_payload, auth_settings):
@@ -404,8 +382,8 @@ def test_owner_login_success(auth_settings):
     response = client.post(
         f"{AUTH_URL}/owner/login",
         json={
-            "email": "owner@example.com",
-            "password": "OwnerTestPassword123!",
+            "email": auth_settings["owner_email"],
+            "password": auth_settings["owner_password"],
         },
     )
 
@@ -419,12 +397,24 @@ def test_owner_login_success(auth_settings):
     assert data["owner"]["role"] == "owner"
 
 
-def test_owner_login_invalid_password(auth_settings):
+def test_owner_login_wrong_password(auth_settings):
     response = client.post(
         f"{AUTH_URL}/owner/login",
         json={
-            "email": "owner@example.com",
+            "email": auth_settings["owner_email"],
             "password": "WrongOwnerPassword123!",
+        },
+    )
+
+    assert response.status_code == 401
+
+
+def test_owner_login_wrong_email(auth_settings):
+    response = client.post(
+        f"{AUTH_URL}/owner/login",
+        json={
+            "email": "wrong-owner@example.com",
+            "password": auth_settings["owner_password"],
         },
     )
 
@@ -440,8 +430,8 @@ def test_admin_login_success(auth_settings):
     response = client.post(
         f"{AUTH_URL}/admin/login",
         json={
-            "email": "admin@example.com",
-            "password": "AdminTestPassword123!",
+            "email": auth_settings["admin_email"],
+            "password": auth_settings["admin_password"],
         },
     )
 
@@ -455,11 +445,11 @@ def test_admin_login_success(auth_settings):
     assert data["admin"]["role"] == "admin"
 
 
-def test_admin_login_invalid_password(auth_settings):
+def test_admin_login_wrong_password(auth_settings):
     response = client.post(
         f"{AUTH_URL}/admin/login",
         json={
-            "email": "admin@example.com",
+            "email": auth_settings["admin_email"],
             "password": "WrongAdminPassword123!",
         },
     )
@@ -467,8 +457,20 @@ def test_admin_login_invalid_password(auth_settings):
     assert response.status_code == 401
 
 
+def test_admin_login_wrong_email(auth_settings):
+    response = client.post(
+        f"{AUTH_URL}/admin/login",
+        json={
+            "email": "wrong-admin@example.com",
+            "password": auth_settings["admin_password"],
+        },
+    )
+
+    assert response.status_code == 401
+
+
 # =====================================================
-# UNKNOWN ROUTE TEST
+# UNKNOWN ROUTE
 # =====================================================
 
 

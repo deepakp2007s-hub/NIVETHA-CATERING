@@ -3,13 +3,11 @@ from __future__ import annotations
 
 import ast
 import json
-import os
 import re
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, timezone
-
 
 ROOT = Path(__file__).resolve().parent
 APP_DIR = ROOT / "app"
@@ -319,7 +317,7 @@ def summarize() -> dict:
         )
 
     return {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "project": ROOT.name,
         "python_version": sys.version,
         "summary": counts,
