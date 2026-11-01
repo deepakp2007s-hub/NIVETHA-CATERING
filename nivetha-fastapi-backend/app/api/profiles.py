@@ -1,6 +1,5 @@
-
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import jwt
 from bson import ObjectId
@@ -12,7 +11,6 @@ from pymongo.errors import DuplicateKeyError, PyMongoError
 from app.core.security import decode_access_token
 from app.db.mongo import customer_db
 
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
@@ -21,20 +19,35 @@ router = APIRouter(
 )
 
 bearer_scheme = HTTPBearer(auto_error=False)
+
 customers_collection = customer_db["customers"]
+
+
+# =====================================================
+# PROFILE REQUEST MODEL
+# =====================================================
 
 
 class ProfileUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str | None = Field(default=None, min_length=2, max_length=100)
-    phone: str | None = Field(default=None, min_length=10, max_length=15)
+    name: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=100,
+    )
+
+    phone: str | None = Field(
+        default=None,
+        min_length=10,
+        max_length=15,
+    )
 
     @field_validator("name")
     @classmethod
     def validate_name(cls, value: str | None) -> str | None:
         if value is None:
-            return value
+            return None
 
         value = value.strip()
 
@@ -47,20 +60,23 @@ class ProfileUpdate(BaseModel):
     @classmethod
     def validate_phone(cls, value: str | None) -> str | None:
         if value is None:
-            return value
+            return None
 
         value = value.strip()
 
         if not value.isdigit() or not 10 <= len(value) <= 15:
-            raise ValueError(
-                "Enter a valid phone number using digits only."
-            )
+            raise ValueError("Enter a valid phone number using digits only.")
 
         return value
 
 
-def get_authenticated_payload(
-    credentials: HTTPAuthorizationCredentials | None,
+# =====================================================
+# COMMON JWT AUTHENTICATION
+# =====================================================
+
+
+def get_token_payload(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> dict:
     if credentials is None:
         raise HTTPException(
@@ -77,9 +93,12 @@ def get_authenticated_payload(
 
         return payload
 
-    except HTTPException:
-        raise
-    except (jwt.InvalidTokenError, ValueError, TypeError, KeyError) as exc:
+    except (
+        jwt.InvalidTokenError,
+        ValueError,
+        TypeError,
+        KeyError,
+    ) as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired access token.",
@@ -87,11 +106,14 @@ def get_authenticated_payload(
         ) from exc
 
 
-def get_current_customer(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-) -> dict:
-    payload = get_authenticated_payload(credentials)
+# =====================================================
+# CUSTOMER AUTHENTICATION
+# =====================================================
 
+
+def get_current_customer(
+    payload: dict = Depends(get_token_payload),
+) -> dict:
     if payload.get("role") != "customer":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -108,9 +130,7 @@ def get_current_customer(
         )
 
     try:
-        customer = customers_collection.find_one(
-            {"_id": ObjectId(customer_id)}
-        )
+        customer = customers_collection.find_one({"_id": ObjectId(customer_id)})
 
         if customer is None:
             raise HTTPException(
@@ -122,47 +142,71 @@ def get_current_customer(
 
     except HTTPException:
         raise
+
     except PyMongoError as exc:
-        logger.exception("Error retrieving customer profile.")
+        logger.exception("Unable to retrieve customer profile.")
+
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to access the customer profile.",
+            detail="Unable to access customer profile.",
         ) from exc
 
 
-def get_current_owner(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-) -> dict:
-    payload = get_authenticated_payload(credentials)
+# =====================================================
+# OWNER / ADMIN AUTHENTICATION
+# =====================================================
 
-    # Match this to the claims created by the Owner login endpoint.
-    if payload.get("role") != "owner" or payload.get("sub") != "owner":
+
+def get_current_owner(
+    payload: dict = Depends(get_token_payload),
+) -> dict:
+    role = payload.get("role")
+
+    if role not in {"owner", "admin"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Owner account required.",
+            detail="Owner or admin access required.",
         )
 
-    return payload
+    if payload.get("sub") != role:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid staff access token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return {
+        "id": role,
+        "role": role,
+    }
+
+
+# =====================================================
+# CUSTOMER RESPONSE SERIALIZER
+# =====================================================
 
 
 def serialize_customer(customer: dict) -> dict:
     created_at = customer.get("created_at")
     updated_at = customer.get("updated_at")
 
-    if isinstance(created_at, datetime):
-        created_at = created_at.isoformat()
-
-    if isinstance(updated_at, datetime):
-        updated_at = updated_at.isoformat()
-
     return {
         "id": str(customer["_id"]),
         "name": customer.get("name", ""),
         "email": customer.get("email", ""),
         "phone": customer.get("phone", ""),
-        "created_at": created_at,
-        "updated_at": updated_at,
+        "created_at": (
+            created_at.isoformat() if isinstance(created_at, datetime) else created_at
+        ),
+        "updated_at": (
+            updated_at.isoformat() if isinstance(updated_at, datetime) else updated_at
+        ),
     }
+
+
+# =====================================================
+# GET MY PROFILE
+# =====================================================
 
 
 @router.get("/me")
@@ -173,6 +217,11 @@ def get_my_profile(
         "success": True,
         "customer": serialize_customer(customer),
     }
+
+
+# =====================================================
+# UPDATE MY PROFILE
+# =====================================================
 
 
 @router.patch("/me")
@@ -210,16 +259,20 @@ def update_my_profile(
                     detail="This phone number is already registered.",
                 )
 
-        updates["updated_at"] = datetime.now(timezone.utc)
+        updates["updated_at"] = datetime.now(UTC)
 
-        customers_collection.update_one(
+        result = customers_collection.update_one(
             {"_id": customer["_id"]},
             {"$set": updates},
         )
 
-        updated_customer = customers_collection.find_one(
-            {"_id": customer["_id"]}
-        )
+        if result.matched_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Customer profile not found.",
+            )
+
+        updated_customer = customers_collection.find_one({"_id": customer["_id"]})
 
         if updated_customer is None:
             raise HTTPException(
@@ -235,14 +288,17 @@ def update_my_profile(
 
     except HTTPException:
         raise
+
     except DuplicateKeyError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="This phone number is already registered.",
         ) from exc
+
     except PyMongoError as exc:
-        logger.exception("Error updating customer profile.")
+        logger.exception("Unable to update customer profile.")
+
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to update the profile right now.",
+            detail="Unable to update customer profile.",
         ) from exc

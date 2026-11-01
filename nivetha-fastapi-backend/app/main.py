@@ -1,4 +1,3 @@
-
 import logging
 from contextlib import asynccontextmanager
 
@@ -6,23 +5,21 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo.errors import PyMongoError
 
-from app.core.config import settings
 from app.api.auth import router as auth_router
-from app.api.customers import router as customers_router
-from app.api.profiles import router as profiles_router
-from app.api.foods import router as foods_router
 from app.api.bookings import router as bookings_router
-from app.api.reviews import router as reviews_router
-from app.api.reports import router as reports_router
+from app.api.customers import router as customers_router
+from app.api.foods import router as foods_router
 from app.api.notifications import router as notifications_router
-
+from app.api.profiles import router as profiles_router
+from app.api.reports import router as reports_router
+from app.api.reviews import router as reviews_router
+from app.core.config import settings
 from app.db.mongo import (
     check_mongodb,
-    create_customer_indexes,
-    create_application_indexes,
     close_mongodb,
+    create_application_indexes,
+    create_customer_indexes,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -32,15 +29,21 @@ API_PREFIX = "/api/v1"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize MongoDB and application indexes."""
+
     try:
         check_mongodb()
+
         create_customer_indexes()
         create_application_indexes()
 
-        logger.info(
-            "MongoDB connected and application indexes initialized."
-        )
+        logger.info("MongoDB connected and application indexes initialized.")
+
         yield
+
+    except Exception:
+        logger.exception("Application startup or runtime lifespan failed.")
+        raise
+
     finally:
         close_mongodb()
         logger.info("MongoDB client closed.")
@@ -48,25 +51,25 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Shared backend for Nivetha Customer and Anna Owner Apps",
+    description=("Shared backend for Nivetha Customer and Anna Owner Apps"),
     version=settings.APP_VERSION,
     lifespan=lifespan,
 )
 
 
-# CORS configuration for Customer and Anna Owner applications.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
     max_age=600,
 )
 
 
 # Register API routers.
+
 app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(customers_router, prefix=API_PREFIX)
 app.include_router(profiles_router, prefix=API_PREFIX)
@@ -111,5 +114,16 @@ def database_health_check():
             detail={
                 "success": False,
                 "message": "MongoDB connection failed",
+            },
+        ) from exc
+
+    except RuntimeError as exc:
+        logger.exception("MongoDB configuration is unavailable.")
+
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "success": False,
+                "message": "MongoDB is not configured.",
             },
         ) from exc

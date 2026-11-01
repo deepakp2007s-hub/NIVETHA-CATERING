@@ -1,4 +1,3 @@
-
 import logging
 
 from bson import ObjectId
@@ -20,7 +19,11 @@ router = APIRouter(
 )
 
 
-# Customer: View own details
+# --------------------------------------------------
+# CUSTOMER: VIEW OWN DETAILS
+# --------------------------------------------------
+
+
 @router.get("/me")
 def get_current_customer_details(
     customer: dict = Depends(get_current_customer),
@@ -31,41 +34,45 @@ def get_current_customer_details(
     }
 
 
-# Owner: View all customers
-@router.get("/", summary="Owner - Get all customers")
+# --------------------------------------------------
+# OWNER / ADMIN: VIEW ALL CUSTOMERS
+# --------------------------------------------------
+
+
+@router.get("/", summary="Owner/Admin - Get all customers")
 def get_all_customers(
-    owner: dict = Depends(get_current_owner),
+    staff: dict = Depends(get_current_owner),
 ):
     try:
-        customers = list(
-            customers_collection.find().sort("_id", -1)
-        )
+        customers = list(customers_collection.find().sort("_id", -1))
 
         return {
             "success": True,
             "count": len(customers),
-            "customers": [
-                serialize_customer(customer)
-                for customer in customers
-            ],
+            "customers": [serialize_customer(customer) for customer in customers],
         }
 
     except PyMongoError as exc:
         logger.exception("Error retrieving customer list.")
+
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to retrieve customers right now.",
         ) from exc
 
 
-# Owner: View one customer by MongoDB ID
+# --------------------------------------------------
+# OWNER / ADMIN: VIEW CUSTOMER BY ID
+# --------------------------------------------------
+
+
 @router.get(
     "/{customer_id}",
-    summary="Owner - Get customer details",
+    summary="Owner/Admin - Get customer details",
 )
 def get_customer_details(
     customer_id: str,
-    owner: dict = Depends(get_current_owner),
+    staff: dict = Depends(get_current_owner),
 ):
     if not ObjectId.is_valid(customer_id):
         raise HTTPException(
@@ -74,9 +81,7 @@ def get_customer_details(
         )
 
     try:
-        customer = customers_collection.find_one(
-            {"_id": ObjectId(customer_id)}
-        )
+        customer = customers_collection.find_one({"_id": ObjectId(customer_id)})
 
         if customer is None:
             raise HTTPException(
@@ -91,8 +96,10 @@ def get_customer_details(
 
     except HTTPException:
         raise
+
     except PyMongoError as exc:
         logger.exception("Error retrieving customer details.")
+
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to retrieve customer details right now.",

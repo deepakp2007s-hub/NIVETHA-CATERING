@@ -1,6 +1,6 @@
-
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 import jwt
 from bson import ObjectId
@@ -11,7 +11,6 @@ from pymongo.errors import PyMongoError
 from app.core.security import decode_access_token
 from app.db.mongo import customer_db
 
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
@@ -20,9 +19,12 @@ bearer_scheme = HTTPBearer(auto_error=False)
 notifications_collection = customer_db["notifications"]
 
 
+# -------------------- AUTHENTICATION --------------------
+
+
 def get_token_payload(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-) -> dict:
+) -> dict[str, Any]:
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -46,7 +48,9 @@ def get_token_payload(
         ) from exc
 
 
-def get_customer_id(payload: dict = Depends(get_token_payload)) -> str:
+def get_customer_id(
+    payload: dict = Depends(get_token_payload),
+) -> str:
     if payload.get("role") != "customer":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -64,14 +68,28 @@ def get_customer_id(payload: dict = Depends(get_token_payload)) -> str:
     return customer_id
 
 
-def require_owner(payload: dict = Depends(get_token_payload)) -> dict:
-    if payload.get("role") != "owner":
+def require_owner_or_admin(
+    payload: dict = Depends(get_token_payload),
+) -> dict:
+    role = payload.get("role")
+    subject = payload.get("sub")
+
+    if role not in {"owner", "admin"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Owner access required.",
+            detail="Owner or Admin access required.",
+        )
+
+    if subject != role:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid staff account token.",
         )
 
     return payload
+
+
+# -------------------- NOTIFICATION HELPERS --------------------
 
 
 def recipient_query(recipient_type: str) -> dict:
@@ -114,23 +132,46 @@ def serialize_notification(item: dict) -> dict:
 
 
 def list_notifications(query: dict, recipient_type: str) -> dict:
-    items = list(
-        notifications_collection.find(query)
-        .sort("created_at", -1)
-        .limit(100)
-    )
+    items = list(notifications_collection.find(query).sort("created_at", -1).limit(100))
 
     return {
         "success": True,
         "recipient_type": recipient_type,
         "count": len(items),
-        "unread_count": sum(
-            1 for item in items if not item.get("is_read", False)
-        ),
-        "notifications": [
-            serialize_notification(item) for item in items
-        ],
+        "unread_count": sum(1 for item in items if not item.get("is_read", False)),
+        "notifications": [serialize_notification(item) for item in items],
     }
+
+
+def mark_notifications_read(query: dict) -> int:
+    result = notifications_collection.update_many(
+        {
+            "$and": [
+                query,
+                {"is_read": {"$ne": True}},
+            ]
+        },
+        {
+            "$set": {
+                "is_read": True,
+                "read_at": datetime.now(UTC),
+            }
+        },
+    )
+
+    return result.modified_count
+
+
+def handle_database_error(message: str, exc: PyMongoError) -> None:
+    logger.exception(message)
+
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Notification service is temporarily unavailable.",
+    ) from exc
+
+
+# -------------------- CUSTOMER NOTIFICATIONS --------------------
 
 
 @router.get("/")
@@ -138,38 +179,20 @@ def get_my_notifications(
     customer_id: str = Depends(get_customer_id),
 ):
     try:
-        return list_notifications(
-            {
-                "$and": [
-                    recipient_query("customer"),
-                    {"customer_id": customer_id},
-                ]
-            },
-            "customer",
-        )
-    except PyMongoError as exc:
-        logger.exception("Unable to retrieve customer notifications.")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to load notifications.",
-        ) from exc
+        query = {
+            "$and": [
+                recipient_query("customer"),
+                {"customer_id": customer_id},
+            ]
+        }
 
+        return list_notifications(query, "customer")
 
-@router.get("/owner")
-def get_owner_notifications(
-    _: dict = Depends(require_owner),
-):
-    try:
-        return list_notifications(
-            recipient_query("owner"),
-            "owner",
-        )
     except PyMongoError as exc:
-        logger.exception("Unable to retrieve owner notifications.")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to load notifications.",
-        ) from exc
+        handle_database_error(
+            "Unable to retrieve customer notifications.",
+            exc,
+        )
 
 
 @router.patch("/read-all")
@@ -177,33 +200,26 @@ def mark_all_customer_notifications_as_read(
     customer_id: str = Depends(get_customer_id),
 ):
     try:
-        result = notifications_collection.update_many(
-            {
-                "$and": [
-                    recipient_query("customer"),
-                    {"customer_id": customer_id},
-                    {"is_read": {"$ne": True}},
-                ]
-            },
-            {
-                "$set": {
-                    "is_read": True,
-                    "read_at": datetime.now(timezone.utc),
-                }
-            },
-        )
+        query = {
+            "$and": [
+                recipient_query("customer"),
+                {"customer_id": customer_id},
+            ]
+        }
+
+        updated_count = mark_notifications_read(query)
 
         return {
             "success": True,
             "message": "Notifications marked as read.",
-            "updated_count": result.modified_count,
+            "updated_count": updated_count,
         }
+
     except PyMongoError as exc:
-        logger.exception("Unable to mark customer notifications as read.")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to update notifications.",
-        ) from exc
+        handle_database_error(
+            "Unable to mark customer notifications as read.",
+            exc,
+        )
 
 
 @router.patch("/{notification_id}/read")
@@ -229,7 +245,7 @@ def mark_customer_notification_as_read(
             {
                 "$set": {
                     "is_read": True,
-                    "read_at": datetime.now(timezone.utc),
+                    "read_at": datetime.now(UTC),
                 }
             },
         )
@@ -244,53 +260,64 @@ def mark_customer_notification_as_read(
             "success": True,
             "message": "Notification marked as read.",
         }
+
     except HTTPException:
         raise
+
     except PyMongoError as exc:
-        logger.exception("Unable to mark customer notification as read.")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to update notification.",
-        ) from exc
+        handle_database_error(
+            "Unable to mark customer notification as read.",
+            exc,
+        )
+
+
+# -------------------- OWNER AND ADMIN NOTIFICATIONS --------------------
+
+
+@router.get("/owner")
+@router.get("/admin")
+def get_staff_notifications(
+    _: dict = Depends(require_owner_or_admin),
+):
+    try:
+        return list_notifications(
+            recipient_query("owner"),
+            "owner",
+        )
+
+    except PyMongoError as exc:
+        handle_database_error(
+            "Unable to retrieve staff notifications.",
+            exc,
+        )
 
 
 @router.patch("/owner/read-all")
-def mark_all_owner_notifications_as_read(
-    _: dict = Depends(require_owner),
+@router.patch("/admin/read-all")
+def mark_all_staff_notifications_as_read(
+    _: dict = Depends(require_owner_or_admin),
 ):
     try:
-        result = notifications_collection.update_many(
-            {
-                "$and": [
-                    recipient_query("owner"),
-                    {"is_read": {"$ne": True}},
-                ]
-            },
-            {
-                "$set": {
-                    "is_read": True,
-                    "read_at": datetime.now(timezone.utc),
-                }
-            },
-        )
+        updated_count = mark_notifications_read(recipient_query("owner"))
 
         return {
             "success": True,
-            "message": "Owner notifications marked as read.",
-            "updated_count": result.modified_count,
+            "message": "Staff notifications marked as read.",
+            "updated_count": updated_count,
         }
+
     except PyMongoError as exc:
-        logger.exception("Unable to mark owner notifications as read.")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to update owner notifications.",
-        ) from exc
+        handle_database_error(
+            "Unable to mark staff notifications as read.",
+            exc,
+        )
 
 
 @router.patch("/owner/{notification_id}/read")
-def mark_owner_notification_as_read(
+@router.patch("/admin/{notification_id}/read")
+def mark_staff_notification_as_read(
     notification_id: str,
-    _: dict = Depends(require_owner),
+    _: dict = Depends(require_owner_or_admin),
 ):
     if not ObjectId.is_valid(notification_id):
         raise HTTPException(
@@ -302,12 +329,14 @@ def mark_owner_notification_as_read(
         result = notifications_collection.update_one(
             {
                 "_id": ObjectId(notification_id),
-                "$and": [recipient_query("owner")],
+                "$and": [
+                    recipient_query("owner"),
+                ],
             },
             {
                 "$set": {
                     "is_read": True,
-                    "read_at": datetime.now(timezone.utc),
+                    "read_at": datetime.now(UTC),
                 }
             },
         )
@@ -320,13 +349,14 @@ def mark_owner_notification_as_read(
 
         return {
             "success": True,
-            "message": "Owner notification marked as read.",
+            "message": "Staff notification marked as read.",
         }
+
     except HTTPException:
         raise
+
     except PyMongoError as exc:
-        logger.exception("Unable to mark owner notification as read.")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to update notification.",
-        ) from exc
+        handle_database_error(
+            "Unable to mark staff notification as read.",
+            exc,
+        )
