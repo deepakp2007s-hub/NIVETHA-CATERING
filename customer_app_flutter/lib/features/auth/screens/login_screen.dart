@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/routing/app_router.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -30,7 +30,11 @@ class _LoginScreenState extends State<LoginScreen> {
     final success = await auth.login(_email.text, _password.text);
     if (!mounted) return;
     if (success) {
-      context.go('/home');
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRouter.home,
+        (route) => false,
+      );
     } else {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -110,7 +114,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
                     TextButton(
-                      onPressed: () => context.push('/register'),
+                      onPressed: () =>
+                          Navigator.pushNamed(context, AppRouter.register),
                       child: const Text('New to Nivetha? Create an account'),
                     ),
                   ],

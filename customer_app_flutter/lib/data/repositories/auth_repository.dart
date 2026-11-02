@@ -1,53 +1,50 @@
-import '../../core/storage/secure_storage.dart';
-import '../../data/models/customer_model.dart';
-import '../../features/auth/services/auth_service.dart';
+import '../models/user_model.dart';
+import '../../core/config/api_config.dart';
+import 'package:dio/dio.dart';
 
 class AuthRepository {
-  AuthRepository({required this._service, required this._storage});
+  final Dio _dio;
 
-  final AuthService _service;
-  final SecureStorage _storage;
+  AuthRepository(this._dio);
 
-  Future<bool> hasToken() async {
-    final token = await _storage.readToken();
-    return token != null && token.isNotEmpty;
-  }
-
-  Future<Customer> login(String email, String password) =>
-      _authenticate(() => _service.login(email: email, password: password));
-
-  Future<Customer> register({
-    required String name,
-    required String email,
-    required String phone,
-    required String password,
-  }) =>
-      _authenticate(() => _service.register(
-            name: name,
-            email: email,
-            phone: phone,
-            password: password,
-          ));
-
-  Future<Customer> loadProfile() async {
-    final response = await _service.getProfile();
-    final value = response['customer'];
-    if (value is! Map) throw Exception('Customer profile is missing.');
-    return Customer.fromJson(Map<String, dynamic>.from(value));
-  }
-
-  Future<void> logout() => _storage.clearToken();
-
-  Future<Customer> _authenticate(
-    Future<Map<String, dynamic>> Function() request,
-  ) async {
-    final response = await request();
-    final token = response['access_token'];
-    final customer = response['customer'];
-    if (token is! String || token.isEmpty || customer is! Map) {
-      throw Exception('The authentication response was incomplete.');
+  Future<UserModel> login(String email, String password) async {
+    try {
+      final response = await _dio.post(
+        ApiConfig.login,
+        data: {'email': email, 'password': password},
+      );
+      return UserModel.fromJson(response.data['data'] ?? response.data);
+    } catch (e) {
+      throw Exception('Failed to login: ${e.toString()}');
     }
-    await _storage.saveToken(token);
-    return Customer.fromJson(Map<String, dynamic>.from(customer));
+  }
+
+  Future<UserModel> register(String name, String email, String phone, String password) async {
+    try {
+      final response = await _dio.post(
+        ApiConfig.register,
+        data: {
+          'name': name,
+          'email': email,
+          'phone': phone,
+          'password': password,
+        },
+      );
+      return UserModel.fromJson(response.data['data'] ?? response.data);
+    } catch (e) {
+      throw Exception('Failed to register: ${e.toString()}');
+    }
+  }
+
+  Future<bool> verifyOtp(String email, String otp) async {
+    try {
+      final response = await _dio.post(
+        ApiConfig.verifyOtp,
+        data: {'email': email, 'otp': otp},
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      throw Exception('Failed to verify OTP: ${e.toString()}');
+    }
   }
 }

@@ -1,3 +1,4 @@
+import html
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -37,12 +38,10 @@ class ReviewRequest(BaseModel):
     @field_validator("comment")
     @classmethod
     def validate_comment(cls, value: str) -> str:
-        value = value.strip()
-
-        if len(value) < 3:
-            raise ValueError("Comment must contain at least 3 characters.")
-
-        return value
+        cleaned = html.escape(value.strip())
+        if len(cleaned) < 3:
+            raise ValueError("Comment must contain at least 3 valid characters.")
+        return cleaned
 
 
 # -------------------- AUTHENTICATION --------------------
@@ -62,7 +61,7 @@ def get_customer_id(
         payload = decode_access_token(credentials.credentials)
 
         if not isinstance(payload, dict):
-            raise ValueError("Invalid token payload.")
+            raise ValueError("Invalid token payload structure.")
 
         if payload.get("role") != "customer":
             raise HTTPException(
@@ -114,12 +113,47 @@ def serialize_review(review: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-# -------------------- CREATE REVIEW --------------------
+# -------------------- ENDPOINTS --------------------
+
+
+@router.get("/", summary="Public - Get all customer reviews")
+def get_public_reviews(
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
+):
+    try:
+        total = reviews_collection.count_documents({})
+
+        items = list(
+            reviews_collection.find()
+            .sort("created_at", -1)
+            .skip((page - 1) * limit)
+            .limit(limit)
+        )
+
+        return {
+            "success": True,
+            "count": len(items),
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total + limit - 1) // limit if limit > 0 else 1,
+            "reviews": [serialize_review(item) for item in items],
+        }
+
+    except PyMongoError as exc:
+        logger.exception("MongoDB error while retrieving public reviews.")
+
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to retrieve reviews right now. Please try again later.",
+        ) from exc
 
 
 @router.post(
     "/",
     status_code=status.HTTP_201_CREATED,
+    summary="Customer - Submit a new review",
 )
 def create_review(
     data: ReviewRequest,
@@ -168,10 +202,7 @@ def create_review(
         ) from exc
 
 
-# -------------------- CUSTOMER REVIEW HISTORY --------------------
-
-
-@router.get("/my-reviews")
+@router.get("/my-reviews", summary="Customer - Get personal submitted reviews")
 def get_my_reviews(
     customer_id: str = Depends(get_customer_id),
     page: int = Query(default=1, ge=1),
@@ -195,7 +226,7 @@ def get_my_reviews(
             "total": total,
             "page": page,
             "limit": limit,
-            "total_pages": (total + limit - 1) // limit,
+            "total_pages": (total + limit - 1) // limit if limit > 0 else 1,
             "reviews": [serialize_review(item) for item in items],
         }
 

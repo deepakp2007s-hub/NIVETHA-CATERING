@@ -1,41 +1,56 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 
-import '../../features/auth/providers/auth_provider.dart';
-import '../../features/auth/screens/login_screen.dart';
-import '../../features/auth/screens/register_screen.dart';
-import '../../features/home/screens/home_screen.dart';
-import '../../features/splash/screens/splash_screen.dart';
+class AppRouter {
+  // Route names
+  static const String splash = '/';
+  static const String login = '/login';
+  static const String register = '/register';
+  static const String mainNav = '/main-nav';
+  static const String menuDetail = '/menu-detail';
+  static const String bookingCreate = '/booking-create';
+  static const String bookingDetail = '/booking-detail';
+  static const String profileEdit = '/profile-edit';
+  static const String addressList = '/address-list';
 
-GoRouter createAppRouter(AuthProvider auth) => GoRouter(
-      initialLocation: '/splash',
-      refreshListenable: auth,
-      redirect: (context, state) {
-        final path = state.matchedLocation;
-        if (auth.isInitializing) return path == '/splash' ? null : '/splash';
-        if (!auth.isAuthenticated) {
-          return path == '/register' ? null : (path == '/login' ? null : '/login');
-        }
-        if (path == '/splash' || path == '/login' || path == '/register') {
-          return '/home';
-        }
-        return null;
-      },
-      routes: [
-        GoRoute(path: '/splash', builder: (_, _) => const SplashScreen()),
-        GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
-        GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
-        GoRoute(
-          path: '/home',
-          builder: (_, _) => const HomeScreen(),
-        ),
-      ],
-      errorBuilder: (context, state) => Scaffold(
-        body: Center(child: Text(state.error?.toString() ?? 'Page not found')),
-      ),
-    );
-
-extension AuthNavigation on BuildContext {
-  AuthProvider get auth => read<AuthProvider>();
+  static Route<dynamic> generateRoute(RouteSettings settings) {
+    switch (settings.name) {
+      case splash:
+        return MaterialPageRoute(
+          builder: (_) => const Scaffold(
+            body: Center(child: Text('Splash Screen')),
+          ),
+          settings: settings,
+        );
+      case login:
+        return MaterialPageRoute(
+          builder: (_) => const Scaffold(
+            body: Center(child: Text('Login Screen')),
+          ),
+          settings: settings,
+        );
+      case register:
+        return MaterialPageRoute(
+          builder: (_) => const Scaffold(
+            body: Center(child: Text('Register Screen')),
+          ),
+          settings: settings,
+        );
+      case mainNav:
+        return MaterialPageRoute(
+          builder: (_) => const Scaffold(
+            body: Center(child: Text('Main Navigation Screen')),
+          ),
+          settings: settings,
+        );
+      default:
+        return MaterialPageRoute(
+          builder: (_) => Scaffold(
+            body: Center(
+              child: Text('No route defined for ${settings.name}'),
+            ),
+          ),
+          settings: settings,
+        );
+    }
+  }
 }

@@ -1,4 +1,3 @@
-
 import hashlib
 import logging
 from datetime import UTC, datetime
@@ -152,9 +151,7 @@ def enforce_login_rate_limit(
         ) from exc
 
     if result["attempts"] > max_attempts:
-        remaining = window_seconds - (
-            int(now.timestamp()) % window_seconds
-        )
+        remaining = window_seconds - (int(now.timestamp()) % window_seconds)
 
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,

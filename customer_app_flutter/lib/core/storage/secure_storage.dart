@@ -1,13 +1,38 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class SecureStorage {
-  SecureStorage(this._storage);
+  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  
+  static const String _tokenKey = 'jwt_token';
+  static const String _userKey = 'user_data';
 
-  static const _tokenKey = 'nivetha_customer_access_token';
-  final FlutterSecureStorage _storage;
+  // Save JWT Token
+  static Future<void> saveToken(String token) async {
+    await _storage.write(key: _tokenKey, value: token);
+  }
 
-  Future<String?> readToken() => _storage.read(key: _tokenKey);
-  Future<void> saveToken(String token) =>
-      _storage.write(key: _tokenKey, value: token);
-  Future<void> clearToken() => _storage.delete(key: _tokenKey);
+  // Retrieve JWT Token
+  static Future<String?> getToken() async {
+    return await _storage.read(key: _tokenKey);
+  }
+
+  // Delete JWT Token
+  static Future<void> clearToken() async {
+    await _storage.delete(key: _tokenKey);
+  }
+
+  // Save User Data (JSON string or encoded data)
+  static Future<void> saveUserData(String userData) async {
+    await _storage.write(key: _userKey, value: userData);
+  }
+
+  // Retrieve User Data
+  static Future<String?> getUserData() async {
+    return await _storage.read(key: _userKey);
+  }
+
+  // Clear All Stored Data (Logout)
+  static Future<void> clearAll() async {
+    await _storage.deleteAll();
+  }
 }

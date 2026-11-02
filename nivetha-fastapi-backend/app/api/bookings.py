@@ -1,10 +1,11 @@
+import html
 import logging
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 
 import jwt
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pymongo.errors import PyMongoError
@@ -27,7 +28,7 @@ notifications = customer_db["notifications"]
 
 
 # =====================================================
-# REQUEST MODELS
+# REQUEST SCHEMAS & SANITIZATION
 # =====================================================
 
 
@@ -73,18 +74,16 @@ class BookingCreate(BaseModel):
 
     @field_validator("event_time", "location")
     @classmethod
-    def validate_required_text(cls, value: str) -> str:
-        value = value.strip()
-
-        if not value:
+    def validate_and_sanitize_text(cls, value: str) -> str:
+        cleaned = html.escape(value.strip())
+        if not cleaned:
             raise ValueError("This field cannot be empty.")
-
-        return value
+        return cleaned
 
     @field_validator("special_requirements")
     @classmethod
     def clean_requirements(cls, value: str) -> str:
-        return value.strip()
+        return html.escape(value.strip())
 
 
 class BookingStatusUpdate(BaseModel):
@@ -98,7 +97,7 @@ class BookingStatusUpdate(BaseModel):
 
 
 # =====================================================
-# AUTHENTICATION
+# AUTHENTICATION & AUTHORIZATION DEPENDENCIES
 # =====================================================
 
 
@@ -116,7 +115,7 @@ def get_token_payload(
         payload = decode_access_token(credentials.credentials)
 
         if not isinstance(payload, dict):
-            raise ValueError("Invalid token payload.")
+            raise ValueError("Invalid token payload structure.")
 
         return payload
 
@@ -179,16 +178,11 @@ def require_owner_or_admin(
 
 
 # =====================================================
-# BOOKING HELPERS
+# HELPER FUNCTIONS
 # =====================================================
 
 
 def booking_lookup_query(booking_id: str) -> dict:
-    """
-    Accept MongoDB ObjectId or display ID
-    such as NIV-12ABCDEF.
-    """
-
     booking_id = booking_id.strip()
 
     if ObjectId.is_valid(booking_id):
@@ -203,36 +197,21 @@ def serialize_booking(booking: dict) -> dict:
 
     return {
         "id": str(booking["_id"]),
-        "booking_id": booking.get(
-            "booking_id",
-            str(booking["_id"]),
-        ),
+        "booking_id": booking.get("booking_id", str(booking["_id"])),
         "customer_id": str(booking.get("customer_id", "")),
-        "customer_name": booking.get(
-            "customer_name",
-            "",
-        ),
-        "customer_phone": booking.get(
-            "customer_phone",
-            "",
-        ),
-        "customer_email": booking.get(
-            "customer_email",
-            "",
-        ),
+        "customer_name": booking.get("customer_name", ""),
+        "customer_phone": booking.get("customer_phone", ""),
+        "customer_email": booking.get("customer_email", ""),
         "function_type": booking.get("function_type"),
         "event_date": serialize_datetime(booking.get("event_date")),
         "event_time": booking.get("event_time"),
         "location": booking.get("location"),
         "persons_count": booking.get("persons_count"),
-        "cooking_service": booking.get("cooking_service"),
-        "serving_staff_required": booking.get("serving_staff_required"),
-        "meal_type": booking.get("meal_type"),
-        "food_preference": booking.get("food_preference"),
-        "special_requirements": booking.get(
-            "special_requirements",
-            "",
-        ),
+        "cooking_service": booking.get("cooking_service", True),
+        "serving_staff_required": booking.get("serving_staff_required", False),
+        "meal_type": booking.get("meal_type", "Lunch"),
+        "food_preference": booking.get("food_preference", "Veg"),
+        "special_requirements": booking.get("special_requirements", ""),
         "status": booking.get("status", "pending"),
         "created_at": serialize_datetime(booking.get("created_at")),
         "updated_at": serialize_datetime(booking.get("updated_at")),
@@ -253,10 +232,7 @@ def create_notification(
             "title": title,
             "message": message,
             "type": "booking",
-            "booking_id": booking.get(
-                "booking_id",
-                str(booking["_id"]),
-            ),
+            "booking_id": booking.get("booking_id", str(booking["_id"])),
             "booking_object_id": str(booking["_id"]),
             "is_read": False,
             "created_at": datetime.now(UTC),
@@ -265,54 +241,58 @@ def create_notification(
 
 
 def notify_safely(**kwargs) -> None:
-    """
-    Log notification errors without undoing
-    a successfully saved booking.
-    """
-
     try:
         create_notification(**kwargs)
-
     except PyMongoError:
-        logger.exception("Booking/status saved, but notification creation failed.")
+        logger.exception("Booking action saved, but notification logging failed.")
 
 
 def status_filter_for_existing_record(item: dict) -> dict:
-    """Build a conditional filter compatible with older bookings."""
-
     if "status" not in item:
         return {"status": {"$exists": False}}
-
     return {"status": item["status"]}
 
 
 # =====================================================
-# CREATE CUSTOMER BOOKING
+# ENDPOINTS
 # =====================================================
 
 
-@router.post(
-    "/",
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 def create_booking(
     data: BookingCreate,
     customer_id: str = Depends(get_customer_id),
 ):
-    if data.event_date < date.today():
+    # Security Check 1: Date Range Sanity
+    today = date.today()
+    max_allowed_date = today + timedelta(days=730)  # Max 2 years in advance
+
+    if data.event_date < today:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Event date cannot be in the past.",
         )
 
+    if data.event_date > max_allowed_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Bookings cannot be scheduled more than 2 years in advance.",
+        )
+
     try:
+        # Security Check 2: Rate Limiting / Spam Protection (Max 5 active pending requests per user)
+        pending_count = bookings.count_documents(
+            {"customer_id": customer_id, "status": "pending"}
+        )
+        if pending_count >= 5:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="You have 5 pending booking requests. Please wait for confirmation before adding more.",
+            )
+
         customer = customers.find_one(
             {"_id": ObjectId(customer_id)},
-            {
-                "name": 1,
-                "phone": 1,
-                "email": 1,
-            },
+            {"name": 1, "phone": 1, "email": 1},
         )
 
         if customer is None:
@@ -322,9 +302,7 @@ def create_booking(
             )
 
         now = datetime.now(UTC)
-
         mongo_id = ObjectId()
-
         display_booking_id = f"NIV-{str(mongo_id)[-8:].upper()}"
 
         booking = {
@@ -362,10 +340,7 @@ def create_booking(
             booking=booking,
         )
 
-        logger.info(
-            "Booking created successfully: %s",
-            display_booking_id,
-        )
+        logger.info("Booking created successfully: %s", display_booking_id)
 
         return {
             "success": True,
@@ -375,78 +350,72 @@ def create_booking(
 
     except HTTPException:
         raise
-
     except PyMongoError as exc:
         logger.exception("Unable to create booking.")
-
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to create booking right now.",
         ) from exc
 
 
-# =====================================================
-# CUSTOMER BOOKINGS
-# =====================================================
-
-
 @router.get("/my-bookings")
 def get_my_bookings(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     customer_id: str = Depends(get_customer_id),
 ):
     try:
+        total = bookings.count_documents({"customer_id": customer_id})
         items = list(
             bookings.find({"customer_id": customer_id})
             .sort("created_at", -1)
-            .limit(500)
+            .skip(skip)
+            .limit(limit)
         )
 
         return {
             "success": True,
+            "total": total,
             "count": len(items),
             "bookings": [serialize_booking(item) for item in items],
         }
 
     except PyMongoError as exc:
         logger.exception("Unable to retrieve customer bookings.")
-
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to retrieve bookings.",
         ) from exc
 
 
-# =====================================================
-# OWNER / ADMIN: GET ALL BOOKINGS
-# Keep static routes before /{booking_id}
-# =====================================================
-
-
 @router.get("/owner/all")
 def get_all_bookings(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     _: dict = Depends(require_owner_or_admin),
 ):
     try:
-        items = list(bookings.find().sort("created_at", -1).limit(1000))
+        total = bookings.count_documents({})
+        items = list(
+            bookings.find()
+            .sort("created_at", -1)
+            .skip(skip)
+            .limit(limit)
+        )
 
         return {
             "success": True,
+            "total": total,
             "count": len(items),
             "bookings": [serialize_booking(item) for item in items],
         }
 
     except PyMongoError as exc:
         logger.exception("Unable to retrieve staff bookings.")
-
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to retrieve bookings.",
         ) from exc
-
-
-# =====================================================
-# OWNER / ADMIN: GET BOOKING DETAILS
-# =====================================================
 
 
 @router.get("/owner/{booking_id}")
@@ -470,19 +439,12 @@ def get_owner_booking(
 
     except HTTPException:
         raise
-
     except PyMongoError as exc:
         logger.exception("Unable to retrieve staff booking.")
-
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to retrieve booking.",
         ) from exc
-
-
-# =====================================================
-# OWNER / ADMIN: UPDATE BOOKING STATUS
-# =====================================================
 
 
 @router.patch("/owner/{booking_id}/status")
@@ -503,31 +465,18 @@ def update_booking_status(
         current_status = str(item.get("status", "pending")).lower()
 
         allowed_transitions = {
-            "pending": {
-                "confirmed",
-                "rejected",
-            },
-            "confirmed": {
-                "completed",
-            },
+            "pending": {"confirmed", "rejected"},
+            "confirmed": {"completed"},
         }
 
-        if data.status not in allowed_transitions.get(
-            current_status,
-            set(),
-        ):
+        if data.status not in allowed_transitions.get(current_status, set()):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    f"Cannot change booking status from "
-                    f"'{current_status}' to '{data.status}'."
-                ),
+                detail=f"Cannot change booking status from '{current_status}' to '{data.status}'.",
             )
 
         now = datetime.now(UTC)
-
         conditional_query = {"_id": item["_id"]}
-
         conditional_query.update(status_filter_for_existing_record(item))
 
         result = bookings.update_one(
@@ -543,7 +492,7 @@ def update_booking_status(
         if result.modified_count == 0:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=("Booking status changed. Refresh and try again."),
+                detail="Booking status modified concurrently. Refresh and try again.",
             )
 
         item["status"] = data.status
@@ -553,19 +502,11 @@ def update_booking_status(
             recipient_role="customer",
             customer_id=str(item.get("customer_id", "")),
             title="Booking status updated",
-            message=(
-                f"Your booking "
-                f"{item.get('booking_id', str(item['_id']))} "
-                f"is now {data.status}."
-            ),
+            message=f"Your booking {item.get('booking_id', str(item['_id']))} is now {data.status}.",
             booking=item,
         )
 
-        logger.info(
-            "Booking %s status changed to %s",
-            booking_id,
-            data.status,
-        )
+        logger.info("Booking %s status changed to %s", booking_id, data.status)
 
         return {
             "success": True,
@@ -575,20 +516,12 @@ def update_booking_status(
 
     except HTTPException:
         raise
-
     except PyMongoError as exc:
         logger.exception("Unable to update booking status.")
-
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to update booking.",
         ) from exc
-
-
-# =====================================================
-# CUSTOMER: GET SINGLE BOOKING
-# Dynamic route comes after static owner routes.
-# =====================================================
 
 
 @router.get("/{booking_id}")
@@ -598,8 +531,7 @@ def get_booking(
 ):
     try:
         query = booking_lookup_query(booking_id)
-
-        query["customer_id"] = customer_id
+        query["customer_id"] = customer_id  # Enforce IDOR protection
 
         item = bookings.find_one(query)
 
@@ -616,19 +548,12 @@ def get_booking(
 
     except HTTPException:
         raise
-
     except PyMongoError as exc:
         logger.exception("Unable to retrieve customer booking.")
-
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to retrieve booking.",
         ) from exc
-
-
-# =====================================================
-# CUSTOMER: CANCEL BOOKING
-# =====================================================
 
 
 @router.patch("/{booking_id}/cancel")
@@ -638,8 +563,7 @@ def cancel_booking(
 ):
     try:
         query = booking_lookup_query(booking_id)
-
-        query["customer_id"] = customer_id
+        query["customer_id"] = customer_id  # Enforce IDOR protection
 
         item = bookings.find_one(query)
 
@@ -654,11 +578,10 @@ def cancel_booking(
         if current_status != "pending":
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=("Only pending bookings can be cancelled directly."),
+                detail="Only pending bookings can be cancelled directly.",
             )
 
         conditional_query = {"_id": item["_id"]}
-
         conditional_query.update(status_filter_for_existing_record(item))
 
         now = datetime.now(UTC)
@@ -676,7 +599,7 @@ def cancel_booking(
         if result.modified_count == 0:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=("Booking status changed. Refresh and try again."),
+                detail="Booking status changed. Refresh and try again.",
             )
 
         item["status"] = "cancelled"
@@ -685,11 +608,7 @@ def cancel_booking(
         notify_safely(
             recipient_role="owner",
             title="Booking cancelled",
-            message=(
-                f"Booking "
-                f"{item.get('booking_id', str(item['_id']))} "
-                "was cancelled by the customer."
-            ),
+            message=f"Booking {item.get('booking_id', str(item['_id']))} was cancelled by the customer.",
             booking=item,
         )
 
@@ -701,10 +620,8 @@ def cancel_booking(
 
     except HTTPException:
         raise
-
     except PyMongoError as exc:
         logger.exception("Unable to cancel booking.")
-
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to cancel booking.",

@@ -1,32 +1,22 @@
 class ApiConfig {
-  ApiConfig._();
+  static const String baseUrl = 'https://nivetha-fastapi-backend.onrender.com/api/v1';
 
-  static const String baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'https://nivetha-fastapi-backend.onrender.com/api/v1',
-  );
+  // Auth Endpoints
+  static const String login = '/auth/login';
+  static const String register = '/auth/register';
+  static const String verifyOtp = '/auth/verify-otp';
 
-  static String get normalizedBaseUrl {
-    final uri = Uri.tryParse(baseUrl.trim());
-    if (uri == null || !uri.hasAuthority || uri.host.isEmpty) {
-      throw const ApiConfigurationException('API_BASE_URL is invalid.');
-    }
+  // Catalog & Food Endpoints
+  static const String categories = '/categories';
+  static const String foods = '/foods';
+  static const String foodDetails = '/foods/';
+  static const String favorites = '/favorites';
 
-    final localHost = const {'localhost', '127.0.0.1', '10.0.2.2'}
-        .contains(uri.host);
-    if (uri.scheme != 'https' && !(uri.scheme == 'http' && localHost)) {
-      throw const ApiConfigurationException(
-        'API_BASE_URL must use HTTPS except for local development.',
-      );
-    }
-    return baseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
-  }
-}
+  // Booking Endpoints
+  static const String bookings = '/bookings';
 
-class ApiConfigurationException implements Exception {
-  const ApiConfigurationException(this.message);
-  final String message;
-
-  @override
-  String toString() => message;
+  // Profile & Address Endpoints
+  static const String profile = '/customer/profile';
+  static const String addresses = '/customer/addresses';
+  static const String notifications = '/notifications';
 }

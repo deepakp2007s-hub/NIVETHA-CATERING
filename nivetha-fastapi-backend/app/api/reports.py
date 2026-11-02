@@ -1,10 +1,10 @@
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import jwt
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pymongo.errors import PyMongoError
 
@@ -40,7 +40,7 @@ def get_authenticated_payload(
         payload = decode_access_token(credentials.credentials)
 
         if not isinstance(payload, dict):
-            raise ValueError("Invalid token payload.")
+            raise ValueError("Invalid token payload structure.")
 
         return payload
 
@@ -53,7 +53,7 @@ def get_authenticated_payload(
 
 
 def get_customer_id(
-    payload: dict = Depends(get_authenticated_payload),
+    payload: dict[str, Any] = Depends(get_authenticated_payload),
 ) -> str:
     if payload.get("role") != "customer":
         raise HTTPException(
@@ -73,8 +73,8 @@ def get_customer_id(
 
 
 def require_owner_or_admin(
-    payload: dict = Depends(get_authenticated_payload),
-) -> dict:
+    payload: dict[str, Any] = Depends(get_authenticated_payload),
+) -> dict[str, Any]:
     role = payload.get("role")
     subject = payload.get("sub")
 
@@ -90,22 +90,19 @@ def require_owner_or_admin(
 # -------------------- REPORT HELPERS --------------------
 
 
-def serialize_report_booking(booking: dict) -> dict:
+def serialize_report_booking(booking: dict[str, Any]) -> dict[str, Any]:
     created_at = booking.get("created_at")
     event_date = booking.get("event_date")
 
-    if isinstance(created_at, datetime):
+    if isinstance(created_at, (datetime, date)):
         created_at = created_at.isoformat()
 
-    if isinstance(event_date, (datetime,)) or hasattr(event_date, "isoformat"):
+    if isinstance(event_date, (datetime, date)):
         event_date = event_date.isoformat()
 
     return {
         "id": str(booking["_id"]),
-        "booking_id": booking.get(
-            "booking_id",
-            str(booking["_id"]),
-        ),
+        "booking_id": booking.get("booking_id", str(booking["_id"])),
         "customer_id": booking.get("customer_id"),
         "function_type": booking.get(
             "function_type",
@@ -118,16 +115,30 @@ def serialize_report_booking(booking: dict) -> dict:
     }
 
 
-def build_status_summary(items: list[dict]) -> dict:
+def generate_report(
+    query: dict[str, Any],
+    include_customer: bool = False,
+    skip: int = 0,
+    limit: int = 50,
+) -> dict[str, Any]:
+    # Aggregation Pipeline for global status counters
+    status_counts_raw = list(
+        bookings_collection.aggregate([
+            {"$match": query},
+            {"$group": {"_id": "$status", "count": {"$sum": 1}}},
+        ])
+    )
+
     status_counts: dict[str, int] = {}
+    total_bookings = 0
+    for item in status_counts_raw:
+        st = str(item["_id"]).lower() if item.get("_id") else "pending"
+        cnt = item["count"]
+        status_counts[st] = cnt
+        total_bookings += cnt
 
-    for booking in items:
-        booking_status = str(booking.get("status", "pending")).lower()
-
-        status_counts[booking_status] = status_counts.get(booking_status, 0) + 1
-
-    return {
-        "total_bookings": len(items),
+    summary = {
+        "total_bookings": total_bookings,
         "pending_bookings": status_counts.get("pending", 0),
         "confirmed_bookings": status_counts.get("confirmed", 0),
         "completed_bookings": status_counts.get("completed", 0),
@@ -136,8 +147,6 @@ def build_status_summary(items: list[dict]) -> dict:
         "status_counts": status_counts,
     }
 
-
-def generate_report(query: dict, include_customer: bool = False) -> dict:
     projection = {
         "booking_id": 1,
         "customer_id": 1,
@@ -150,10 +159,11 @@ def generate_report(query: dict, include_customer: bool = False) -> dict:
     }
 
     items = list(
-        bookings_collection.find(query, projection).sort("created_at", -1).limit(500)
+        bookings_collection.find(query, projection)
+        .sort("created_at", -1)
+        .skip(skip)
+        .limit(limit)
     )
-
-    summary = build_status_summary(items)
 
     bookings = [serialize_report_booking(booking) for booking in items]
 
@@ -165,49 +175,77 @@ def generate_report(query: dict, include_customer: bool = False) -> dict:
         "success": True,
         "report_generated_at": datetime.now(UTC).isoformat(),
         "summary": summary,
+        "count": len(bookings),
         "bookings": bookings,
     }
 
 
-# -------------------- CUSTOMER REPORT --------------------
+# -------------------- ENDPOINTS --------------------
 
 
 @router.get("/my-bookings")
 def get_my_booking_report(
+    start_date: date | None = Query(None, description="Filter from event date"),
+    end_date: date | None = Query(None, description="Filter to event date"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     customer_id: str = Depends(get_customer_id),
 ):
     try:
+        query: dict[str, Any] = {"customer_id": customer_id}
+
+        if start_date or end_date:
+            date_filter = {}
+            if start_date:
+                date_filter["$gte"] = start_date.isoformat()
+            if end_date:
+                date_filter["$lte"] = end_date.isoformat()
+            query["event_date"] = date_filter
+
         return generate_report(
-            {"customer_id": customer_id},
+            query=query,
             include_customer=False,
+            skip=skip,
+            limit=limit,
         )
 
     except PyMongoError as exc:
         logger.exception("Unable to generate customer booking report.")
-
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to generate the booking report right now.",
         ) from exc
 
 
-# -------------------- OWNER / ADMIN REPORT --------------------
-
-
 @router.get("/owner/summary")
 @router.get("/admin/summary")
 def get_staff_booking_report(
+    start_date: date | None = Query(None, description="Filter from event date"),
+    end_date: date | None = Query(None, description="Filter to event date"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     _: dict = Depends(require_owner_or_admin),
 ):
     try:
+        query: dict[str, Any] = {}
+
+        if start_date or end_date:
+            date_filter = {}
+            if start_date:
+                date_filter["$gte"] = start_date.isoformat()
+            if end_date:
+                date_filter["$lte"] = end_date.isoformat()
+            query["event_date"] = date_filter
+
         return generate_report(
-            {},
+            query=query,
             include_customer=True,
+            skip=skip,
+            limit=limit,
         )
 
     except PyMongoError as exc:
         logger.exception("Unable to generate staff booking report.")
-
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to generate the booking report right now.",

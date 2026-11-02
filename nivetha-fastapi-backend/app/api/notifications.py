@@ -4,7 +4,7 @@ from typing import Any
 
 import jwt
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pymongo.errors import PyMongoError
 
@@ -36,7 +36,7 @@ def get_token_payload(
         payload = decode_access_token(credentials.credentials)
 
         if not isinstance(payload, dict):
-            raise ValueError("Invalid token payload.")
+            raise ValueError("Invalid token payload structure.")
 
         return payload
 
@@ -131,12 +131,19 @@ def serialize_notification(item: dict) -> dict:
     }
 
 
-def list_notifications(query: dict, recipient_type: str) -> dict:
-    items = list(notifications_collection.find(query).sort("created_at", -1).limit(100))
+def list_notifications(query: dict, recipient_type: str, skip: int = 0, limit: int = 50) -> dict:
+    total = notifications_collection.count_documents(query)
+    items = list(
+        notifications_collection.find(query)
+        .sort("created_at", -1)
+        .skip(skip)
+        .limit(limit)
+    )
 
     return {
         "success": True,
         "recipient_type": recipient_type,
+        "total": total,
         "count": len(items),
         "unread_count": sum(1 for item in items if not item.get("is_read", False)),
         "notifications": [serialize_notification(item) for item in items],
@@ -164,7 +171,6 @@ def mark_notifications_read(query: dict) -> int:
 
 def handle_database_error(message: str, exc: PyMongoError) -> None:
     logger.exception(message)
-
     raise HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail="Notification service is temporarily unavailable.",
@@ -176,6 +182,8 @@ def handle_database_error(message: str, exc: PyMongoError) -> None:
 
 @router.get("/")
 def get_my_notifications(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     customer_id: str = Depends(get_customer_id),
 ):
     try:
@@ -186,7 +194,7 @@ def get_my_notifications(
             ]
         }
 
-        return list_notifications(query, "customer")
+        return list_notifications(query, "customer", skip=skip, limit=limit)
 
     except PyMongoError as exc:
         handle_database_error(
@@ -230,7 +238,7 @@ def mark_customer_notification_as_read(
     if not ObjectId.is_valid(notification_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid notification ID.",
+            detail="Invalid notification ID format.",
         )
 
     try:
@@ -271,18 +279,50 @@ def mark_customer_notification_as_read(
         )
 
 
+@router.delete("/")
+def clear_all_customer_notifications(
+    customer_id: str = Depends(get_customer_id),
+):
+    """Bridge for Flutter NotificationRepository.clearAll()"""
+    try:
+        query = {
+            "$and": [
+                recipient_query("customer"),
+                {"customer_id": customer_id},
+            ]
+        }
+
+        result = notifications_collection.delete_many(query)
+
+        return {
+            "success": True,
+            "message": "All notifications cleared.",
+            "deleted_count": result.deleted_count,
+        }
+
+    except PyMongoError as exc:
+        handle_database_error(
+            "Unable to clear customer notifications.",
+            exc,
+        )
+
+
 # -------------------- OWNER AND ADMIN NOTIFICATIONS --------------------
 
 
 @router.get("/owner")
 @router.get("/admin")
 def get_staff_notifications(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     _: dict = Depends(require_owner_or_admin),
 ):
     try:
         return list_notifications(
             recipient_query("owner"),
             "owner",
+            skip=skip,
+            limit=limit,
         )
 
     except PyMongoError as exc:
@@ -322,7 +362,7 @@ def mark_staff_notification_as_read(
     if not ObjectId.is_valid(notification_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid notification ID.",
+            detail="Invalid notification ID format.",
         )
 
     try:

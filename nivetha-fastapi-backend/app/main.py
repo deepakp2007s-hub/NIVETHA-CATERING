@@ -1,8 +1,11 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.concurrency import run_in_threadpool
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pymongo.errors import PyMongoError
 
 from app.api.auth import router as auth_router
@@ -29,13 +32,13 @@ API_PREFIX = "/api/v1"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize MongoDB and application indexes."""
-
+    """Initialize MongoDB connection and application indexes off-thread."""
     try:
-        check_mongodb()
-        create_customer_indexes()
-        create_application_indexes()
-        create_login_rate_limit_index()
+        # Run blocking PyMongo checks & index creations in threadpool
+        await run_in_threadpool(check_mongodb)
+        await run_in_threadpool(create_customer_indexes)
+        await run_in_threadpool(create_application_indexes)
+        await run_in_threadpool(create_login_rate_limit_index)
 
         logger.info("MongoDB connected and application indexes initialized.")
 
@@ -46,7 +49,7 @@ async def lifespan(app: FastAPI):
         raise
 
     finally:
-        close_mongodb()
+        await run_in_threadpool(close_mongodb)
         logger.info("MongoDB client closed.")
 
 
@@ -57,7 +60,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -68,7 +71,34 @@ app.add_middleware(
     max_age=600,
 )
 
+# Exception Handler to maintain consistent payload format for Flutter Dio Client
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request: Request, exc: HTTPException):
+    detail = exc.detail
+    message = detail if isinstance(detail, str) else detail.get("message", "An error occurred")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "message": message,
+        },
+    )
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    first_error = errors[0]["msg"] if errors else "Invalid input payload"
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "success": False,
+            "message": f"Validation Error: {first_error}",
+            "errors": errors,
+        },
+    )
+
+
+# Include API Routers
 app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(customers_router, prefix=API_PREFIX)
 app.include_router(profiles_router, prefix=API_PREFIX)
@@ -99,7 +129,6 @@ def health_check():
 def database_health_check():
     try:
         check_mongodb()
-
         return {
             "success": True,
             "message": "MongoDB connected",
@@ -107,7 +136,6 @@ def database_health_check():
 
     except PyMongoError as exc:
         logger.exception("MongoDB health check failed.")
-
         raise HTTPException(
             status_code=503,
             detail={
@@ -118,7 +146,6 @@ def database_health_check():
 
     except RuntimeError as exc:
         logger.exception("MongoDB configuration is unavailable.")
-
         raise HTTPException(
             status_code=503,
             detail={

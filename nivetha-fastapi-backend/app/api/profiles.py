@@ -1,5 +1,7 @@
+import html
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 import jwt
 from bson import ObjectId
@@ -49,12 +51,12 @@ class ProfileUpdate(BaseModel):
         if value is None:
             return None
 
-        value = value.strip()
+        cleaned = html.escape(value.strip())
 
-        if len(value) < 2:
-            raise ValueError("Name must contain at least 2 characters.")
+        if len(cleaned) < 2:
+            raise ValueError("Name must contain at least 2 valid characters.")
 
-        return value
+        return cleaned
 
     @field_validator("phone")
     @classmethod
@@ -62,12 +64,12 @@ class ProfileUpdate(BaseModel):
         if value is None:
             return None
 
-        value = value.strip()
+        cleaned = "".join(char for char in value if char not in " -()+")
 
-        if not value.isdigit() or not 10 <= len(value) <= 15:
-            raise ValueError("Enter a valid phone number using digits only.")
+        if not cleaned.isdigit() or not 10 <= len(cleaned) <= 15:
+            raise ValueError("Enter a valid phone number with 10 to 15 digits.")
 
-        return value
+        return cleaned
 
 
 # =====================================================
@@ -77,7 +79,7 @@ class ProfileUpdate(BaseModel):
 
 def get_token_payload(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-) -> dict:
+) -> dict[str, Any]:
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -89,7 +91,7 @@ def get_token_payload(
         payload = decode_access_token(credentials.credentials)
 
         if not isinstance(payload, dict):
-            raise ValueError("Invalid token payload.")
+            raise ValueError("Invalid token payload structure.")
 
         return payload
 
@@ -112,8 +114,8 @@ def get_token_payload(
 
 
 def get_current_customer(
-    payload: dict = Depends(get_token_payload),
-) -> dict:
+    payload: dict[str, Any] = Depends(get_token_payload),
+) -> dict[str, Any]:
     if payload.get("role") != "customer":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -130,7 +132,11 @@ def get_current_customer(
         )
 
     try:
-        customer = customers_collection.find_one({"_id": ObjectId(customer_id)})
+        # Projection: exclude password_hash for security
+        customer = customers_collection.find_one(
+            {"_id": ObjectId(customer_id)},
+            {"password_hash": 0},
+        )
 
         if customer is None:
             raise HTTPException(
@@ -158,8 +164,8 @@ def get_current_customer(
 
 
 def get_current_owner(
-    payload: dict = Depends(get_token_payload),
-) -> dict:
+    payload: dict[str, Any] = Depends(get_token_payload),
+) -> dict[str, Any]:
     role = payload.get("role")
 
     if role not in {"owner", "admin"}:
@@ -186,7 +192,7 @@ def get_current_owner(
 # =====================================================
 
 
-def serialize_customer(customer: dict) -> dict:
+def serialize_customer(customer: dict[str, Any]) -> dict[str, Any]:
     created_at = customer.get("created_at")
     updated_at = customer.get("updated_at")
 
@@ -211,7 +217,7 @@ def serialize_customer(customer: dict) -> dict:
 
 @router.get("/me")
 def get_my_profile(
-    customer: dict = Depends(get_current_customer),
+    customer: dict[str, Any] = Depends(get_current_customer),
 ):
     return {
         "success": True,
@@ -220,14 +226,15 @@ def get_my_profile(
 
 
 # =====================================================
-# UPDATE MY PROFILE
+# UPDATE MY PROFILE (Supports PATCH and PUT)
 # =====================================================
 
 
 @router.patch("/me")
+@router.put("/me")
 def update_my_profile(
     data: ProfileUpdate,
-    customer: dict = Depends(get_current_customer),
+    customer: dict[str, Any] = Depends(get_current_customer),
 ):
     updates = data.model_dump(exclude_unset=True)
 
@@ -235,12 +242,6 @@ def update_my_profile(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Provide at least one profile field to update.",
-        )
-
-    if any(value is None for value in updates.values()):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Profile fields cannot be null.",
         )
 
     try:
@@ -272,7 +273,10 @@ def update_my_profile(
                 detail="Customer profile not found.",
             )
 
-        updated_customer = customers_collection.find_one({"_id": customer["_id"]})
+        updated_customer = customers_collection.find_one(
+            {"_id": customer["_id"]},
+            {"password_hash": 0},
+        )
 
         if updated_customer is None:
             raise HTTPException(
@@ -300,5 +304,5 @@ def update_my_profile(
 
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to update customer profile.",
+            detail="Unable to update customer profile right now.",
         ) from exc

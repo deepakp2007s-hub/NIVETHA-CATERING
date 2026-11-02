@@ -1,8 +1,11 @@
+import logging
 from functools import lru_cache
 from pathlib import Path
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
@@ -19,7 +22,7 @@ class Settings(BaseSettings):
 
     JWT_SECRET: SecretStr = Field(default=SecretStr(""))
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, gt=0)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=43200, gt=0)  # 30 days for mobile app session longevity
 
     ADMIN_EMAIL: str = ""
     ADMIN_PASSWORD: SecretStr = Field(default=SecretStr(""))
@@ -27,7 +30,6 @@ class Settings(BaseSettings):
     OWNER_EMAIL: str = ""
     OWNER_PASSWORD: SecretStr = Field(default=SecretStr(""))
 
-    # Store bcrypt/Pwdlib password hashes in these settings.
     ADMIN_PASSWORD_HASH: SecretStr = Field(default=SecretStr(""))
     OWNER_PASSWORD_HASH: SecretStr = Field(default=SecretStr(""))
 
@@ -63,32 +65,22 @@ class Settings(BaseSettings):
     @classmethod
     def validate_strings(cls, value: str) -> str:
         value = value.strip()
-
         if not value:
-            raise ValueError(
-                "This configuration value cannot be empty."
-            )
-
+            raise ValueError("This configuration value cannot be empty.")
         return value
 
     @field_validator("JWT_ALGORITHM")
     @classmethod
     def validate_jwt_algorithm(cls, value: str) -> str:
         if value != "HS256":
-            raise ValueError(
-                "This application currently supports HS256 only."
-            )
-
+            raise ValueError("This application currently supports HS256 only.")
         return value
 
     @field_validator("ACCESS_TOKEN_EXPIRE_MINUTES")
     @classmethod
     def validate_token_expiry(cls, value: int) -> int:
         if value <= 0:
-            raise ValueError(
-                "ACCESS_TOKEN_EXPIRE_MINUTES must be greater than zero."
-            )
-
+            raise ValueError("ACCESS_TOKEN_EXPIRE_MINUTES must be greater than zero.")
         return value
 
     @field_validator(
@@ -98,19 +90,24 @@ class Settings(BaseSettings):
     @classmethod
     def validate_rate_limit(cls, value: int) -> int:
         if value <= 0:
-            raise ValueError(
-                "Login rate-limit settings must be greater than zero."
-            )
-
+            raise ValueError("Login rate-limit settings must be greater than zero.")
         return value
 
     @property
     def mongodb_uri_value(self) -> str:
-        return self.MONGODB_URI.get_secret_value().strip()
+        val = self.MONGODB_URI.get_secret_value().strip()
+        if not val:
+            logger.warning("MONGODB_URI is not set in environment or .env file.")
+        return val
 
     @property
     def jwt_secret_value(self) -> str:
-        return self.JWT_SECRET.get_secret_value().strip()
+        val = self.JWT_SECRET.get_secret_value().strip()
+        if not val:
+            logger.warning("JWT_SECRET is not set in environment or .env file.")
+        elif len(val) < 32 and self.ENVIRONMENT == "production":
+            logger.warning("JWT_SECRET is under 32 characters; consider using a stronger secret key.")
+        return val
 
     @property
     def admin_password_value(self) -> str:

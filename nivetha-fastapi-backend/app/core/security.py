@@ -1,9 +1,14 @@
+import logging
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import jwt
 from pwdlib import PasswordHash
+from pwdlib.exceptions import PwdlibError
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 password_hash = PasswordHash.recommended()
 
@@ -18,8 +23,13 @@ def _get_jwt_config() -> tuple[str, int]:
     algorithm = settings.JWT_ALGORITHM
     expiration = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
-    if not secret or len(secret) < 32:
-        raise RuntimeError("JWT_SECRET must contain at least 32 characters.")
+    if not secret:
+        raise RuntimeError("JWT_SECRET environment variable is missing or empty.")
+
+    if len(secret) < 32:
+        if settings.ENVIRONMENT == "production":
+            raise RuntimeError("JWT_SECRET must contain at least 32 characters in production.")
+        logger.warning("JWT_SECRET is fewer than 32 characters. Consider updating for better security.")
 
     if algorithm != JWT_ALGORITHM:
         raise RuntimeError("JWT_ALGORITHM must be HS256.")
@@ -35,7 +45,7 @@ def _get_jwt_config() -> tuple[str, int]:
 
 
 def hash_password(password: str) -> str:
-    """Hash a password before storing it in MongoDB."""
+    """Hash a raw password before persisting to MongoDB."""
 
     if not isinstance(password, str) or not password:
         raise ValueError("Password cannot be empty.")
@@ -44,7 +54,7 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, hashed_password: str) -> bool:
-    """Verify a password against its stored hash."""
+    """Verify a plain password against its stored hash."""
 
     if not isinstance(password, str) or not password:
         return False
@@ -54,7 +64,17 @@ def verify_password(password: str, hashed_password: str) -> bool:
 
     try:
         return password_hash.verify(password, hashed_password)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, PwdlibError):
+        return False
+
+
+def needs_rehash(hashed_password: str) -> bool:
+    """Check whether stored hash should be upgraded to current parameters."""
+    try:
+        return password_hash.recommended().verify_and_update(
+            password="", hash=hashed_password
+        )[1]
+    except Exception:
         return False
 
 
@@ -69,7 +89,7 @@ def create_access_token(
         raise ValueError("Token subject cannot be empty.")
 
     if role not in ALLOWED_ROLES:
-        raise ValueError("Unsupported token role.")
+        raise ValueError(f"Unsupported token role '{role}'. Must be one of {ALLOWED_ROLES}.")
 
     secret, default_expiration = _get_jwt_config()
 
@@ -84,7 +104,7 @@ def create_access_token(
 
     now = datetime.now(UTC)
 
-    payload = {
+    payload: dict[str, Any] = {
         "sub": subject.strip(),
         "role": role,
         "iat": now,
@@ -98,25 +118,30 @@ def create_access_token(
     )
 
 
-def decode_access_token(token: str) -> dict:
+def decode_access_token(token: str) -> dict[str, Any]:
     """Validate and decode a JWT access token."""
 
     if not isinstance(token, str) or not token.strip():
-        raise jwt.InvalidTokenError("Token is empty.")
+        raise jwt.InvalidTokenError("Token string cannot be empty.")
 
     secret, _ = _get_jwt_config()
 
-    payload = jwt.decode(
-        token,
-        secret,
-        algorithms=[JWT_ALGORITHM],
-        options={
-            "require": ["sub", "exp", "iat", "role"],
-        },
-    )
+    try:
+        payload = jwt.decode(
+            token,
+            secret,
+            algorithms=[JWT_ALGORITHM],
+            options={
+                "require": ["sub", "exp", "iat", "role"],
+                "verify_iat": True,
+                "verify_exp": True,
+            },
+        )
+    except jwt.PyJWTError as exc:
+        raise jwt.InvalidTokenError("Failed to decode token.") from exc
 
     if not isinstance(payload, dict):
-        raise jwt.InvalidTokenError("Invalid token payload.")
+        raise jwt.InvalidTokenError("Invalid token payload shape.")
 
     subject = payload.get("sub")
     role = payload.get("role")
@@ -128,6 +153,6 @@ def decode_access_token(token: str) -> dict:
         raise jwt.InvalidTokenError("Invalid token role.")
 
     if role in {"owner", "admin"} and subject != role:
-        raise jwt.InvalidTokenError("Invalid staff token subject.")
+        raise jwt.InvalidTokenError("Invalid staff token subject binding.")
 
     return payload
