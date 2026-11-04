@@ -1,125 +1,176 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import '../../../data/models/customer_model.dart';
+import '../../../data/services/auth_service.dart';
+import '../../../data/services/profile_service.dart';
 
-import '../../../core/constants/app_colors.dart';
-import '../../../core/routing/app_router.dart';
-import '../../../shared/widgets/glass_card.dart';
-import '../../auth/providers/auth_provider.dart';
-
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    final customer = auth.customer;
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
-          children: [
-            const Text(
-              'Profile',
-              style: TextStyle(
-                fontFamily: 'BodoniModa',
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 16),
-            GlassCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    customer?.name.isNotEmpty == true
-                        ? customer!.name
-                        : 'NIVETHA guest',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    customer?.email ?? '',
-                    style: const TextStyle(color: AppColors.textSecondary),
-                  ),
-                  if (customer?.phone.isNotEmpty == true) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      customer!.phone,
-                      style: const TextStyle(color: AppColors.textSecondary),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            _ProfileTile(
-              icon: Icons.edit_outlined,
-              label: 'Edit profile',
-              onTap: () => Navigator.pushNamed(context, AppRouter.editProfile),
-            ),
-            _ProfileTile(
-              icon: Icons.event_available_outlined,
-              label: 'My bookings',
-              onTap: () => Navigator.pushNamed(context, AppRouter.myBookings),
-            ),
-            _ProfileTile(
-              icon: Icons.notifications_none_rounded,
-              label: 'Notifications',
-              onTap: () =>
-                  Navigator.pushNamed(context, AppRouter.notifications),
-            ),
-            _ProfileTile(
-              icon: Icons.support_agent_outlined,
-              label: 'Contact support',
-              onTap: () => Navigator.pushNamed(context, AppRouter.contact),
-            ),
-            _ProfileTile(
-              icon: Icons.feedback_outlined,
-              label: 'Feedback',
-              onTap: () => Navigator.pushNamed(context, AppRouter.feedback),
-            ),
-            const SizedBox(height: 18),
-            OutlinedButton(
-              onPressed: () async {
-                await auth.logout();
-                if (!context.mounted) return;
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  AppRouter.login,
-                  (route) => false,
-                );
-              },
-              child: const Text('Logout'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileTile extends StatelessWidget {
-  const _ProfileTile({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
+class _ProfileScreenState extends State<ProfileScreen> {
+  final ProfileService _profileService = ProfileService();
+  final AuthService _authService = AuthService();
+  late Future<CustomerModel> _profileFuture;
 
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  void _loadProfile() {
+    _profileFuture = _profileService.getProfile();
+  }
+
+  Future<void> _handleLogout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to log out of your account?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    await _authService.logout();
+    if (mounted) {
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: AppColors.gold),
-      title: Text(label),
-      trailing: const Icon(Icons.chevron_right_rounded),
-      onTap: onTap,
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'My Profile',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
+      body: FutureBuilder<CustomerModel>(
+        future: _profileFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.person_off_outlined, size: 48, color: Colors.grey),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Unable to load profile details.\n${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => setState(() => _loadProfile()),
+                      child: const Text('Retry'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: _handleLogout,
+                      child: const Text('Log In Again'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          final profile = snapshot.data!;
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 44,
+                  backgroundColor: theme.colorScheme.primaryContainer,
+                  child: Text(
+                    profile.name.isNotEmpty ? profile.name[0].toUpperCase() : 'C',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  profile.name,
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  profile.email,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 24),
+                Card(
+                  elevation: 1,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.person_outline),
+                        title: const Text('Full Name'),
+                        subtitle: Text(profile.name),
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.email_outlined),
+                        title: const Text('Email Address'),
+                        subtitle: Text(profile.email),
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.phone_outlined),
+                        title: const Text('Phone Number'),
+                        subtitle: Text(profile.phone.isNotEmpty ? profile.phone : 'Not provided'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ListTile(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  tileColor: Colors.red.shade50,
+                  leading: const Icon(Icons.logout, color: Colors.red),
+                  title: const Text(
+                    'Logout Account',
+                    style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                  ),
+                  onTap: _handleLogout,
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }

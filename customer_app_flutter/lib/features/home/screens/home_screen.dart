@@ -1,263 +1,223 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
-import '../../../core/config/image_config.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../../core/routing/app_router.dart';
 import '../../../data/models/food_model.dart';
-import '../../../shared/widgets/app_media_image.dart';
-import '../../../shared/widgets/empty_state.dart';
-import '../../../shared/widgets/error_widget.dart';
-import '../../../shared/widgets/glass_card.dart';
-import '../../../shared/widgets/loading_widget.dart';
-import '../../auth/providers/auth_provider.dart';
-import '../../foods/providers/food_catalog_provider.dart';
-import '../../foods/widgets/food_card.dart';
-import '../widgets/service_card.dart';
-import '../widgets/welcome_header.dart';
+import '../../../data/services/food_service.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({
-    super.key,
-    this.onOpenMenus,
-    this.onOpenBookings,
-  });
-
-  final VoidCallback? onOpenMenus;
-  final VoidCallback? onOpenBookings;
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _searchController = TextEditingController();
-
-  static const _functionCategories = [
-    {'title': 'Wedding', 'subtitle': 'Ceremonial catering', 'icon': Icons.favorite_rounded},
-    {'title': 'Engagement', 'subtitle': 'Intimate celebrations', 'icon': Icons.diamond_outlined},
-    {'title': 'Birthday', 'subtitle': 'Family gatherings', 'icon': Icons.cake_outlined},
-    {'title': 'House Function', 'subtitle': 'Home events', 'icon': Icons.home_outlined},
-    {'title': 'Corporate Event', 'subtitle': 'Office functions', 'icon': Icons.business_center_outlined},
-    {'title': 'Temple Function', 'subtitle': 'Traditional service', 'icon': Icons.temple_hindu_outlined},
-  ];
+  final FoodService _foodService = FoodService();
+  late Future<List<FoodModel>> _foodsFuture;
 
   @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _loadFoods();
+  }
+
+  void _loadFoods() {
+    _foodsFuture = _foodService.getFoods();
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    final catalog = context.watch<FoodCatalogProvider>();
-    final query = _searchController.text;
-    final featured = catalog.search(query).take(6).toList();
-    final banners = ImageConfig.bannerAssets;
+    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: RefreshIndicator(
-          color: AppColors.primary,
-          onRefresh: catalog.load,
-          child: ListView(
-            padding: const EdgeInsets.only(bottom: 28),
+      appBar: AppBar(
+        title: const Text(
+          'Nivetha Catering',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          setState(() {
+            _loadFoods();
+          });
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              WelcomeHeader(
-                title: auth.customer?.name.isNotEmpty == true
-                    ? 'Hello, ${auth.customer!.name.split(' ').first}'
-                    : 'NIVETHA Catering',
-                subtitle: 'FUNCTION CATERING',
-                onNotificationTap: () {
-                  Navigator.pushNamed(context, AppRouter.notifications);
-                },
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(
-                    hintText: 'Search published menus',
-                    prefixIcon: Icon(Icons.search_rounded),
+              // Hero Event Banner Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.colorScheme.primary,
+                      theme.colorScheme.primaryContainer,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Book Authentic Catering\nFor Your Special Occasion',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Traditional South & North Indian multi-course menus',
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: theme.colorScheme.primary,
+                      ),
+                      onPressed: () => Navigator.pushNamed(context, '/create-booking'),
+                      icon: const Icon(Icons.calendar_month),
+                      label: const Text('Create New Booking'),
+                    ),
+                  ],
                 ),
               ),
-              if (banners.isNotEmpty) ...[
-                const SizedBox(height: 20),
-                SizedBox(
-                  height: 170,
-                  child: PageView.builder(
-                    itemCount: banners.length,
-                    controller: PageController(viewportFraction: 0.9),
+
+              const SizedBox(height: 24),
+
+              // Quick Feature Actions
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pushNamed(context, '/menu'),
+                      icon: const Icon(Icons.restaurant_menu),
+                      label: const Text('Full Menu'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pushNamed(context, '/my-bookings'),
+                      icon: const Icon(Icons.bookmark_border),
+                      label: const Text('My Bookings'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              Text(
+                'Featured Menu Items',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+
+              // Live Food Catalog List
+              FutureBuilder<List<FoodModel>>(
+                future: _foodsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  }
+
+                  if (snapshot.hasError) {
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Unable to load live catalog: ${snapshot.error}',
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    );
+                  }
+
+                  final foods = snapshot.data ?? [];
+                  if (foods.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Text('No food items found in catalog.'),
+                    );
+                  }
+
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: foods.length > 5 ? 5 : foods.length,
                     itemBuilder: (context, index) {
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 10),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: AppMediaImage(assetPath: banners[index]),
+                      final item = foods[index];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: theme.colorScheme.primaryContainer,
+                            child: Icon(
+                              Icons.restaurant_menu,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                          title: Text(
+                            item.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            item.description.isNotEmpty
+                                ? item.description
+                                : item.category,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'Available',
+                              style: TextStyle(
+                                color: Colors.green,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                         ),
                       );
                     },
-                  ),
-                ),
-              ],
-              const SizedBox(height: 28),
-              _sectionTitle('Function categories'),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                child: GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _functionCategories.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.35,
-                  ),
-                  itemBuilder: (context, index) {
-                    final category = _functionCategories[index];
-                    return ServiceCard(
-                      title: category['title'] as String,
-                      subtitle: category['subtitle'] as String,
-                      icon: category['icon'] as IconData,
-                      imageAsset: ImageConfig.categoryAsset(
-                        category['title'] as String,
-                      ),
-                      onTap: widget.onOpenBookings,
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 28),
-              _sectionTitle(
-                'Published menus',
-                action: 'View all',
-                onAction: widget.onOpenMenus,
-              ),
-              _buildMenuSection(catalog, featured),
-              const SizedBox(height: 24),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: GlassCard(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Book catering for your function',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Submit a function catering request. NIVETHA confirms every booking before it is scheduled.',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, AppRouter.eventType);
-                        },
-                        child: const Text('Start booking request'),
-                      ),
-                    ],
-                  ),
-                ),
+                  );
+                },
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _sectionTitle(
-    String title, {
-    String? action,
-    VoidCallback? onAction,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontFamily: 'BodoniModa',
-                fontSize: 22,
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          if (action != null)
-            TextButton(onPressed: onAction, child: Text(action)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMenuSection(
-    FoodCatalogProvider catalog,
-    List<FoodItem> featured,
-  ) {
-    if (catalog.isLoading && catalog.foods.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
-        child: Column(
-          children: [
-            ShimmerBox(height: 160),
-            SizedBox(height: 12),
-            ShimmerBox(height: 160),
-          ],
-        ),
-      );
-    }
-
-    if (catalog.errorMessage != null && catalog.foods.isEmpty) {
-      return AppErrorView(
-        message: catalog.errorMessage!,
-        onRetry: catalog.load,
-      );
-    }
-
-    if (featured.isEmpty) {
-      return const EmptyState(
-        title: 'Menus will appear here',
-        message:
-            'No published dishes are available yet. This catalog stays empty until NIVETHA adds real menu items.',
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: featured.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 14,
-          childAspectRatio: 0.68,
-        ),
-        itemBuilder: (context, index) {
-          final food = featured[index];
-          return FoodCard(
-            food: food,
-            onTap: () {
-              Navigator.pushNamed(
-                context,
-                AppRouter.foodDetails,
-                arguments: food,
-              );
-            },
-          );
-        },
       ),
     );
   }

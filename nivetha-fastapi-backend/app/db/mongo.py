@@ -1,183 +1,348 @@
-import logging
-from functools import lru_cache
 
-import pymongo
-from pymongo import ASCENDING, DESCENDING
-from pymongo.errors import PyMongoError
+import logging
+from typing import Any, Optional
+
+from motor.motor_asyncio import (
+    AsyncIOMotorClient,
+    AsyncIOMotorDatabase,
+)
+from pymongo.errors import OperationFailure, PyMongoError
 
 from app.core.config import settings
 
-logger = logging.getLogger(__name__)
+
+logger = logging.getLogger("nivetha_catering.db")
 
 
-@lru_cache(maxsize=1)
-def get_mongodb_client() -> pymongo.MongoClient:
-    """Create MongoDB client with connection pooling and timeouts."""
+# ---------------------------------------------------------------------
+# DATABASE MANAGER
+# ---------------------------------------------------------------------
 
-    mongodb_uri = settings.mongodb_uri_value
+class DatabaseManager:
+    def __init__(self):
+        self.client: Optional[AsyncIOMotorClient] = None
 
-    if not mongodb_uri:
-        raise RuntimeError(
-            "MONGODB_URI is not configured. Set it in the application environment."
+
+db_manager = DatabaseManager()
+
+
+# ---------------------------------------------------------------------
+# MONGODB CLIENT
+# ---------------------------------------------------------------------
+
+def get_client() -> AsyncIOMotorClient:
+    if db_manager.client is None:
+        db_manager.client = AsyncIOMotorClient(
+            settings.MONGODB_URI,
+            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=10000,
+            socketTimeoutMS=20000,
+            maxPoolSize=50,
+            minPoolSize=5,
+            retryWrites=True,
         )
 
-    return pymongo.MongoClient(
-        mongodb_uri,
-        serverSelectionTimeoutMS=5000,
-        connectTimeoutMS=10000,
-        maxPoolSize=100,
-        minPoolSize=10,
-        retryWrites=True,
-        tz_aware=True,
+    return db_manager.client
+
+
+# ---------------------------------------------------------------------
+# DATABASE ACCESS
+# ---------------------------------------------------------------------
+
+def get_database() -> AsyncIOMotorDatabase:
+    client = get_client()
+
+    database_name = getattr(
+        settings,
+        "CUSTOMER_DATABASE_NAME",
+        "nivetha_catering_db",
     )
 
+    return client[database_name]
+
+
+def get_owner_database() -> AsyncIOMotorDatabase:
+    client = get_client()
+
+    database_name = getattr(
+        settings,
+        "OWNER_DATABASE_NAME",
+        getattr(
+            settings,
+            "CUSTOMER_DATABASE_NAME",
+            "nivetha_catering_db",
+        ),
+    )
+
+    return client[database_name]
+
+
+# ---------------------------------------------------------------------
+# LAZY DATABASE AND COLLECTION
+# ---------------------------------------------------------------------
 
 class LazyCollection:
-    """Resolve a MongoDB collection only when an operation is requested."""
-
     def __init__(self, database, collection_name: str):
         self.database = database
         self.collection_name = collection_name
 
-    def __getattr__(self, name):
-        collection = self.database.get_collection(self.collection_name)
+    def __getattr__(self, name: str) -> Any:
+        collection = self.database._get_db()[self.collection_name]
         return getattr(collection, name)
 
 
 class LazyDatabase:
-    """Resolve MongoDB database and collections on demand."""
+    def __init__(self, database_name_attribute: str):
+        self.database_name_attribute = database_name_attribute
 
-    def __init__(self, database_name: str):
-        self.database_name = database_name
+    def _get_db(self) -> AsyncIOMotorDatabase:
+        client = get_client()
 
-    def get_database(self):
-        return get_mongodb_client()[self.database_name]
+        database_name = getattr(
+            settings,
+            self.database_name_attribute,
+            getattr(
+                settings,
+                "CUSTOMER_DATABASE_NAME",
+                "nivetha_catering_db",
+            ),
+        )
 
-    def get_collection(self, collection_name: str):
-        return self.get_database()[collection_name]
+        return client[database_name]
 
     def __getitem__(self, collection_name: str):
         return LazyCollection(self, collection_name)
 
-
-customer_db = LazyDatabase(settings.CUSTOMER_DATABASE_NAME)
-owner_db = LazyDatabase(settings.OWNER_DATABASE_NAME)
-
-
-def check_mongodb() -> bool:
-    """Check whether MongoDB is reachable."""
-
-    get_mongodb_client().admin.command("ping")
-    return True
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._get_db(), name)
 
 
-def create_customer_indexes() -> None:
-    """Create unique customer email and phone indexes."""
-
-    try:
-        customers = customer_db["customers"]
-
-        customers.create_index(
-            [("email", ASCENDING)],
-            unique=True,
-            name="unique_customer_email_v2",
-            partialFilterExpression={"email": {"$type": "string"}},
-        )
-
-        customers.create_index(
-            [("phone", ASCENDING)],
-            unique=True,
-            name="unique_customer_phone_v2",
-            partialFilterExpression={"phone": {"$type": "string"}},
-        )
-    except PyMongoError as exc:
-        logger.warning("Customer index creation notice: %s", exc)
+customer_db = LazyDatabase("CUSTOMER_DATABASE_NAME")
+owner_db = LazyDatabase("OWNER_DATABASE_NAME")
 
 
-def create_application_indexes() -> None:
-    """Create optimized indexes for application collections."""
+# ---------------------------------------------------------------------
+# SAFE INDEX INITIALIZATION
+# ---------------------------------------------------------------------
+
+async def ensure_index(
+    collection,
+    keys: list[tuple],
+    name: str,
+    unique: bool = False,
+    sparse: bool = False,
+):
+    requested_keys = list(keys)
 
     try:
-        # Bookings indexes
-        customer_db["bookings"].create_index(
-            [
-                ("customer_id", ASCENDING),
-                ("created_at", DESCENDING),
-            ],
-            name="customer_bookings_created_at",
-        )
-        customer_db["bookings"].create_index(
-            [
-                ("status", ASCENDING),
-                ("event_date", DESCENDING),
-            ],
-            name="bookings_status_event_date",
+        existing_indexes = await collection.index_information()
+
+        # First check whether the same key already exists,
+        # regardless of its index name.
+        for existing_name, existing in existing_indexes.items():
+            existing_keys = list(existing.get("key", []))
+
+            if existing_keys != requested_keys:
+                continue
+
+            existing_unique = existing.get("unique", False)
+            existing_sparse = existing.get("sparse", False)
+
+            if (
+                existing_unique == unique
+                and existing_sparse == sparse
+            ):
+                logger.info(
+                    "Equivalent MongoDB index already exists: %s",
+                    existing_name,
+                )
+            else:
+                logger.warning(
+                    "Existing index '%s' has different options. "
+                    "Preserving existing index without modification.",
+                    existing_name,
+                )
+
+            return
+
+        # Same index name but different key specification.
+        if name in existing_indexes:
+            logger.warning(
+                "Index name '%s' already exists with a different "
+                "key specification. Existing index preserved.",
+                name,
+            )
+            return
+
+        # Build only the required options.
+        index_options = {
+            "name": name,
+        }
+
+        if unique:
+            index_options["unique"] = True
+
+        if sparse:
+            index_options["sparse"] = True
+
+        await collection.create_index(
+            requested_keys,
+            **index_options,
         )
 
-        # Notifications indexes
-        customer_db["notifications"].create_index(
-            [
-                ("recipient_role", ASCENDING),
-                ("created_at", DESCENDING),
-            ],
-            name="notifications_role_created_at",
-        )
-        customer_db["notifications"].create_index(
-            [
-                ("customer_id", ASCENDING),
-                ("created_at", DESCENDING),
-            ],
-            name="notifications_customer_created_at",
+        logger.info(
+            "MongoDB index created successfully: %s",
+            name,
         )
 
-        # Foods indexes (Supports category filtering & sorted lookup)
-        customer_db["foods"].create_index(
-            [
-                ("is_available", ASCENDING),
-                ("category", ASCENDING),
-                ("name", ASCENDING),
-            ],
-            name="foods_availability_category_name",
+    except OperationFailure as error:
+        if error.code in {85, 86}:
+            logger.warning(
+                "MongoDB index conflict for '%s'. "
+                "Existing index preserved: %s",
+                name,
+                error,
+            )
+            return
+
+        logger.exception(
+            "MongoDB index creation failed: %s",
+            name,
         )
+        raise
 
-        # Reviews indexes
-        customer_db["reviews"].create_index(
-            [
-                ("customer_id", ASCENDING),
-                ("created_at", DESCENDING),
-            ],
-            name="reviews_customer_created_at",
+    except PyMongoError:
+        logger.exception(
+            "MongoDB index initialization failed: %s",
+            name,
         )
-        customer_db["reviews"].create_index(
-            [("created_at", DESCENDING)],
-            name="reviews_created_at_desc",
-        )
-
-    except PyMongoError as exc:
-        logger.warning("Application index creation notice: %s", exc)
+        raise
 
 
-def create_login_rate_limit_index() -> None:
-    """Create a TTL index for expired login rate-limit buckets."""
+# ---------------------------------------------------------------------
+# CREATE DATABASE INDEXES
+# ---------------------------------------------------------------------
+
+async def create_database_indexes():
+    database = get_database()
+
+    logger.info("Starting MongoDB index initialization")
+
+    # CUSTOMER INDEXES
+
+    await ensure_index(
+        database["customers"],
+        [("email", 1)],
+        name="unique_customer_email",
+        unique=True,
+        sparse=False,
+    )
+
+    await ensure_index(
+        database["customers"],
+        [("phone", 1)],
+        name="unique_customer_phone",
+        unique=True,
+        sparse=True,
+    )
+
+    # BOOKING INDEXES
+
+    await ensure_index(
+        database["bookings"],
+        [
+            ("customer_id", 1),
+            ("created_at", -1),
+        ],
+        name="booking_customer_created",
+    )
+
+    await ensure_index(
+        database["bookings"],
+        [
+            ("status", 1),
+            ("created_at", -1),
+        ],
+        name="booking_status_created",
+    )
+
+    # FOOD INDEXES
+
+    await ensure_index(
+        database["foods"],
+        [
+            ("category", 1),
+            ("is_available", 1),
+        ],
+        name="food_category_available",
+    )
+
+    # NOTIFICATION INDEXES
+
+    await ensure_index(
+        database["notifications"],
+        [
+            ("customer_id", 1),
+            ("is_read", 1),
+            ("created_at", -1),
+        ],
+        name="notification_customer_read",
+    )
+
+    await ensure_index(
+        database["notifications"],
+        [
+            ("recipient_role", 1),
+            ("is_read", 1),
+            ("created_at", -1),
+        ],
+        name="notification_role_read",
+    )
+
+    # REVIEW INDEXES
+
+    await ensure_index(
+        database["reviews"],
+        [
+            ("customer_id", 1),
+            ("created_at", -1),
+        ],
+        name="review_customer_created",
+    )
+
+    logger.info("MongoDB index initialization completed")
+
+
+# ---------------------------------------------------------------------
+# CONNECT TO MONGODB
+# ---------------------------------------------------------------------
+
+async def connect_to_mongo() -> None:
+    client = get_client()
 
     try:
-        customer_db["login_rate_limits"].create_index(
-            [("expires_at", ASCENDING)],
-            expireAfterSeconds=0,
-            name="login_rate_limits_ttl",
+        await client.admin.command("ping")
+
+        logger.info("MongoDB Atlas connected successfully.")
+
+        await create_database_indexes()
+
+        logger.info(
+            "Nivetha Catering database initialization completed."
         )
-    except PyMongoError as exc:
-        logger.warning("Rate limit TTL index creation notice: %s", exc)
+
+    except Exception:
+        logger.exception("MongoDB initialization failed.")
+        raise
 
 
-def close_mongodb() -> None:
-    """Close MongoDB connection safely."""
+# ---------------------------------------------------------------------
+# CLOSE MONGODB CONNECTION
+# ---------------------------------------------------------------------
 
-    if get_mongodb_client.cache_info().currsize:
-        try:
-            client = get_mongodb_client()
-            client.close()
-        except Exception as exc:
-            logger.warning("Error closing MongoDB connection: %s", exc)
-        finally:
-            get_mongodb_client.cache_clear()
+async def close_mongo_connection() -> None:
+    if db_manager.client is not None:
+        db_manager.client.close()
+        db_manager.client = None
+
+        logger.info("MongoDB connection pool closed.")

@@ -1,13 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
-import '../../../core/constants/app_colors.dart';
-import '../../../core/routing/app_router.dart';
-import '../../../shared/widgets/empty_state.dart';
-import '../../../shared/widgets/error_widget.dart';
-import '../../../shared/widgets/loading_widget.dart';
-import '../providers/food_catalog_provider.dart';
-import '../widgets/food_card.dart';
+import '../../../data/models/food_model.dart';
+import '../../../data/services/food_service.dart';
 
 class FoodsScreen extends StatefulWidget {
   const FoodsScreen({super.key});
@@ -17,8 +10,17 @@ class FoodsScreen extends StatefulWidget {
 }
 
 class _FoodsScreenState extends State<FoodsScreen> {
-  final _searchController = TextEditingController();
-  String _selectedCategory = 'All';
+  final FoodService _foodService = FoodService();
+  final TextEditingController _searchController = TextEditingController();
+
+  late Future<List<FoodModel>> _foodsFuture;
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFoods();
+  }
 
   @override
   void dispose() {
@@ -26,158 +28,187 @@ class _FoodsScreenState extends State<FoodsScreen> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final catalog = context.watch<FoodCatalogProvider>();
-    final items = catalog.search(
-      _searchController.text,
-      category: _selectedCategory,
-    );
-    final categories = ['All', ...catalog.categories];
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Menus',
-                    style: TextStyle(
-                      fontFamily: 'BodoniModa',
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  SizedBox(height: 6),
-                  Text(
-                    'Explore NIVETHA catering dishes from the live catalog.',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  hintText: 'Search menus',
-                  prefixIcon: Icon(Icons.search_rounded),
-                ),
-              ),
-            ),
-            if (catalog.categories.isNotEmpty)
-              SizedBox(
-                height: 54,
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: categories.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(width: 8),
-                  itemBuilder: (context, index) {
-                    final category = categories[index];
-                    final selected = category == _selectedCategory;
-                    return ChoiceChip(
-                      label: Text(category),
-                      selected: selected,
-                      onSelected: (_) {
-                        setState(() => _selectedCategory = category);
-                      },
-                      selectedColor: AppColors.primary,
-                      labelStyle: TextStyle(
-                        color: selected
-                            ? AppColors.background
-                            : AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      backgroundColor: AppColors.surface,
-                    );
-                  },
-                ),
-              ),
-            Expanded(
-              child: RefreshIndicator(
-                color: AppColors.primary,
-                onRefresh: catalog.load,
-                child: _buildBody(catalog, items),
-              ),
-            ),
-          ],
-        ),
-      ),
+  void _loadFoods() {
+    _foodsFuture = _foodService.getFoods(
+      search: _searchQuery.isEmpty ? null : _searchQuery,
     );
   }
 
-  Widget _buildBody(FoodCatalogProvider catalog, List items) {
-    if (catalog.isLoading && catalog.foods.isEmpty) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(20),
-        children: const [
-          ShimmerBox(height: 180),
-          SizedBox(height: 12),
-          ShimmerBox(height: 180),
-        ],
-      );
-    }
+  void _onSearchChanged(String value) {
+    setState(() {
+      _searchQuery = value.trim();
+      _loadFoods();
+    });
+  }
 
-    if (catalog.errorMessage != null && catalog.foods.isEmpty) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          AppErrorView(
-            message: catalog.errorMessage!,
-            onRetry: catalog.load,
-          ),
-        ],
-      );
-    }
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
 
-    if (items.isEmpty) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: const [
-          EmptyState(
-            title: 'No menus to display',
-            message:
-                'The live catalog is empty. Dishes will appear here when they are published by NIVETHA.',
-            icon: Icons.restaurant_outlined,
-          ),
-        ],
-      );
-    }
-
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-      itemCount: items.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 14,
-        childAspectRatio: 0.68,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'All Food Items',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
       ),
-      itemBuilder: (context, index) {
-        final food = items[index];
-        return FoodCard(
-          food: food,
-          onTap: () {
-            Navigator.pushNamed(
-              context,
-              AppRouter.foodDetails,
-              arguments: food,
-            );
-          },
-        );
-      },
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                hintText: 'Search food items...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          _onSearchChanged('');
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                setState(() {
+                  _loadFoods();
+                });
+              },
+              child: FutureBuilder<List<FoodModel>>(
+                future: _foodsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Text(
+                          'Failed to load foods.\n${snapshot.error}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    );
+                  }
+
+                  final foods = snapshot.data ?? [];
+
+                  if (foods.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(Icons.restaurant_outlined, size: 56, color: Colors.grey),
+                            SizedBox(height: 12),
+                            Text(
+                              'No food items available.',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(16.0),
+                    itemCount: foods.length,
+                    itemBuilder: (context, index) {
+                      final item = foods[index];
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12.0),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.all(12),
+                          leading: Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.restaurant_menu,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                          title: Text(
+                            item.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (item.category.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2.0, bottom: 4.0),
+                                  child: Text(
+                                    item.category,
+                                    style: TextStyle(
+                                      color: theme.colorScheme.primary,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              if (item.description.isNotEmpty)
+                                Text(
+                                  item.description,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          trailing: item.isAvailable
+                              ? Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.shade50,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'Available',
+                                    style: TextStyle(
+                                      color: Colors.green,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                )
+                              : null,
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,22 +1,18 @@
 class ApiConfig {
-  static const String baseUrl = 'https://nivetha-fastapi-backend.onrender.com/api/v1';
+  // Unoda Live Render Backend URL
+  static const String baseUrl = "https://nivetha-catering-backend.onrender.com/api/v1";
 
   // Auth Endpoints
-  static const String login = '/auth/login';
-  static const String register = '/auth/register';
-  static const String verifyOtp = '/auth/verify-otp';
+  static const String login = "/auth/login";
+  static const String register = "/auth/register";
 
-  // Catalog & Food Endpoints
-  static const String categories = '/categories';
-  static const String foods = '/foods';
-  static const String foodDetails = '/foods/';
-  static const String favorites = '/favorites';
+  // Food Menu Endpoints
+  static const String foods = "/foods";
 
   // Booking Endpoints
-  static const String bookings = '/bookings';
+  static const String createBooking = "/bookings";
+  static const String myBookings = "/bookings/my-bookings";
 
-  // Profile & Address Endpoints
-  static const String profile = '/customer/profile';
-  static const String addresses = '/customer/addresses';
-  static const String notifications = '/notifications';
+  // Profile Endpoints
+  static const String profile = "/profile/me";
 }

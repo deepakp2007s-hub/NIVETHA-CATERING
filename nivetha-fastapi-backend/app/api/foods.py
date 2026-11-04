@@ -1,147 +1,118 @@
-import html
-import logging
-from datetime import UTC, datetime
-from typing import Any
 
-import jwt
+import logging
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Optional
+
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-from pymongo.errors import PyMongoError
+from fastapi.security import OAuth2PasswordBearer
+from pydantic import BaseModel, ConfigDict, Field
+from pymongo.errors import DuplicateKeyError, PyMongoError
 
 from app.core.security import decode_access_token
 from app.db.mongo import customer_db
 
+
 logger = logging.getLogger(__name__)
 
-router = APIRouter(
-    prefix="/foods",
-    tags=["Food Management"],
+router = APIRouter(tags=["Foods"])
+
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="/api/v1/auth/customer/login"
 )
 
-bearer_scheme = HTTPBearer(auto_error=False)
-
-foods_collection = customer_db["foods"]
+foods = customer_db["foods"]
 
 
-# =====================================================
-# AUTHENTICATION DEPENDENCY
-# =====================================================
+# ---------------------------------------------------------------------------
+# ENUMS
+# ---------------------------------------------------------------------------
+
+class FoodCategory(str, Enum):
+    BREAKFAST = "Breakfast"
+    LUNCH = "Lunch"
+    DINNER = "Dinner"
+    SWEETS = "Sweets"
 
 
-def require_owner_or_admin(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-) -> dict:
-    if credentials is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Owner or Admin authorization required.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    try:
-        payload = decode_access_token(credentials.credentials)
-
-        if not isinstance(payload, dict):
-            raise ValueError("Invalid token payload.")
-
-        role = payload.get("role")
-        subject = payload.get("sub")
-
-        if role not in {"owner", "admin"}:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Owner or Admin access required.",
-            )
-
-        if subject != role:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Invalid staff account token.",
-            )
-
-        return {
-            "id": role,
-            "role": role,
-        }
-
-    except HTTPException:
-        raise
-    except (
-        jwt.InvalidTokenError,
-        ValueError,
-        TypeError,
-        KeyError,
-    ) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired access token.",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
-
-
-# =====================================================
-# REQUEST MODELS
-# =====================================================
-
+# ---------------------------------------------------------------------------
+# SCHEMAS
+# ---------------------------------------------------------------------------
 
 class FoodCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=2, max_length=150)
-    category: str = Field(min_length=2, max_length=100)
-    description: str = Field(default="", max_length=1000)
-    image_url: str = Field(default="", max_length=500)
-    is_veg: bool = True
+    category: FoodCategory
+    description: Optional[str] = Field(default=None, max_length=1000)
     is_available: bool = True
-
-    @field_validator("name", "category")
-    @classmethod
-    def validate_required_text(cls, value: str) -> str:
-        cleaned = html.escape(value.strip())
-        if len(cleaned) < 2:
-            raise ValueError("Must contain at least 2 valid characters.")
-        return cleaned
-
-    @field_validator("description", "image_url")
-    @classmethod
-    def clean_text_fields(cls, value: str) -> str:
-        return html.escape(value.strip())
+    image_url: Optional[str] = Field(default=None, max_length=2000)
+    is_vegetarian: bool = True
 
 
 class FoodUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str | None = Field(default=None, min_length=2, max_length=150)
-    category: str | None = Field(default=None, min_length=2, max_length=100)
-    description: str | None = Field(default=None, max_length=1000)
-    image_url: str | None = Field(default=None, max_length=500)
-    is_veg: bool | None = None
-    is_available: bool | None = None
-
-    @field_validator("name", "category")
-    @classmethod
-    def validate_optional_text(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        cleaned = html.escape(value.strip())
-        if len(cleaned) < 2:
-            raise ValueError("Must contain at least 2 valid characters.")
-        return cleaned
-
-    @field_validator("description", "image_url")
-    @classmethod
-    def clean_optional_text(cls, value: str | None) -> str | None:
-        return html.escape(value.strip()) if value is not None else None
+    name: Optional[str] = Field(default=None, min_length=2, max_length=150)
+    category: Optional[FoodCategory] = None
+    description: Optional[str] = Field(default=None, max_length=1000)
+    is_available: Optional[bool] = None
+    image_url: Optional[str] = Field(default=None, max_length=2000)
+    is_vegetarian: Optional[bool] = None
 
 
-# =====================================================
-# SERIALIZATION HELPER
-# =====================================================
+class FoodAvailabilityUpdate(BaseModel):
+    is_available: bool
 
 
-def serialize_food(food: dict[str, Any]) -> dict[str, Any]:
+# ---------------------------------------------------------------------------
+# AUTHENTICATION
+# ---------------------------------------------------------------------------
+
+async def get_token_payload(
+    token: str = Depends(oauth2_scheme),
+) -> dict:
+    try:
+        payload = decode_access_token(token)
+
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+            )
+
+        return payload
+
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+
+
+async def require_owner_or_admin(
+    payload: dict = Depends(get_token_payload),
+) -> dict:
+    if payload.get("role") not in {"owner", "admin"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Owner or admin access required",
+        )
+
+    return payload
+
+
+# ---------------------------------------------------------------------------
+# SERIALIZER
+# ---------------------------------------------------------------------------
+
+def serialize_food(food: dict) -> dict:
+    if not food:
+        return {}
+
     created_at = food.get("created_at")
     updated_at = food.get("updated_at")
 
@@ -149,228 +120,418 @@ def serialize_food(food: dict[str, Any]) -> dict[str, Any]:
         "id": str(food["_id"]),
         "name": food.get("name", ""),
         "category": food.get("category", ""),
-        "description": food.get("description", ""),
-        "image_url": food.get("image_url", ""),
-        "is_veg": food.get("is_veg", True),
+        "description": food.get("description"),
         "is_available": food.get("is_available", True),
+        "image_url": food.get("image_url"),
+        "is_vegetarian": food.get("is_vegetarian", True),
         "created_at": (
-            created_at.isoformat() if isinstance(created_at, datetime) else created_at
+            created_at.isoformat()
+            if isinstance(created_at, datetime)
+            else created_at
         ),
         "updated_at": (
-            updated_at.isoformat() if isinstance(updated_at, datetime) else updated_at
+            updated_at.isoformat()
+            if isinstance(updated_at, datetime)
+            else updated_at
         ),
     }
 
 
-# =====================================================
-# ENDPOINTS
-# =====================================================
+# ---------------------------------------------------------------------------
+# CREATE FOOD
+# POST /api/v1/foods/
+# ---------------------------------------------------------------------------
 
-
-@router.get("/")
-def get_foods(
-    category: str | None = Query(None, description="Filter foods by category"),
-    search: str | None = Query(None, description="Search foods by name"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=300),
+@router.post("/", status_code=status.HTTP_201_CREATED)
+async def add_food_item(
+    data: FoodCreate,
+    user: dict = Depends(require_owner_or_admin),
 ):
     try:
-        query: dict[str, Any] = {"is_available": {"$ne": False}}
+        food_name = data.name.strip()
 
-        if category and category.strip():
-            query["category"] = category.strip()
-
-        if search and search.strip():
-            query["name"] = {"$regex": search.strip(), "$options": "i"}
-
-        total = foods_collection.count_documents(query)
-        items = list(
-            foods_collection.find(query)
-            .sort("name", 1)
-            .skip(skip)
-            .limit(limit)
-        )
-
-        return {
-            "success": True,
-            "total": total,
-            "count": len(items),
-            "foods": [serialize_food(item) for item in items],
-        }
-
-    except PyMongoError as exc:
-        logger.exception("Unable to retrieve foods.")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to load foods right now.",
-        ) from exc
-
-
-@router.get("/{food_id}")
-def get_food(food_id: str):
-    if not ObjectId.is_valid(food_id):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid food ID format.",
-        )
-
-    try:
-        item = foods_collection.find_one(
-            {
-                "_id": ObjectId(food_id),
-                "is_available": {"$ne": False},
-            }
-        )
-
-        if item is None:
+        if len(food_name) < 2:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Food item not found or currently unavailable.",
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Food name must contain at least 2 characters",
             )
 
+        existing_food = await foods.find_one({
+            "name": {
+                "$regex": f"^{food_name}$",
+                "$options": "i",
+            },
+            "category": data.category.value,
+        })
+
+        if existing_food:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This food already exists in this category",
+            )
+
+        now = datetime.now(timezone.utc)
+
+        food_document = {
+            "name": food_name,
+            "category": data.category.value,
+            "description": (
+                data.description.strip()
+                if data.description
+                else None
+            ),
+            "is_available": data.is_available,
+            "image_url": (
+                data.image_url.strip()
+                if data.image_url
+                else None
+            ),
+            "is_vegetarian": data.is_vegetarian,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        result = await foods.insert_one(food_document)
+
+        saved_food = await foods.find_one({
+            "_id": result.inserted_id,
+        })
+
         return {
             "success": True,
-            "food": serialize_food(item),
+            "message": "Food added successfully",
+            "food": serialize_food(saved_food),
         }
 
     except HTTPException:
         raise
-    except PyMongoError as exc:
-        logger.exception("Unable to retrieve food detail.")
+    except DuplicateKeyError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Food already exists",
+        )
+    except PyMongoError:
+        logger.exception("Failed to add food")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to load food item.",
-        ) from exc
+            detail="Unable to add food",
+        )
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
-def add_food(
-    data: FoodCreate,
-    _: dict = Depends(require_owner_or_admin),
+# ---------------------------------------------------------------------------
+# GET ALL FOODS
+# GET /api/v1/foods/
+# ---------------------------------------------------------------------------
+
+@router.get("/")
+async def get_all_foods(
+    category: Optional[FoodCategory] = None,
+    available_only: bool = False,
+    vegetarian_only: bool = False,
+    search: Optional[str] = Query(default=None, max_length=100),
 ):
-    now = datetime.now(UTC)
-
-    food = {
-        "name": data.name,
-        "category": data.category,
-        "description": data.description,
-        "image_url": data.image_url,
-        "is_veg": data.is_veg,
-        "is_available": data.is_available,
-        "created_at": now,
-        "updated_at": now,
-    }
-
     try:
-        result = foods_collection.insert_one(food)
-        food["_id"] = result.inserted_id
+        query = {}
 
-        logger.info("Food item created: %s", result.inserted_id)
+        if category:
+            query["category"] = category.value
+
+        if available_only:
+            query["is_available"] = True
+
+        if vegetarian_only:
+            query["is_vegetarian"] = True
+
+        if search and search.strip():
+            query["name"] = {
+                "$regex": search.strip(),
+                "$options": "i",
+            }
+
+        cursor = foods.find(query).sort("created_at", -1)
+
+        food_list = [
+            serialize_food(food)
+            async for food in cursor
+        ]
 
         return {
             "success": True,
-            "message": "Food added successfully.",
+            "count": len(food_list),
+            "foods": food_list,
+        }
+
+    except PyMongoError:
+        logger.exception("Failed to fetch foods")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to fetch foods",
+        )
+
+
+# ---------------------------------------------------------------------------
+# GET FOOD CATEGORIES
+# GET /api/v1/foods/categories
+# ---------------------------------------------------------------------------
+
+@router.get("/categories")
+async def get_food_categories():
+    return {
+        "success": True,
+        "categories": [
+            {
+                "name": category.value,
+                "key": category.name.lower(),
+            }
+            for category in FoodCategory
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# GET FOOD BY ID
+# GET /api/v1/foods/{food_id}
+# ---------------------------------------------------------------------------
+
+@router.get("/{food_id}")
+async def get_food_by_id(food_id: str):
+    if not ObjectId.is_valid(food_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid food ID",
+        )
+
+    try:
+        food = await foods.find_one({
+            "_id": ObjectId(food_id),
+        })
+
+        if not food:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Food not found",
+            )
+
+        return {
+            "success": True,
             "food": serialize_food(food),
         }
 
-    except PyMongoError as exc:
-        logger.exception("Unable to add food item.")
+    except HTTPException:
+        raise
+    except PyMongoError:
+        logger.exception("Failed to fetch food")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to add food item right now.",
-        ) from exc
+            detail="Unable to fetch food",
+        )
 
 
-@router.patch("/{food_id}")
-def edit_food(
+# ---------------------------------------------------------------------------
+# UPDATE FOOD
+# PUT /api/v1/foods/{food_id}
+# ---------------------------------------------------------------------------
+
+@router.put("/{food_id}")
+async def edit_food_item(
     food_id: str,
     data: FoodUpdate,
-    _: dict = Depends(require_owner_or_admin),
+    user: dict = Depends(require_owner_or_admin),
 ):
     if not ObjectId.is_valid(food_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid food ID format.",
+            detail="Invalid food ID",
         )
 
-    updates = data.model_dump(exclude_unset=True)
+    update_data = data.model_dump(
+        exclude_unset=True,
+        mode="json",
+    )
 
-    if not updates:
+    if not update_data:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Provide at least one field to update.",
+            detail="At least one field is required",
         )
 
-    updates["updated_at"] = datetime.now(UTC)
+    if "name" in update_data and update_data["name"] is not None:
+        update_data["name"] = update_data["name"].strip()
+
+    if "description" in update_data and update_data["description"] is not None:
+        update_data["description"] = update_data["description"].strip()
+
+    if "image_url" in update_data and update_data["image_url"] is not None:
+        update_data["image_url"] = update_data["image_url"].strip()
 
     try:
-        result = foods_collection.update_one(
-            {"_id": ObjectId(food_id)},
-            {"$set": updates},
+        food_object_id = ObjectId(food_id)
+
+        existing = await foods.find_one({
+            "_id": food_object_id,
+        })
+
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Food not found",
+            )
+
+        new_name = update_data.get("name", existing.get("name"))
+        new_category = update_data.get(
+            "category",
+            existing.get("category"),
         )
 
-        if result.matched_count == 0:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Food item not found.",
-            )
+        if new_name and new_category:
+            duplicate = await foods.find_one({
+                "_id": {"$ne": food_object_id},
+                "name": {
+                    "$regex": f"^{new_name}$",
+                    "$options": "i",
+                },
+                "category": new_category,
+            })
 
-        item = foods_collection.find_one({"_id": ObjectId(food_id)})
+            if duplicate:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Another food with this name already exists in this category",
+                )
 
-        if item is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Food item not found after update.",
-            )
+        update_data["updated_at"] = datetime.now(timezone.utc)
+
+        await foods.update_one(
+            {"_id": food_object_id},
+            {"$set": update_data},
+        )
+
+        updated_food = await foods.find_one({
+            "_id": food_object_id,
+        })
 
         return {
             "success": True,
-            "message": "Food updated successfully.",
-            "food": serialize_food(item),
+            "message": "Food updated successfully",
+            "food": serialize_food(updated_food),
         }
 
     except HTTPException:
         raise
-    except PyMongoError as exc:
-        logger.exception("Unable to update food item.")
+    except PyMongoError:
+        logger.exception("Failed to update food")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to edit food item.",
-        ) from exc
+            detail="Unable to update food",
+        )
 
+
+# ---------------------------------------------------------------------------
+# UPDATE FOOD AVAILABILITY
+# PATCH /api/v1/foods/{food_id}/availability
+# ---------------------------------------------------------------------------
+
+@router.patch("/{food_id}/availability")
+async def update_food_availability(
+    food_id: str,
+    data: FoodAvailabilityUpdate,
+    user: dict = Depends(require_owner_or_admin),
+):
+    if not ObjectId.is_valid(food_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid food ID",
+        )
+
+    try:
+        updated_food = await foods.find_one_and_update(
+            {"_id": ObjectId(food_id)},
+            {
+                "$set": {
+                    "is_available": data.is_available,
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            },
+            return_document=True,
+        )
+
+        if not updated_food:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Food not found",
+            )
+
+        return {
+            "success": True,
+            "message": (
+                "Food is now available"
+                if data.is_available
+                else "Food is now unavailable"
+            ),
+            "food": serialize_food(updated_food),
+        }
+
+    except HTTPException:
+        raise
+    except PyMongoError:
+        logger.exception("Failed to update food availability")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to update food availability",
+        )
+
+
+# ---------------------------------------------------------------------------
+# DELETE FOOD
+# DELETE /api/v1/foods/{food_id}
+# ---------------------------------------------------------------------------
 
 @router.delete("/{food_id}")
-def delete_food(
+async def delete_food_item(
     food_id: str,
-    _: dict = Depends(require_owner_or_admin),
+    user: dict = Depends(require_owner_or_admin),
 ):
     if not ObjectId.is_valid(food_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid food ID format.",
+            detail="Invalid food ID",
         )
 
     try:
-        result = foods_collection.delete_one({"_id": ObjectId(food_id)})
+        food_object_id = ObjectId(food_id)
 
-        if result.deleted_count == 0:
+        existing = await foods.find_one({
+            "_id": food_object_id,
+        })
+
+        if not existing:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Food item not found.",
+                detail="Food not found",
             )
 
-        logger.info("Food deleted: %s", food_id)
+        # Preserve historical booking food snapshots.
+        # Do not physically delete food records used by existing bookings.
+        await foods.update_one(
+            {"_id": food_object_id},
+            {
+                "$set": {
+                    "is_available": False,
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            },
+        )
 
         return {
             "success": True,
-            "message": "Food item deleted successfully.",
+            "message": "Food disabled successfully",
         }
 
     except HTTPException:
         raise
-    except PyMongoError as exc:
-        logger.exception("Unable to delete food item.")
+    except PyMongoError:
+        logger.exception("Failed to disable food")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to delete food item.",
-        ) from exc
+            detail="Unable to disable food",
+        )

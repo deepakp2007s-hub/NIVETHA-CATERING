@@ -1,252 +1,487 @@
-import logging
-from datetime import UTC, date, datetime
-from typing import Any
 
-import jwt
-from bson import ObjectId
+import logging
+from datetime import datetime, timezone
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import OAuth2PasswordBearer
 from pymongo.errors import PyMongoError
 
 from app.core.security import decode_access_token
 from app.db.mongo import customer_db
 
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/reports",
-    tags=["Booking Reports"],
+    tags=["Reports"],
 )
 
-bearer_scheme = HTTPBearer(auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="/api/v1/auth/owner/login"
+)
 
-bookings_collection = customer_db["bookings"]
+bookings = customer_db["bookings"]
+customers = customer_db["customers"]
+foods = customer_db["foods"]
 
 
-# -------------------- AUTHENTICATION --------------------
+# ---------------------------------------------------------------------------
+# AUTHENTICATION
+# ---------------------------------------------------------------------------
 
-
-def get_authenticated_payload(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-) -> dict[str, Any]:
-    if credentials is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
+async def require_owner_or_admin(
+    token: str = Depends(oauth2_scheme),
+) -> dict:
     try:
-        payload = decode_access_token(credentials.credentials)
+        payload = decode_access_token(token)
 
-        if not isinstance(payload, dict):
-            raise ValueError("Invalid token payload structure.")
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+            )
+
+        if payload.get("role") not in {"owner", "admin"}:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Owner or admin access required",
+            )
 
         return payload
 
-    except (jwt.InvalidTokenError, ValueError, TypeError, KeyError) as exc:
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired access token.",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
-
-
-def get_customer_id(
-    payload: dict[str, Any] = Depends(get_authenticated_payload),
-) -> str:
-    if payload.get("role") != "customer":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Customer account required.",
+            detail="Authentication failed",
         )
 
-    customer_id = payload.get("sub")
 
-    if not isinstance(customer_id, str) or not ObjectId.is_valid(customer_id):
+# ---------------------------------------------------------------------------
+# DASHBOARD SUMMARY
+# GET /api/v1/reports/summary
+# ---------------------------------------------------------------------------
+
+@router.get("/summary")
+async def get_dashboard_summary(
+    user: dict = Depends(require_owner_or_admin),
+):
+    try:
+        total_bookings = await bookings.count_documents({})
+        pending_bookings = await bookings.count_documents({
+            "status": "pending",
+        })
+        confirmed_bookings = await bookings.count_documents({
+            "status": "confirmed",
+        })
+        rejected_bookings = await bookings.count_documents({
+            "status": "rejected",
+        })
+        completed_bookings = await bookings.count_documents({
+            "status": "completed",
+        })
+        cancelled_bookings = await bookings.count_documents({
+            "status": "cancelled",
+        })
+
+        total_customers = await customers.count_documents({})
+        total_foods = await foods.count_documents({})
+        available_foods = await foods.count_documents({
+            "is_available": True,
+        })
+        unavailable_foods = await foods.count_documents({
+            "is_available": False,
+        })
+
+        return {
+            "success": True,
+            "summary": {
+                "total_bookings": total_bookings,
+                "pending_bookings": pending_bookings,
+                "confirmed_bookings": confirmed_bookings,
+                "rejected_bookings": rejected_bookings,
+                "completed_bookings": completed_bookings,
+                "cancelled_bookings": cancelled_bookings,
+                "total_customers": total_customers,
+                "total_foods": total_foods,
+                "available_foods": available_foods,
+                "unavailable_foods": unavailable_foods,
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except PyMongoError:
+        logger.exception("Failed to generate dashboard summary")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid customer ID in access token.",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to generate dashboard summary",
         )
 
-    return customer_id
 
+# ---------------------------------------------------------------------------
+# BOOKING STATUS REPORT
+# GET /api/v1/reports/bookings
+# ---------------------------------------------------------------------------
 
-def require_owner_or_admin(
-    payload: dict[str, Any] = Depends(get_authenticated_payload),
-) -> dict[str, Any]:
-    role = payload.get("role")
-    subject = payload.get("sub")
-
-    if role not in {"owner", "admin"} or subject != role:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Owner or Admin access required.",
-        )
-
-    return payload
-
-
-# -------------------- REPORT HELPERS --------------------
-
-
-def serialize_report_booking(booking: dict[str, Any]) -> dict[str, Any]:
-    created_at = booking.get("created_at")
-    event_date = booking.get("event_date")
-
-    if isinstance(created_at, (datetime, date)):
-        created_at = created_at.isoformat()
-
-    if isinstance(event_date, (datetime, date)):
-        event_date = event_date.isoformat()
-
-    return {
-        "id": str(booking["_id"]),
-        "booking_id": booking.get("booking_id", str(booking["_id"])),
-        "customer_id": booking.get("customer_id"),
-        "function_type": booking.get(
-            "function_type",
-            booking.get("event_type", "Not specified"),
-        ),
-        "event_date": event_date,
-        "event_time": booking.get("event_time"),
-        "status": str(booking.get("status", "pending")).lower(),
-        "created_at": created_at,
+@router.get("/bookings")
+async def get_booking_report(
+    status_filter: Optional[str] = Query(default=None, alias="status"),
+    user: dict = Depends(require_owner_or_admin),
+):
+    allowed_statuses = {
+        "pending",
+        "confirmed",
+        "rejected",
+        "completed",
+        "cancelled",
     }
 
+    if status_filter and status_filter not in allowed_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid booking status",
+        )
 
-def generate_report(
-    query: dict[str, Any],
-    include_customer: bool = False,
-    skip: int = 0,
-    limit: int = 50,
-) -> dict[str, Any]:
-    # Aggregation Pipeline for global status counters
-    status_counts_raw = list(
-        bookings_collection.aggregate([
-            {"$match": query},
-            {"$group": {"_id": "$status", "count": {"$sum": 1}}},
+    try:
+        match_stage = {}
+
+        if status_filter:
+            match_stage["status"] = status_filter
+
+        pipeline = []
+
+        if match_stage:
+            pipeline.append({"$match": match_stage})
+
+        pipeline.extend([
+            {
+                "$group": {
+                    "_id": "$status",
+                    "count": {"$sum": 1},
+                }
+            },
+            {
+                "$sort": {"count": -1},
+            },
         ])
-    )
 
-    status_counts: dict[str, int] = {}
-    total_bookings = 0
-    for item in status_counts_raw:
-        st = str(item["_id"]).lower() if item.get("_id") else "pending"
-        cnt = item["count"]
-        status_counts[st] = cnt
-        total_bookings += cnt
+        result = await bookings.aggregate(pipeline).to_list(length=None)
 
-    summary = {
-        "total_bookings": total_bookings,
-        "pending_bookings": status_counts.get("pending", 0),
-        "confirmed_bookings": status_counts.get("confirmed", 0),
-        "completed_bookings": status_counts.get("completed", 0),
-        "cancelled_bookings": status_counts.get("cancelled", 0),
-        "rejected_bookings": status_counts.get("rejected", 0),
-        "status_counts": status_counts,
-    }
+        status_counts = {
+            "pending": 0,
+            "confirmed": 0,
+            "rejected": 0,
+            "completed": 0,
+            "cancelled": 0,
+        }
 
-    projection = {
-        "booking_id": 1,
-        "customer_id": 1,
-        "function_type": 1,
-        "event_type": 1,
-        "event_date": 1,
-        "event_time": 1,
-        "status": 1,
-        "created_at": 1,
-    }
+        for item in result:
+            if item["_id"] in status_counts:
+                status_counts[item["_id"]] = item["count"]
 
-    items = list(
-        bookings_collection.find(query, projection)
-        .sort("created_at", -1)
-        .skip(skip)
-        .limit(limit)
-    )
+        return {
+            "success": True,
+            "booking_status_report": status_counts,
+            "total": sum(status_counts.values()),
+        }
 
-    bookings = [serialize_report_booking(booking) for booking in items]
-
-    if not include_customer:
-        for booking in bookings:
-            booking.pop("customer_id", None)
-
-    return {
-        "success": True,
-        "report_generated_at": datetime.now(UTC).isoformat(),
-        "summary": summary,
-        "count": len(bookings),
-        "bookings": bookings,
-    }
-
-
-# -------------------- ENDPOINTS --------------------
-
-
-@router.get("/my-bookings")
-def get_my_booking_report(
-    start_date: date | None = Query(None, description="Filter from event date"),
-    end_date: date | None = Query(None, description="Filter to event date"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-    customer_id: str = Depends(get_customer_id),
-):
-    try:
-        query: dict[str, Any] = {"customer_id": customer_id}
-
-        if start_date or end_date:
-            date_filter = {}
-            if start_date:
-                date_filter["$gte"] = start_date.isoformat()
-            if end_date:
-                date_filter["$lte"] = end_date.isoformat()
-            query["event_date"] = date_filter
-
-        return generate_report(
-            query=query,
-            include_customer=False,
-            skip=skip,
-            limit=limit,
-        )
-
-    except PyMongoError as exc:
-        logger.exception("Unable to generate customer booking report.")
+    except PyMongoError:
+        logger.exception("Failed to generate booking report")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to generate the booking report right now.",
-        ) from exc
-
-
-@router.get("/owner/summary")
-@router.get("/admin/summary")
-def get_staff_booking_report(
-    start_date: date | None = Query(None, description="Filter from event date"),
-    end_date: date | None = Query(None, description="Filter to event date"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=200),
-    _: dict = Depends(require_owner_or_admin),
-):
-    try:
-        query: dict[str, Any] = {}
-
-        if start_date or end_date:
-            date_filter = {}
-            if start_date:
-                date_filter["$gte"] = start_date.isoformat()
-            if end_date:
-                date_filter["$lte"] = end_date.isoformat()
-            query["event_date"] = date_filter
-
-        return generate_report(
-            query=query,
-            include_customer=True,
-            skip=skip,
-            limit=limit,
+            detail="Unable to generate booking report",
         )
 
-    except PyMongoError as exc:
-        logger.exception("Unable to generate staff booking report.")
+
+# ---------------------------------------------------------------------------
+# POPULAR FOODS REPORT
+# GET /api/v1/reports/popular-foods
+# ---------------------------------------------------------------------------
+
+@router.get("/popular-foods")
+async def get_popular_foods(
+    limit: int = Query(default=10, ge=1, le=100),
+    user: dict = Depends(require_owner_or_admin),
+):
+    try:
+        pipeline = [
+            {
+                "$match": {
+                    "status": {
+                        "$in": ["confirmed", "completed"],
+                    },
+                    "selected_foods": {
+                        "$exists": True,
+                        "$ne": [],
+                    },
+                }
+            },
+            {
+                "$unwind": "$selected_foods",
+            },
+            {
+                "$group": {
+                    "_id": {
+                        "$ifNull": [
+                            "$selected_foods.food_id",
+                            "$selected_foods.food_name",
+                        ]
+                    },
+                    "food_name": {
+                        "$first": "$selected_foods.food_name",
+                    },
+                    "category": {
+                        "$first": "$selected_foods.category",
+                    },
+                    "selection_count": {
+                        "$sum": 1,
+                    },
+                }
+            },
+            {
+                "$sort": {
+                    "selection_count": -1,
+                }
+            },
+            {
+                "$limit": limit,
+            },
+        ]
+
+        result = await bookings.aggregate(pipeline).to_list(
+            length=limit
+        )
+
+        popular_foods = []
+
+        for index, item in enumerate(result, start=1):
+            popular_foods.append({
+                "rank": index,
+                "food_id": (
+                    str(item["_id"])
+                    if item.get("_id") is not None
+                    else None
+                ),
+                "food_name": item.get("food_name") or str(item["_id"]),
+                "category": item.get("category"),
+                "selection_count": item.get("selection_count", 0),
+            })
+
+        return {
+            "success": True,
+            "count": len(popular_foods),
+            "popular_foods": popular_foods,
+        }
+
+    except PyMongoError:
+        logger.exception("Failed to generate popular foods report")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to generate the booking report right now.",
-        ) from exc
+            detail="Unable to generate popular foods report",
+        )
+
+
+# ---------------------------------------------------------------------------
+# MONTHLY BOOKING REPORT
+# GET /api/v1/reports/monthly-bookings
+# ---------------------------------------------------------------------------
+
+@router.get("/monthly-bookings")
+async def get_monthly_booking_report(
+    year: int = Query(
+        default_factory=lambda: datetime.now(timezone.utc).year,
+        ge=2000,
+        le=2100,
+    ),
+    user: dict = Depends(require_owner_or_admin),
+):
+    try:
+        pipeline = [
+            {
+                "$addFields": {
+                    "parsed_event_date": {
+                        "$dateFromString": {
+                            "dateString": "$event_date",
+                            "onError": None,
+                            "onNull": None,
+                        }
+                    }
+                }
+            },
+            {
+                "$match": {
+                    "parsed_event_date": {
+                        "$ne": None,
+                        "$gte": datetime(year, 1, 1, tzinfo=timezone.utc),
+                        "$lt": datetime(year + 1, 1, 1, tzinfo=timezone.utc),
+                    }
+                }
+            },
+            {
+                "$group": {
+                    "_id": {
+                        "month": {
+                            "$month": "$parsed_event_date",
+                        },
+                        "status": "$status",
+                    },
+                    "count": {
+                        "$sum": 1,
+                    },
+                }
+            },
+            {
+                "$sort": {
+                    "_id.month": 1,
+                }
+            },
+        ]
+
+        result = await bookings.aggregate(pipeline).to_list(
+            length=None
+        )
+
+        monthly_data = []
+
+        for month in range(1, 13):
+            status_counts = {
+                "pending": 0,
+                "confirmed": 0,
+                "rejected": 0,
+                "completed": 0,
+                "cancelled": 0,
+            }
+
+            for item in result:
+                if item["_id"]["month"] == month:
+                    booking_status = item["_id"]["status"]
+
+                    if booking_status in status_counts:
+                        status_counts[booking_status] = item["count"]
+
+            monthly_data.append({
+                "month": month,
+                "month_name": datetime(year, month, 1).strftime("%B"),
+                "total": sum(status_counts.values()),
+                "statuses": status_counts,
+            })
+
+        return {
+            "success": True,
+            "year": year,
+            "monthly_bookings": monthly_data,
+        }
+
+    except PyMongoError:
+        logger.exception("Failed to generate monthly booking report")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to generate monthly booking report",
+        )
+
+
+# ---------------------------------------------------------------------------
+# FUNCTION TYPE REPORT
+# GET /api/v1/reports/function-types
+# ---------------------------------------------------------------------------
+
+@router.get("/function-types")
+async def get_function_type_report(
+    user: dict = Depends(require_owner_or_admin),
+):
+    try:
+        pipeline = [
+            {
+                "$group": {
+                    "_id": "$function_type",
+                    "booking_count": {
+                        "$sum": 1,
+                    },
+                }
+            },
+            {
+                "$sort": {
+                    "booking_count": -1,
+                }
+            },
+        ]
+
+        result = await bookings.aggregate(pipeline).to_list(
+            length=None
+        )
+
+        function_types = [
+            {
+                "function_type": item["_id"],
+                "booking_count": item["booking_count"],
+            }
+            for item in result
+        ]
+
+        return {
+            "success": True,
+            "count": len(function_types),
+            "function_types": function_types,
+        }
+
+    except PyMongoError:
+        logger.exception("Failed to generate function type report")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to generate function type report",
+        )
+
+
+# ---------------------------------------------------------------------------
+# MEAL TYPE REPORT
+# GET /api/v1/reports/meal-types
+# ---------------------------------------------------------------------------
+
+@router.get("/meal-types")
+async def get_meal_type_report(
+    user: dict = Depends(require_owner_or_admin),
+):
+    try:
+        pipeline = [
+            {
+                "$group": {
+                    "_id": "$meal_type",
+                    "booking_count": {
+                        "$sum": 1,
+                    },
+                }
+            },
+            {
+                "$sort": {
+                    "booking_count": -1,
+                }
+            },
+        ]
+
+        result = await bookings.aggregate(pipeline).to_list(
+            length=None
+        )
+
+        meal_types = [
+            {
+                "meal_type": item["_id"],
+                "booking_count": item["booking_count"],
+            }
+            for item in result
+        ]
+
+        return {
+            "success": True,
+            "count": len(meal_types),
+            "meal_types": meal_types,
+        }
+
+    except PyMongoError:
+        logger.exception("Failed to generate meal type report")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to generate meal type report",
+        )

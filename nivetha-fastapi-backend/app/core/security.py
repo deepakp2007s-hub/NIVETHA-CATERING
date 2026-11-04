@@ -1,158 +1,137 @@
-import logging
-from datetime import UTC, datetime, timedelta
-from typing import Any
 
-import jwt
-from pwdlib import PasswordHash
-from pwdlib.exceptions import PwdlibError
+import logging
+from datetime import datetime, timedelta, timezone
+from typing import Any, Optional
+
+import bcrypt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-password_hash = PasswordHash.recommended()
-
-ALLOWED_ROLES = {"customer", "owner", "admin"}
-JWT_ALGORITHM = "HS256"
-
-
-def _get_jwt_config() -> tuple[str, int]:
-    """Read and validate JWT configuration from application settings."""
-
-    secret = settings.jwt_secret_value
-    algorithm = settings.JWT_ALGORITHM
-    expiration = settings.ACCESS_TOKEN_EXPIRE_MINUTES
-
-    if not secret:
-        raise RuntimeError("JWT_SECRET environment variable is missing or empty.")
-
-    if len(secret) < 32:
-        if settings.ENVIRONMENT == "production":
-            raise RuntimeError("JWT_SECRET must contain at least 32 characters in production.")
-        logger.warning("JWT_SECRET is fewer than 32 characters. Consider updating for better security.")
-
-    if algorithm != JWT_ALGORITHM:
-        raise RuntimeError("JWT_ALGORITHM must be HS256.")
-
-    if (
-        isinstance(expiration, bool)
-        or not isinstance(expiration, int)
-        or expiration <= 0
-    ):
-        raise RuntimeError("ACCESS_TOKEN_EXPIRE_MINUTES must be a positive integer.")
-
-    return secret, expiration
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def hash_password(password: str) -> str:
-    """Hash a raw password before persisting to MongoDB."""
-
-    if not isinstance(password, str) or not password:
+    if not password or not password.strip():
         raise ValueError("Password cannot be empty.")
 
-    return password_hash.hash(password)
+    password_bytes = password.encode("utf-8")
+
+    if len(password_bytes) > 72:
+        raise ValueError("Password cannot exceed 72 UTF-8 bytes.")
+
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(password_bytes, salt)
+
+    return hashed.decode("utf-8")
 
 
-def verify_password(password: str, hashed_password: str) -> bool:
-    """Verify a plain password against its stored hash."""
-
-    if not isinstance(password, str) or not password:
-        return False
-
-    if not isinstance(hashed_password, str) or not hashed_password:
-        return False
-
+def verify_password(
+    plain_password: str,
+    hashed_password: str,
+) -> bool:
     try:
-        return password_hash.verify(password, hashed_password)
-    except (ValueError, TypeError, PwdlibError):
-        return False
+        if not plain_password or not hashed_password:
+            return False
 
+        password_bytes = plain_password.encode("utf-8")
 
-def needs_rehash(hashed_password: str) -> bool:
-    """Check whether stored hash should be upgraded to current parameters."""
-    try:
-        return password_hash.recommended().verify_and_update(
-            password="", hash=hashed_password
-        )[1]
-    except Exception:
+        if len(password_bytes) > 72:
+            return False
+
+        return bcrypt.checkpw(
+            password_bytes,
+            hashed_password.encode("utf-8"),
+        )
+
+    except (ValueError, TypeError) as exc:
+        logger.warning("Password verification failed: %s", exc)
         return False
 
 
 def create_access_token(
-    subject: str,
-    role: str = "customer",
-    expires_minutes: int | None = None,
+    data: Optional[dict[str, Any]] = None,
+    subject: Optional[str] = None,
+    expires_delta: Optional[timedelta] = None,
 ) -> str:
-    """Create a signed JWT for customer, owner, or admin."""
+    payload = data.copy() if data else {}
 
-    if not isinstance(subject, str) or not subject.strip():
-        raise ValueError("Token subject cannot be empty.")
+    if subject:
+        payload["sub"] = str(subject)
 
-    if role not in ALLOWED_ROLES:
-        raise ValueError(f"Unsupported token role '{role}'. Must be one of {ALLOWED_ROLES}.")
+    now = datetime.now(timezone.utc)
 
-    secret, default_expiration = _get_jwt_config()
+    expire = (
+        now + expires_delta
+        if expires_delta
+        else now + timedelta(
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        )
+    )
 
-    expiration = default_expiration if expires_minutes is None else expires_minutes
-
-    if (
-        isinstance(expiration, bool)
-        or not isinstance(expiration, int)
-        or expiration <= 0
-    ):
-        raise ValueError("Token expiration must be a positive integer.")
-
-    now = datetime.now(UTC)
-
-    payload: dict[str, Any] = {
-        "sub": subject.strip(),
-        "role": role,
+    payload.update({
         "iat": now,
-        "exp": now + timedelta(minutes=expiration),
-    }
+        "exp": expire,
+    })
 
     return jwt.encode(
         payload,
-        secret,
-        algorithm=JWT_ALGORITHM,
+        settings.JWT_SECRET,
+        algorithm=settings.JWT_ALGORITHM,
     )
 
 
 def decode_access_token(token: str) -> dict[str, Any]:
-    """Validate and decode a JWT access token."""
-
-    if not isinstance(token, str) or not token.strip():
-        raise jwt.InvalidTokenError("Token string cannot be empty.")
-
-    secret, _ = _get_jwt_config()
-
     try:
         payload = jwt.decode(
             token,
-            secret,
-            algorithms=[JWT_ALGORITHM],
+            settings.JWT_SECRET,
+            algorithms=[settings.JWT_ALGORITHM],
             options={
-                "require": ["sub", "exp", "iat", "role"],
-                "verify_iat": True,
-                "verify_exp": True,
+                "require_exp": True,
+                "require_sub": True,
             },
         )
-    except jwt.PyJWTError as exc:
-        raise jwt.InvalidTokenError("Failed to decode token.") from exc
 
-    if not isinstance(payload, dict):
-        raise jwt.InvalidTokenError("Invalid token payload shape.")
+        if not isinstance(payload, dict):
+            raise ValueError("Invalid token payload.")
 
-    subject = payload.get("sub")
-    role = payload.get("role")
+        return payload
 
-    if not isinstance(subject, str) or not subject.strip():
-        raise jwt.InvalidTokenError("Invalid token subject.")
+    except (JWTError, ValueError, TypeError) as exc:
+        logger.warning("JWT validation failed: %s", exc)
+        raise ValueError("Invalid or expired token.") from exc
 
-    if role not in ALLOWED_ROLES:
-        raise jwt.InvalidTokenError("Invalid token role.")
 
-    if role in {"owner", "admin"} and subject != role:
-        raise jwt.InvalidTokenError("Invalid staff token subject binding.")
+def get_current_user_id(
+    credentials: HTTPAuthorizationCredentials | None = Depends(
+        bearer_scheme
+    ),
+) -> str:
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    return payload
+    try:
+        payload = decode_access_token(credentials.credentials)
+
+        user_id = payload.get("sub")
+
+        if not user_id:
+            raise ValueError("Token subject is missing.")
+
+        return str(user_id)
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired access token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc

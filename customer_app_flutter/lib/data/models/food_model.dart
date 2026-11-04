@@ -1,30 +1,27 @@
-class FoodItemModel {
+class FoodModel {
   final String id;
   final String name;
-  final String categoryId;
-  final String imageUrl;
+  final String category;
   final String description;
-  final bool isVeg;
+  final String? imageUrl;
   final bool isAvailable;
 
-  const FoodItemModel({
+  FoodModel({
     required this.id,
     required this.name,
-    required this.categoryId,
-    required this.imageUrl,
+    required this.category,
     required this.description,
-    required this.isVeg,
-    required this.isAvailable,
+    this.imageUrl,
+    this.isAvailable = true,
   });
 
-  factory FoodItemModel.fromJson(Map<String, dynamic> json) {
-    return FoodItemModel(
+  factory FoodModel.fromJson(Map<String, dynamic> json) {
+    return FoodModel(
       id: json['_id'] ?? json['id'] ?? '',
       name: json['name'] ?? '',
-      categoryId: json['categoryId'] ?? '',
-      imageUrl: json['imageUrl'] ?? '',
+      category: json['category'] ?? '',
       description: json['description'] ?? '',
-      isVeg: json['isVeg'] ?? true,
+      imageUrl: json['imageUrl'] ?? json['image'],
       isAvailable: json['isAvailable'] ?? true,
     );
   }
@@ -33,10 +30,9 @@ class FoodItemModel {
     return {
       'id': id,
       'name': name,
-      'categoryId': categoryId,
-      'imageUrl': imageUrl,
+      'category': category,
       'description': description,
-      'isVeg': isVeg,
+      'imageUrl': imageUrl,
       'isAvailable': isAvailable,
     };
   }

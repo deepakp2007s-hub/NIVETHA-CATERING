@@ -1,468 +1,669 @@
-import html
-import logging
-from datetime import UTC, date, datetime, timedelta
-from typing import Literal
 
-import jwt
+import logging
+from datetime import date, datetime, time, timezone
+from typing import Literal, Optional
+
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field, ConfigDict
+from pymongo import ReturnDocument
 from pymongo.errors import PyMongoError
 
 from app.core.security import decode_access_token
 from app.db.mongo import customer_db
 
+
 logger = logging.getLogger(__name__)
 
-router = APIRouter(
-    prefix="/bookings",
-    tags=["Bookings"],
-)
-
-bearer_scheme = HTTPBearer(auto_error=False)
+router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
 bookings = customer_db["bookings"]
 customers = customer_db["customers"]
+foods = customer_db["foods"]
 notifications = customer_db["notifications"]
 
 
-# =====================================================
-# REQUEST SCHEMAS & SANITIZATION
-# =====================================================
+# ---------------------------------------------------------------------------
+# SCHEMAS
+# ---------------------------------------------------------------------------
+
+FunctionType = Literal[
+    "Wedding",
+    "Engagement",
+    "Birthday",
+    "House Function",
+    "Corporate Event",
+    "College/School Event",
+    "Temple Function",
+    "Other",
+]
+
+MealType = Literal["Breakfast", "Lunch", "Dinner", "Multiple"]
+FoodPreference = Literal["Veg", "Non-Veg", "Both"]
+BookingStatus = Literal["pending", "confirmed", "rejected", "completed", "cancelled"]
+
+
+class SelectedFoodItem(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    food_id: str
+    food_name: Optional[str] = None
+    category: Optional[Literal["Breakfast", "Lunch", "Dinner", "Sweets"]] = None
 
 
 class BookingCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    function_type: Literal[
-        "Wedding",
-        "Engagement",
-        "Birthday",
-        "House Function",
-        "Corporate Event",
-        "College/School Event",
-        "Temple Function",
-        "Other",
-    ]
-
+    function_type: FunctionType
     event_date: date
     event_time: str = Field(min_length=1, max_length=50)
-    location: str = Field(min_length=3, max_length=300)
-    persons_count: int = Field(ge=1, le=100000)
+    location: str = Field(min_length=3, max_length=500)
+    persons_count: int = Field(gt=0, le=100000)
 
+    catering_service_required: bool = True
     cooking_service: bool = True
     serving_staff_required: bool = False
 
-    meal_type: Literal[
-        "Breakfast",
-        "Lunch",
-        "Dinner",
-        "Multiple",
-    ] = "Lunch"
+    meal_type: MealType
+    food_preference: FoodPreference
+    selected_foods: list[SelectedFoodItem] = Field(default_factory=list)
 
-    food_preference: Literal[
-        "Veg",
-        "Non-Veg",
-        "Both",
-    ] = "Veg"
-
-    special_requirements: str = Field(
-        default="",
+    special_requirements: Optional[str] = Field(
+        default=None,
         max_length=2000,
     )
 
-    @field_validator("event_time", "location")
-    @classmethod
-    def validate_and_sanitize_text(cls, value: str) -> str:
-        cleaned = html.escape(value.strip())
-        if not cleaned:
-            raise ValueError("This field cannot be empty.")
-        return cleaned
-
-    @field_validator("special_requirements")
-    @classmethod
-    def clean_requirements(cls, value: str) -> str:
-        return html.escape(value.strip())
-
 
 class BookingStatusUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    status: Literal[
-        "confirmed",
-        "rejected",
-        "completed",
-    ]
+    status: Literal["confirmed", "rejected", "completed"]
+    owner_note: Optional[str] = Field(default=None, max_length=1000)
 
 
-# =====================================================
-# AUTHENTICATION & AUTHORIZATION DEPENDENCIES
-# =====================================================
+# ---------------------------------------------------------------------------
+# AUTHENTICATION
+# ---------------------------------------------------------------------------
 
-
-def get_token_payload(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-) -> dict:
-    if credentials is None:
+def get_token_payload(token: str) -> dict:
+    try:
+        payload = decode_access_token(token)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+            )
+        return payload
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required.",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="Invalid or expired token",
         )
 
-    try:
-        payload = decode_access_token(credentials.credentials)
 
-        if not isinstance(payload, dict):
-            raise ValueError("Invalid token payload structure.")
+async def get_customer_id(token: str = Depends(
+    __import__("fastapi").security.OAuth2PasswordBearer(tokenUrl="/api/v1/auth/customer/login")
+)) -> str:
+    payload = get_token_payload(token)
 
-        return payload
-
-    except (
-        jwt.InvalidTokenError,
-        ValueError,
-        TypeError,
-        KeyError,
-    ) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired access token.",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
-
-
-def get_customer_id(
-    payload: dict = Depends(get_token_payload),
-) -> str:
     if payload.get("role") != "customer":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Customer account required.",
+            detail="Customer access required",
         )
 
     customer_id = payload.get("sub")
-
-    if not isinstance(customer_id, str) or not ObjectId.is_valid(customer_id):
+    if not customer_id or not ObjectId.is_valid(customer_id):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid customer token.",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="Invalid customer account",
         )
 
     return customer_id
 
 
-def require_owner_or_admin(
-    payload: dict = Depends(get_token_payload),
-) -> dict:
-    role = payload.get("role")
-    subject = payload.get("sub")
+async def require_owner_or_admin(token: str = Depends(
+    __import__("fastapi").security.OAuth2PasswordBearer(tokenUrl="/api/v1/auth/owner/login")
+)) -> dict:
+    payload = get_token_payload(token)
 
-    if role not in {"owner", "admin"}:
+    if payload.get("role") not in {"owner", "admin"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Owner or Admin access required.",
+            detail="Owner or admin access required",
         )
 
-    if subject != role:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid staff account token.",
-        )
-
-    return {
-        "id": role,
-        "role": role,
-    }
+    return payload
 
 
-# =====================================================
-# HELPER FUNCTIONS
-# =====================================================
-
-
-def booking_lookup_query(booking_id: str) -> dict:
-    booking_id = booking_id.strip()
-
-    if ObjectId.is_valid(booking_id):
-        return {"_id": ObjectId(booking_id)}
-
-    return {"booking_id": booking_id.upper()}
-
+# ---------------------------------------------------------------------------
+# HELPERS
+# ---------------------------------------------------------------------------
 
 def serialize_booking(booking: dict) -> dict:
-    def serialize_datetime(value):
-        return value.isoformat() if isinstance(value, (datetime, date)) else value
+    if not booking:
+        return {}
 
+    result = dict(booking)
+    result["id"] = str(result.pop("_id", ""))
+
+    for key in ("customer_id",):
+        if isinstance(result.get(key), ObjectId):
+            result[key] = str(result[key])
+
+    for key in ("created_at", "updated_at", "event_date"):
+        value = result.get(key)
+        if isinstance(value, (datetime, date)):
+            result[key] = value.isoformat()
+
+    return result
+
+
+def serialize_food(food: dict) -> dict:
     return {
-        "id": str(booking["_id"]),
-        "booking_id": booking.get("booking_id", str(booking["_id"])),
-        "customer_id": str(booking.get("customer_id", "")),
-        "customer_name": booking.get("customer_name", ""),
-        "customer_phone": booking.get("customer_phone", ""),
-        "customer_email": booking.get("customer_email", ""),
-        "function_type": booking.get("function_type"),
-        "event_date": serialize_datetime(booking.get("event_date")),
-        "event_time": booking.get("event_time"),
-        "location": booking.get("location"),
-        "persons_count": booking.get("persons_count"),
-        "cooking_service": booking.get("cooking_service", True),
-        "serving_staff_required": booking.get("serving_staff_required", False),
-        "meal_type": booking.get("meal_type", "Lunch"),
-        "food_preference": booking.get("food_preference", "Veg"),
-        "special_requirements": booking.get("special_requirements", ""),
-        "status": booking.get("status", "pending"),
-        "created_at": serialize_datetime(booking.get("created_at")),
-        "updated_at": serialize_datetime(booking.get("updated_at")),
+        "food_id": str(food["_id"]),
+        "food_name": food.get("name", ""),
+        "category": food.get("category"),
     }
 
 
-def create_notification(
+async def validate_selected_foods(items: list[SelectedFoodItem]) -> list[dict]:
+    validated_foods = []
+    seen_ids = set()
+
+    for item in items:
+        if not ObjectId.is_valid(item.food_id):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid food ID: {item.food_id}",
+            )
+
+        food_object_id = ObjectId(item.food_id)
+
+        if item.food_id in seen_ids:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Duplicate food selection is not allowed",
+            )
+
+        seen_ids.add(item.food_id)
+
+        food = await foods.find_one({"_id": food_object_id})
+
+        if not food:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Food item not found: {item.food_id}",
+            )
+
+        if food.get("is_available") is False:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{food.get('name', 'Selected food')} is currently unavailable",
+            )
+
+        validated_foods.append(serialize_food(food))
+
+    return validated_foods
+
+
+async def create_notification(
     recipient_role: str,
     title: str,
     message: str,
-    booking: dict,
-    customer_id: str | None = None,
+    customer_id: Optional[str] = None,
+    booking_id: Optional[str] = None,
 ) -> None:
-    notifications.insert_one(
-        {
-            "recipient_role": recipient_role,
-            "customer_id": customer_id,
-            "title": title,
-            "message": message,
-            "type": "booking",
-            "booking_id": booking.get("booking_id", str(booking["_id"])),
-            "booking_object_id": str(booking["_id"]),
-            "is_read": False,
-            "created_at": datetime.now(UTC),
-        }
-    )
+    notification = {
+        "recipient_role": recipient_role,
+        "title": title,
+        "message": message,
+        "is_read": False,
+        "created_at": datetime.now(timezone.utc),
+    }
+
+    if customer_id:
+        notification["customer_id"] = customer_id
+
+    if booking_id:
+        notification["booking_id"] = booking_id
+
+    await notifications.insert_one(notification)
 
 
-def notify_safely(**kwargs) -> None:
+async def notify_safely(**kwargs) -> None:
     try:
-        create_notification(**kwargs)
-    except PyMongoError:
-        logger.exception("Booking action saved, but notification logging failed.")
+        await create_notification(**kwargs)
+    except Exception:
+        logger.exception("Failed to create booking notification")
 
 
-def status_filter_for_existing_record(item: dict) -> dict:
-    if "status" not in item:
-        return {"status": {"$exists": False}}
-    return {"status": item["status"]}
+def booking_query_for_customer(booking_id: str, customer_id: str) -> dict:
+    return {
+        "_id": ObjectId(booking_id),
+        "customer_id": ObjectId(customer_id),
+    }
 
 
-# =====================================================
-# ENDPOINTS
-# =====================================================
+async def build_booking_data(data: BookingCreate) -> dict:
+    if data.event_date < date.today():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Event date cannot be in the past",
+        )
+
+    selected_foods = await validate_selected_foods(data.selected_foods)
+
+    return {
+        "function_type": data.function_type,
+        "event_date": data.event_date.isoformat(),
+        "event_time": data.event_time.strip(),
+        "location": data.location.strip(),
+        "persons_count": data.persons_count,
+        "catering_service_required": data.catering_service_required,
+        "cooking_service": data.cooking_service,
+        "serving_staff_required": data.serving_staff_required,
+        "meal_type": data.meal_type,
+        "food_preference": data.food_preference,
+        "selected_foods": selected_foods,
+        "special_requirements": (
+            data.special_requirements.strip()
+            if data.special_requirements
+            else None
+        ),
+    }
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
-def create_booking(
+# ---------------------------------------------------------------------------
+# CUSTOMER: BOOKING PREVIEW
+# ---------------------------------------------------------------------------
+
+@router.post("/preview")
+async def preview_booking(
     data: BookingCreate,
     customer_id: str = Depends(get_customer_id),
 ):
-    # Security Check 1: Date Range Sanity
-    today = date.today()
-    max_allowed_date = today + timedelta(days=730)  # Max 2 years in advance
-
-    if data.event_date < today:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Event date cannot be in the past.",
-        )
-
-    if data.event_date > max_allowed_date:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Bookings cannot be scheduled more than 2 years in advance.",
-        )
-
     try:
-        # Security Check 2: Rate Limiting / Spam Protection (Max 5 active pending requests per user)
-        pending_count = bookings.count_documents(
-            {"customer_id": customer_id, "status": "pending"}
-        )
-        if pending_count >= 5:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="You have 5 pending booking requests. Please wait for confirmation before adding more.",
-            )
-
-        customer = customers.find_one(
-            {"_id": ObjectId(customer_id)},
-            {"name": 1, "phone": 1, "email": 1},
-        )
-
-        if customer is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Customer account not found.",
-            )
-
-        now = datetime.now(UTC)
-        mongo_id = ObjectId()
-        display_booking_id = f"NIV-{str(mongo_id)[-8:].upper()}"
-
-        booking = {
-            "_id": mongo_id,
-            "booking_id": display_booking_id,
-            "customer_id": customer_id,
-            "customer_name": customer.get("name", ""),
-            "customer_phone": customer.get("phone", ""),
-            "customer_email": customer.get("email", ""),
-            "function_type": data.function_type,
-            "event_date": data.event_date.isoformat(),
-            "event_time": data.event_time,
-            "location": data.location,
-            "persons_count": data.persons_count,
-            "cooking_service": data.cooking_service,
-            "serving_staff_required": data.serving_staff_required,
-            "meal_type": data.meal_type,
-            "food_preference": data.food_preference,
-            "special_requirements": data.special_requirements,
-            "status": "pending",
-            "created_at": now,
-            "updated_at": now,
-        }
-
-        bookings.insert_one(booking)
-
-        notify_safely(
-            recipient_role="owner",
-            title="New catering booking",
-            message=(
-                f"{booking['customer_name'] or 'A customer'} "
-                f"submitted a {booking['function_type']} booking "
-                f"for {booking['event_date']}."
-            ),
-            booking=booking,
-        )
-
-        logger.info("Booking created successfully: %s", display_booking_id)
+        booking_data = await build_booking_data(data)
 
         return {
             "success": True,
-            "message": "Booking request submitted successfully.",
+            "message": "Booking preview generated successfully",
+            "booking": booking_data,
+        }
+
+    except HTTPException:
+        raise
+    except PyMongoError:
+        logger.exception("Database error while generating booking preview")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to generate booking preview",
+        )
+
+
+# ---------------------------------------------------------------------------
+# CUSTOMER: CREATE BOOKING
+# ---------------------------------------------------------------------------
+
+@router.post("/", status_code=status.HTTP_201_CREATED)
+async def create_booking(
+    data: BookingCreate,
+    customer_id: str = Depends(get_customer_id),
+):
+    try:
+        customer_object_id = ObjectId(customer_id)
+
+        customer = await customers.find_one({"_id": customer_object_id})
+
+        if not customer:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Customer account not found",
+            )
+
+        pending_count = await bookings.count_documents({
+            "customer_id": customer_object_id,
+            "status": "pending",
+        })
+
+        if pending_count >= 5:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You can have a maximum of 5 pending bookings",
+            )
+
+        booking_data = await build_booking_data(data)
+
+        now = datetime.now(timezone.utc)
+
+        booking_data.update({
+            "customer_id": customer_object_id,
+            "customer_name": customer.get("name") or customer.get("full_name", ""),
+            "customer_email": customer.get("email", ""),
+            "customer_phone": customer.get("phone", ""),
+            "status": "pending",
+            "owner_note": None,
+            "created_at": now,
+            "updated_at": now,
+        })
+
+        result = await bookings.insert_one(booking_data)
+        booking_id = str(result.inserted_id)
+
+        await notify_safely(
+            recipient_role="owner",
+            title="New Catering Booking",
+            message=(
+                f"{booking_data['customer_name']} submitted a new "
+                f"{booking_data['function_type']} booking."
+            ),
+            customer_id=customer_id,
+            booking_id=booking_id,
+        )
+
+        saved_booking = await bookings.find_one({"_id": result.inserted_id})
+
+        return {
+            "success": True,
+            "message": "Booking submitted successfully",
+            "booking": serialize_booking(saved_booking),
+        }
+
+    except HTTPException:
+        raise
+    except PyMongoError:
+        logger.exception("Database error while creating booking")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to create booking",
+        )
+    except Exception:
+        logger.exception("Unexpected error while creating booking")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong while creating booking",
+        )
+
+
+# ---------------------------------------------------------------------------
+# CUSTOMER: MY BOOKINGS
+# ---------------------------------------------------------------------------
+
+@router.get("/my-bookings")
+async def get_my_bookings(
+    customer_id: str = Depends(get_customer_id),
+):
+    try:
+        cursor = bookings.find({
+            "customer_id": ObjectId(customer_id),
+        }).sort("created_at", -1)
+
+        results = [
+            serialize_booking(booking)
+            async for booking in cursor
+        ]
+
+        return {
+            "success": True,
+            "count": len(results),
+            "bookings": results,
+        }
+
+    except PyMongoError:
+        logger.exception("Database error while fetching customer bookings")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to fetch bookings",
+        )
+
+
+# ---------------------------------------------------------------------------
+# CUSTOMER: EDIT PENDING BOOKING
+# ---------------------------------------------------------------------------
+
+@router.put("/{booking_id}")
+async def update_my_booking(
+    booking_id: str,
+    data: BookingCreate,
+    customer_id: str = Depends(get_customer_id),
+):
+    if not ObjectId.is_valid(booking_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid booking ID",
+        )
+
+    try:
+        booking_data = await build_booking_data(data)
+        now = datetime.now(timezone.utc)
+
+        updated = await bookings.find_one_and_update(
+            {
+                **booking_query_for_customer(booking_id, customer_id),
+                "status": "pending",
+            },
+            {
+                "$set": {
+                    **booking_data,
+                    "updated_at": now,
+                }
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+
+        if not updated:
+            existing = await bookings.find_one({
+                **booking_query_for_customer(booking_id, customer_id),
+            })
+
+            if not existing:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Booking not found",
+                )
+
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only pending bookings can be edited",
+            )
+
+        await notify_safely(
+            recipient_role="owner",
+            title="Booking Updated",
+            message=f"{updated.get('customer_name', 'Customer')} updated a booking.",
+            customer_id=customer_id,
+            booking_id=booking_id,
+        )
+
+        return {
+            "success": True,
+            "message": "Booking updated successfully",
+            "booking": serialize_booking(updated),
+        }
+
+    except HTTPException:
+        raise
+    except PyMongoError:
+        logger.exception("Database error while updating booking")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to update booking",
+        )
+
+
+# ---------------------------------------------------------------------------
+# CUSTOMER: CANCEL PENDING BOOKING
+# ---------------------------------------------------------------------------
+
+@router.patch("/{booking_id}/cancel")
+async def cancel_booking(
+    booking_id: str,
+    customer_id: str = Depends(get_customer_id),
+):
+    if not ObjectId.is_valid(booking_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid booking ID",
+        )
+
+    try:
+        updated = await bookings.find_one_and_update(
+            {
+                **booking_query_for_customer(booking_id, customer_id),
+                "status": "pending",
+            },
+            {
+                "$set": {
+                    "status": "cancelled",
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+
+        if not updated:
+            existing = await bookings.find_one({
+                **booking_query_for_customer(booking_id, customer_id),
+            })
+
+            if not existing:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Booking not found",
+                )
+
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only pending bookings can be cancelled",
+            )
+
+        await notify_safely(
+            recipient_role="owner",
+            title="Booking Cancelled",
+            message=f"{updated.get('customer_name', 'Customer')} cancelled a booking.",
+            customer_id=customer_id,
+            booking_id=booking_id,
+        )
+
+        return {
+            "success": True,
+            "message": "Booking cancelled successfully",
+            "booking": serialize_booking(updated),
+        }
+
+    except HTTPException:
+        raise
+    except PyMongoError:
+        logger.exception("Database error while cancelling booking")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to cancel booking",
+        )
+
+
+# ---------------------------------------------------------------------------
+# OWNER: GET ALL BOOKINGS
+# ---------------------------------------------------------------------------
+
+@router.get("/owner/all")
+async def get_all_bookings(
+    status_filter: Optional[BookingStatus] = None,
+    user: dict = Depends(require_owner_or_admin),
+):
+    try:
+        query = {}
+
+        if status_filter:
+            query["status"] = status_filter
+
+        cursor = bookings.find(query).sort("created_at", -1)
+
+        results = [
+            serialize_booking(booking)
+            async for booking in cursor
+        ]
+
+        return {
+            "success": True,
+            "count": len(results),
+            "bookings": results,
+        }
+
+    except PyMongoError:
+        logger.exception("Database error while fetching all bookings")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to fetch bookings",
+        )
+
+
+# ---------------------------------------------------------------------------
+# OWNER: GET SINGLE BOOKING
+# ---------------------------------------------------------------------------
+
+@router.get("/owner/{booking_id}")
+async def get_owner_booking(
+    booking_id: str,
+    user: dict = Depends(require_owner_or_admin),
+):
+    if not ObjectId.is_valid(booking_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid booking ID",
+        )
+
+    try:
+        booking = await bookings.find_one({"_id": ObjectId(booking_id)})
+
+        if not booking:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Booking not found",
+            )
+
+        return {
+            "success": True,
             "booking": serialize_booking(booking),
         }
 
     except HTTPException:
         raise
-    except PyMongoError as exc:
-        logger.exception("Unable to create booking.")
+    except PyMongoError:
+        logger.exception("Database error while fetching booking")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to create booking right now.",
-        ) from exc
-
-
-@router.get("/my-bookings")
-def get_my_bookings(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-    customer_id: str = Depends(get_customer_id),
-):
-    try:
-        total = bookings.count_documents({"customer_id": customer_id})
-        items = list(
-            bookings.find({"customer_id": customer_id})
-            .sort("created_at", -1)
-            .skip(skip)
-            .limit(limit)
+            detail="Unable to fetch booking",
         )
 
-        return {
-            "success": True,
-            "total": total,
-            "count": len(items),
-            "bookings": [serialize_booking(item) for item in items],
-        }
 
-    except PyMongoError as exc:
-        logger.exception("Unable to retrieve customer bookings.")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to retrieve bookings.",
-        ) from exc
-
-
-@router.get("/owner/all")
-def get_all_bookings(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=200),
-    _: dict = Depends(require_owner_or_admin),
-):
-    try:
-        total = bookings.count_documents({})
-        items = list(
-            bookings.find()
-            .sort("created_at", -1)
-            .skip(skip)
-            .limit(limit)
-        )
-
-        return {
-            "success": True,
-            "total": total,
-            "count": len(items),
-            "bookings": [serialize_booking(item) for item in items],
-        }
-
-    except PyMongoError as exc:
-        logger.exception("Unable to retrieve staff bookings.")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to retrieve bookings.",
-        ) from exc
-
-
-@router.get("/owner/{booking_id}")
-def get_owner_booking(
-    booking_id: str,
-    _: dict = Depends(require_owner_or_admin),
-):
-    try:
-        item = bookings.find_one(booking_lookup_query(booking_id))
-
-        if item is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Booking not found.",
-            )
-
-        return {
-            "success": True,
-            "booking": serialize_booking(item),
-        }
-
-    except HTTPException:
-        raise
-    except PyMongoError as exc:
-        logger.exception("Unable to retrieve staff booking.")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to retrieve booking.",
-        ) from exc
-
+# ---------------------------------------------------------------------------
+# OWNER: CONFIRM / REJECT / COMPLETE
+# ---------------------------------------------------------------------------
 
 @router.patch("/owner/{booking_id}/status")
-def update_booking_status(
+async def update_booking_status(
     booking_id: str,
     data: BookingStatusUpdate,
-    _: dict = Depends(require_owner_or_admin),
+    user: dict = Depends(require_owner_or_admin),
 ):
-    try:
-        item = bookings.find_one(booking_lookup_query(booking_id))
+    if not ObjectId.is_valid(booking_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid booking ID",
+        )
 
-        if item is None:
+    try:
+        booking_object_id = ObjectId(booking_id)
+        existing = await bookings.find_one({"_id": booking_object_id})
+
+        if not existing:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Booking not found.",
+                detail="Booking not found",
             )
 
-        current_status = str(item.get("status", "pending")).lower()
+        current_status = existing.get("status", "pending")
 
         allowed_transitions = {
             "pending": {"confirmed", "rejected"},
@@ -471,158 +672,98 @@ def update_booking_status(
 
         if data.status not in allowed_transitions.get(current_status, set()):
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Cannot change booking status from '{current_status}' to '{data.status}'.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot change booking status from {current_status} to {data.status}",
             )
 
-        now = datetime.now(UTC)
-        conditional_query = {"_id": item["_id"]}
-        conditional_query.update(status_filter_for_existing_record(item))
+        now = datetime.now(timezone.utc)
 
-        result = bookings.update_one(
-            conditional_query,
+        updated = await bookings.find_one_and_update(
+            {
+                "_id": booking_object_id,
+                "status": current_status,
+            },
             {
                 "$set": {
                     "status": data.status,
+                    "owner_note": data.owner_note,
                     "updated_at": now,
                 }
             },
+            return_document=ReturnDocument.AFTER,
         )
 
-        if result.modified_count == 0:
+        if not updated:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Booking status modified concurrently. Refresh and try again.",
+                detail="Booking was updated by another request. Refresh and try again.",
             )
 
-        item["status"] = data.status
-        item["updated_at"] = now
+        customer_id = str(updated.get("customer_id", ""))
 
-        notify_safely(
+        await notify_safely(
             recipient_role="customer",
-            customer_id=str(item.get("customer_id", "")),
-            title="Booking status updated",
-            message=f"Your booking {item.get('booking_id', str(item['_id']))} is now {data.status}.",
-            booking=item,
+            title=f"Booking {data.status.title()}",
+            message=(
+                data.owner_note
+                or f"Your catering booking has been {data.status}."
+            ),
+            customer_id=customer_id,
+            booking_id=booking_id,
         )
-
-        logger.info("Booking %s status changed to %s", booking_id, data.status)
 
         return {
             "success": True,
-            "message": "Booking status updated successfully.",
-            "booking": serialize_booking(item),
+            "message": f"Booking {data.status} successfully",
+            "booking": serialize_booking(updated),
         }
 
     except HTTPException:
         raise
-    except PyMongoError as exc:
-        logger.exception("Unable to update booking status.")
+    except PyMongoError:
+        logger.exception("Database error while updating booking status")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to update booking.",
-        ) from exc
+            detail="Unable to update booking status",
+        )
 
+
+# ---------------------------------------------------------------------------
+# CUSTOMER: GET SINGLE BOOKING
+# ---------------------------------------------------------------------------
 
 @router.get("/{booking_id}")
-def get_booking(
+async def get_my_booking(
     booking_id: str,
     customer_id: str = Depends(get_customer_id),
 ):
+    if not ObjectId.is_valid(booking_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid booking ID",
+        )
+
     try:
-        query = booking_lookup_query(booking_id)
-        query["customer_id"] = customer_id  # Enforce IDOR protection
+        booking = await bookings.find_one(
+            booking_query_for_customer(booking_id, customer_id)
+        )
 
-        item = bookings.find_one(query)
-
-        if item is None:
+        if not booking:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Booking not found.",
+                detail="Booking not found",
             )
 
         return {
             "success": True,
-            "booking": serialize_booking(item),
+            "booking": serialize_booking(booking),
         }
 
     except HTTPException:
         raise
-    except PyMongoError as exc:
-        logger.exception("Unable to retrieve customer booking.")
+    except PyMongoError:
+        logger.exception("Database error while fetching customer booking")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to retrieve booking.",
-        ) from exc
-
-
-@router.patch("/{booking_id}/cancel")
-def cancel_booking(
-    booking_id: str,
-    customer_id: str = Depends(get_customer_id),
-):
-    try:
-        query = booking_lookup_query(booking_id)
-        query["customer_id"] = customer_id  # Enforce IDOR protection
-
-        item = bookings.find_one(query)
-
-        if item is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Booking not found.",
-            )
-
-        current_status = str(item.get("status", "pending")).lower()
-
-        if current_status != "pending":
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Only pending bookings can be cancelled directly.",
-            )
-
-        conditional_query = {"_id": item["_id"]}
-        conditional_query.update(status_filter_for_existing_record(item))
-
-        now = datetime.now(UTC)
-
-        result = bookings.update_one(
-            conditional_query,
-            {
-                "$set": {
-                    "status": "cancelled",
-                    "updated_at": now,
-                }
-            },
+            detail="Unable to fetch booking",
         )
-
-        if result.modified_count == 0:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Booking status changed. Refresh and try again.",
-            )
-
-        item["status"] = "cancelled"
-        item["updated_at"] = now
-
-        notify_safely(
-            recipient_role="owner",
-            title="Booking cancelled",
-            message=f"Booking {item.get('booking_id', str(item['_id']))} was cancelled by the customer.",
-            booking=item,
-        )
-
-        return {
-            "success": True,
-            "message": "Booking cancelled successfully.",
-            "booking": serialize_booking(item),
-        }
-
-    except HTTPException:
-        raise
-    except PyMongoError as exc:
-        logger.exception("Unable to cancel booking.")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to cancel booking.",
-        ) from exc
