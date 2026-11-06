@@ -1,10 +1,11 @@
 
 import logging
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, timezone
 from typing import Literal, Optional
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field, ConfigDict
 from pymongo import ReturnDocument
 from pymongo.errors import PyMongoError
@@ -21,6 +22,14 @@ bookings = customer_db["bookings"]
 customers = customer_db["customers"]
 foods = customer_db["foods"]
 notifications = customer_db["notifications"]
+
+customer_oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="/api/v1/auth/customer/login"
+)
+
+staff_oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="/api/v1/auth/owner-login"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -40,7 +49,14 @@ FunctionType = Literal[
 
 MealType = Literal["Breakfast", "Lunch", "Dinner", "Multiple"]
 FoodPreference = Literal["Veg", "Non-Veg", "Both"]
-BookingStatus = Literal["pending", "confirmed", "rejected", "completed", "cancelled"]
+
+BookingStatus = Literal[
+    "pending",
+    "confirmed",
+    "rejected",
+    "completed",
+    "cancelled",
+]
 
 
 class SelectedFoodItem(BaseModel):
@@ -48,7 +64,9 @@ class SelectedFoodItem(BaseModel):
 
     food_id: str
     food_name: Optional[str] = None
-    category: Optional[Literal["Breakfast", "Lunch", "Dinner", "Sweets"]] = None
+    category: Optional[
+        Literal["Breakfast", "Lunch", "Dinner", "Sweets"]
+    ] = None
 
 
 class BookingCreate(BaseModel):
@@ -86,14 +104,18 @@ class BookingStatusUpdate(BaseModel):
 def get_token_payload(token: str) -> dict:
     try:
         payload = decode_access_token(token)
+
         if not payload:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired token",
             )
+
         return payload
+
     except HTTPException:
         raise
+
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -101,9 +123,9 @@ def get_token_payload(token: str) -> dict:
         )
 
 
-async def get_customer_id(token: str = Depends(
-    __import__("fastapi").security.OAuth2PasswordBearer(tokenUrl="/api/v1/auth/customer/login")
-)) -> str:
+async def get_customer_id(
+    token: str = Depends(customer_oauth2_scheme),
+) -> str:
     payload = get_token_payload(token)
 
     if payload.get("role") != "customer":
@@ -113,6 +135,7 @@ async def get_customer_id(token: str = Depends(
         )
 
     customer_id = payload.get("sub")
+
     if not customer_id or not ObjectId.is_valid(customer_id):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -122,9 +145,9 @@ async def get_customer_id(token: str = Depends(
     return customer_id
 
 
-async def require_owner_or_admin(token: str = Depends(
-    __import__("fastapi").security.OAuth2PasswordBearer(tokenUrl="/api/v1/auth/owner/login")
-)) -> dict:
+async def require_owner_or_admin(
+    token: str = Depends(staff_oauth2_scheme),
+) -> dict:
     payload = get_token_payload(token)
 
     if payload.get("role") not in {"owner", "admin"}:
@@ -147,12 +170,12 @@ def serialize_booking(booking: dict) -> dict:
     result = dict(booking)
     result["id"] = str(result.pop("_id", ""))
 
-    for key in ("customer_id",):
-        if isinstance(result.get(key), ObjectId):
-            result[key] = str(result[key])
+    if isinstance(result.get("customer_id"), ObjectId):
+        result["customer_id"] = str(result["customer_id"])
 
     for key in ("created_at", "updated_at", "event_date"):
         value = result.get(key)
+
         if isinstance(value, (datetime, date)):
             result[key] = value.isoformat()
 
@@ -167,7 +190,9 @@ def serialize_food(food: dict) -> dict:
     }
 
 
-async def validate_selected_foods(items: list[SelectedFoodItem]) -> list[dict]:
+async def validate_selected_foods(
+    items: list[SelectedFoodItem],
+) -> list[dict]:
     validated_foods = []
     seen_ids = set()
 
@@ -178,8 +203,6 @@ async def validate_selected_foods(items: list[SelectedFoodItem]) -> list[dict]:
                 detail=f"Invalid food ID: {item.food_id}",
             )
 
-        food_object_id = ObjectId(item.food_id)
-
         if item.food_id in seen_ids:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -187,6 +210,7 @@ async def validate_selected_foods(items: list[SelectedFoodItem]) -> list[dict]:
             )
 
         seen_ids.add(item.food_id)
+        food_object_id = ObjectId(item.food_id)
 
         food = await foods.find_one({"_id": food_object_id})
 
@@ -238,7 +262,10 @@ async def notify_safely(**kwargs) -> None:
         logger.exception("Failed to create booking notification")
 
 
-def booking_query_for_customer(booking_id: str, customer_id: str) -> dict:
+def booking_query_for_customer(
+    booking_id: str,
+    customer_id: str,
+) -> dict:
     return {
         "_id": ObjectId(booking_id),
         "customer_id": ObjectId(customer_id),
@@ -252,7 +279,9 @@ async def build_booking_data(data: BookingCreate) -> dict:
             detail="Event date cannot be in the past",
         )
 
-    selected_foods = await validate_selected_foods(data.selected_foods)
+    selected_foods = await validate_selected_foods(
+        data.selected_foods
+    )
 
     return {
         "function_type": data.function_type,
@@ -294,6 +323,7 @@ async def preview_booking(
 
     except HTTPException:
         raise
+
     except PyMongoError:
         logger.exception("Database error while generating booking preview")
         raise HTTPException(
@@ -314,7 +344,9 @@ async def create_booking(
     try:
         customer_object_id = ObjectId(customer_id)
 
-        customer = await customers.find_one({"_id": customer_object_id})
+        customer = await customers.find_one(
+            {"_id": customer_object_id}
+        )
 
         if not customer:
             raise HTTPException(
@@ -334,12 +366,14 @@ async def create_booking(
             )
 
         booking_data = await build_booking_data(data)
-
         now = datetime.now(timezone.utc)
 
         booking_data.update({
             "customer_id": customer_object_id,
-            "customer_name": customer.get("name") or customer.get("full_name", ""),
+            "customer_name": (
+                customer.get("name")
+                or customer.get("full_name", "")
+            ),
             "customer_email": customer.get("email", ""),
             "customer_phone": customer.get("phone", ""),
             "status": "pending",
@@ -362,7 +396,9 @@ async def create_booking(
             booking_id=booking_id,
         )
 
-        saved_booking = await bookings.find_one({"_id": result.inserted_id})
+        saved_booking = await bookings.find_one({
+            "_id": result.inserted_id
+        })
 
         return {
             "success": True,
@@ -372,12 +408,14 @@ async def create_booking(
 
     except HTTPException:
         raise
+
     except PyMongoError:
         logger.exception("Database error while creating booking")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to create booking",
         )
+
     except Exception:
         logger.exception("Unexpected error while creating booking")
         raise HTTPException(
@@ -440,7 +478,10 @@ async def update_my_booking(
 
         updated = await bookings.find_one_and_update(
             {
-                **booking_query_for_customer(booking_id, customer_id),
+                **booking_query_for_customer(
+                    booking_id,
+                    customer_id,
+                ),
                 "status": "pending",
             },
             {
@@ -453,9 +494,12 @@ async def update_my_booking(
         )
 
         if not updated:
-            existing = await bookings.find_one({
-                **booking_query_for_customer(booking_id, customer_id),
-            })
+            existing = await bookings.find_one(
+                booking_query_for_customer(
+                    booking_id,
+                    customer_id,
+                )
+            )
 
             if not existing:
                 raise HTTPException(
@@ -471,7 +515,10 @@ async def update_my_booking(
         await notify_safely(
             recipient_role="owner",
             title="Booking Updated",
-            message=f"{updated.get('customer_name', 'Customer')} updated a booking.",
+            message=(
+                f"{updated.get('customer_name', 'Customer')} "
+                "updated a booking."
+            ),
             customer_id=customer_id,
             booking_id=booking_id,
         )
@@ -484,6 +531,7 @@ async def update_my_booking(
 
     except HTTPException:
         raise
+
     except PyMongoError:
         logger.exception("Database error while updating booking")
         raise HTTPException(
@@ -510,7 +558,10 @@ async def cancel_booking(
     try:
         updated = await bookings.find_one_and_update(
             {
-                **booking_query_for_customer(booking_id, customer_id),
+                **booking_query_for_customer(
+                    booking_id,
+                    customer_id,
+                ),
                 "status": "pending",
             },
             {
@@ -523,9 +574,12 @@ async def cancel_booking(
         )
 
         if not updated:
-            existing = await bookings.find_one({
-                **booking_query_for_customer(booking_id, customer_id),
-            })
+            existing = await bookings.find_one(
+                booking_query_for_customer(
+                    booking_id,
+                    customer_id,
+                )
+            )
 
             if not existing:
                 raise HTTPException(
@@ -541,7 +595,10 @@ async def cancel_booking(
         await notify_safely(
             recipient_role="owner",
             title="Booking Cancelled",
-            message=f"{updated.get('customer_name', 'Customer')} cancelled a booking.",
+            message=(
+                f"{updated.get('customer_name', 'Customer')} "
+                "cancelled a booking."
+            ),
             customer_id=customer_id,
             booking_id=booking_id,
         )
@@ -554,11 +611,55 @@ async def cancel_booking(
 
     except HTTPException:
         raise
+
     except PyMongoError:
         logger.exception("Database error while cancelling booking")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to cancel booking",
+        )
+
+
+# ---------------------------------------------------------------------------
+# OWNER / ADMIN: GET BOOKINGS AT COLLECTION ROOT
+# ---------------------------------------------------------------------------
+
+@router.get("/", summary="Get all bookings for owner or admin")
+async def get_bookings_for_owner(
+    status_filter: Optional[BookingStatus] = None,
+    user: dict = Depends(require_owner_or_admin),
+):
+    try:
+        query = {}
+
+        if status_filter:
+            query["status"] = status_filter
+
+        cursor = bookings.find(query).sort("created_at", -1)
+
+        results = [
+            serialize_booking(booking)
+            async for booking in cursor
+        ]
+
+        return {
+            "success": True,
+            "count": len(results),
+            "bookings": results,
+        }
+
+    except PyMongoError:
+        logger.exception("Database error while fetching owner bookings")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to fetch bookings",
+        )
+
+    except Exception:
+        logger.exception("Unexpected error while fetching owner bookings")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong while fetching bookings",
         )
 
 
@@ -614,7 +715,9 @@ async def get_owner_booking(
         )
 
     try:
-        booking = await bookings.find_one({"_id": ObjectId(booking_id)})
+        booking = await bookings.find_one({
+            "_id": ObjectId(booking_id)
+        })
 
         if not booking:
             raise HTTPException(
@@ -629,6 +732,7 @@ async def get_owner_booking(
 
     except HTTPException:
         raise
+
     except PyMongoError:
         logger.exception("Database error while fetching booking")
         raise HTTPException(
@@ -655,7 +759,10 @@ async def update_booking_status(
 
     try:
         booking_object_id = ObjectId(booking_id)
-        existing = await bookings.find_one({"_id": booking_object_id})
+
+        existing = await bookings.find_one({
+            "_id": booking_object_id
+        })
 
         if not existing:
             raise HTTPException(
@@ -670,10 +777,16 @@ async def update_booking_status(
             "confirmed": {"completed"},
         }
 
-        if data.status not in allowed_transitions.get(current_status, set()):
+        if data.status not in allowed_transitions.get(
+            current_status,
+            set(),
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot change booking status from {current_status} to {data.status}",
+                detail=(
+                    f"Cannot change booking status from "
+                    f"{current_status} to {data.status}"
+                ),
             )
 
         now = datetime.now(timezone.utc)
@@ -696,7 +809,10 @@ async def update_booking_status(
         if not updated:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Booking was updated by another request. Refresh and try again.",
+                detail=(
+                    "Booking was updated by another request. "
+                    "Refresh and try again."
+                ),
             )
 
         customer_id = str(updated.get("customer_id", ""))
@@ -720,6 +836,7 @@ async def update_booking_status(
 
     except HTTPException:
         raise
+
     except PyMongoError:
         logger.exception("Database error while updating booking status")
         raise HTTPException(
@@ -745,7 +862,10 @@ async def get_my_booking(
 
     try:
         booking = await bookings.find_one(
-            booking_query_for_customer(booking_id, customer_id)
+            booking_query_for_customer(
+                booking_id,
+                customer_id,
+            )
         )
 
         if not booking:
@@ -761,8 +881,11 @@ async def get_my_booking(
 
     except HTTPException:
         raise
+
     except PyMongoError:
-        logger.exception("Database error while fetching customer booking")
+        logger.exception(
+            "Database error while fetching customer booking"
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to fetch booking",
