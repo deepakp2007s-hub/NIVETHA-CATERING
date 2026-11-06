@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -33,21 +34,18 @@ export default function Header({ onMenuClick }) {
     ? "Booking Details"
     : pageTitles[location.pathname] || "Nivetha Owner";
 
-  const ownerName = user?.name || "Owner";
+  const userName = user?.name || user?.email || "User";
+  const userRole = user?.role === "admin" ? "Admin" : "Owner";
 
   const handleNotifications = () => {
     setMenuOpen(false);
     navigate("/notifications");
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     setMenuOpen(false);
-
-    try {
-      await logout();
-    } finally {
-      navigate("/login", { replace: true });
-    }
+    logout();
+    navigate("/login", { replace: true });
   };
 
   return (
@@ -85,14 +83,14 @@ export default function Header({ onMenuClick }) {
           </div>
 
           <div className="owner-info">
-            <strong>{ownerName}</strong>
-            <span>Administrator</span>
+            <strong>{userName}</strong>
+            <span>{userRole}</span>
           </div>
 
           <button
             type="button"
             className="profile-menu-button"
-            aria-label="Owner menu"
+            aria-label="User menu"
             aria-expanded={menuOpen}
             aria-haspopup="true"
             onClick={() => setMenuOpen((value) => !value)}
@@ -109,8 +107,8 @@ export default function Header({ onMenuClick }) {
           {menuOpen && (
             <div className="profile-dropdown">
               <div className="profile-dropdown-heading">
-                <strong>{ownerName}</strong>
-                <span>Owner account</span>
+                <strong>{userName}</strong>
+                <span>{userRole} account</span>
               </div>
 
               <button

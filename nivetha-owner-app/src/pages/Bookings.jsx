@@ -1,26 +1,94 @@
+
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
-  Search,
   CalendarDays,
-  Users,
-  ClipboardList,
-  Clock,
-  CheckCircle2,
+  Search,
   RefreshCw,
   Eye,
+  Users,
+  Clock,
+  CheckCircle2,
   XCircle,
+  AlertCircle,
+  ClipboardList,
+  Trash2,
+  Filter,
+  Phone,
 } from "lucide-react";
 import api from "../services/api";
 import "./Bookings.css";
 
-const STATUSES = [
-  "pending",
-  "confirmed",
-  "rejected",
-  "cancelled",
-  "completed",
-];
+const getBookingId = (booking) =>
+  String(booking?._id || booking?.id || "");
+
+const getValue = (...values) =>
+  values.find((value) => value !== undefined && value !== null && value !== "");
+
+const getStatus = (booking) =>
+  String(booking?.status || "pending").toLowerCase();
+
+const getCustomerName = (booking) =>
+  getValue(
+    booking?.customer_name,
+    booking?.customerName,
+    booking?.customer?.name,
+    booking?.name,
+    "Customer"
+  );
+
+const getCustomerPhone = (booking) =>
+  getValue(
+    booking?.customer_phone,
+    booking?.customerPhone,
+    booking?.customer?.phone,
+    booking?.phone,
+    "Not provided"
+  );
+
+const getEventType = (booking) =>
+  getValue(
+    booking?.function_type,
+    booking?.event_type,
+    booking?.eventType,
+    booking?.functionType,
+    "Function"
+  );
+
+const getEventDate = (booking) =>
+  getValue(
+    booking?.event_date,
+    booking?.function_date,
+    booking?.eventDate,
+    booking?.functionDate,
+    booking?.date,
+    ""
+  );
+
+const getPersons = (booking) =>
+  getValue(
+    booking?.persons_count,
+    booking?.number_of_persons,
+    booking?.numberOfPersons,
+    booking?.persons,
+    booking?.guest_count,
+    booking?.guestCount,
+    0
+  );
+
+const formatDate = (value) => {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
 
 const getBookingList = (response) => {
   const data = response?.data;
@@ -33,80 +101,49 @@ const getBookingList = (response) => {
   return [];
 };
 
-const getBookingId = (booking) =>
-  String(booking?._id || booking?.id || "");
-
-const getStatus = (booking) =>
-  String(booking?.status || "pending").toLowerCase();
-
-const getCustomerName = (booking) =>
-  booking?.customer?.name ||
-  booking?.customerName ||
-  booking?.name ||
-  "Customer";
-
-const getEventName = (booking) =>
-  booking?.eventType ||
-  booking?.functionType ||
-  booking?.eventName ||
-  booking?.customerType ||
-  "Function";
-
-const getEventDate = (booking) =>
-  booking?.eventDate ||
-  booking?.functionDate ||
-  booking?.date ||
-  "";
-
-const getPersons = (booking) =>
-  booking?.numberOfPersons ??
-  booking?.persons ??
-  booking?.guestCount ??
-  0;
-
-const getReference = (booking) =>
-  booking?.bookingId ||
-  booking?.referenceId ||
-  getBookingId(booking);
-
-const formatDate = (value) => {
-  if (!value) return "Not specified";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "Not specified";
-
-  return date.toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-};
-
-const isValidBookingId = (id) =>
-  /^[a-fA-F0-9]{24}$/.test(id);
-
 const getErrorMessage = (error) =>
+  error?.response?.data?.detail ||
   error?.response?.data?.message ||
-  "Something went wrong. Please try again.";
+  error?.message ||
+  "Unable to complete the request. Please try again.";
+
+const STATUS_OPTIONS = [
+  "all",
+  "pending",
+  "confirmed",
+  "rejected",
+  "completed",
+  "cancelled",
+];
+
+const getStatusLabel = (status) =>
+  status.charAt(0).toUpperCase() + status.slice(1);
 
 export default function Bookings() {
+  const location = useLocation();
+
   const [bookings, setBookings] = useState([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
   const [loading, setLoading] = useState(true);
-  const [updatingId, setUpdatingId] = useState("");
+  const [deletingId, setDeletingId] = useState("");
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [success, setSuccess] = useState(
+    location.state?.successMessage || ""
+  );
 
   const fetchBookings = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const response = await api.get("/bookings");
-      setBookings(getBookingList(response));
+      const response = await api.get("/bookings/");
+      const result = getBookingList(response);
+
+      setBookings(
+        result.filter((booking) => getStatus(booking) !== "deleted")
+      );
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -118,124 +155,93 @@ export default function Bookings() {
     fetchBookings();
   }, [fetchBookings]);
 
-  const counts = useMemo(() => {
-    const result = {
-      total: bookings.length,
-      pending: 0,
-      confirmed: 0,
-      rejected: 0,
-      cancelled: 0,
-      completed: 0,
-    };
+  const handleDelete = async (booking) => {
+    const bookingId = getBookingId(booking);
 
-    bookings.forEach((booking) => {
-      const status = getStatus(booking);
+    if (!/^[a-fA-F0-9]{24}$/.test(bookingId)) {
+      setError("Invalid booking ID.");
+      return;
+    }
 
-      if (Object.prototype.hasOwnProperty.call(result, status)) {
-        result[status] += 1;
-      }
-    });
+    if (deletingId) return;
 
-    return result;
-  }, [bookings]);
+    const confirmed = window.confirm(
+      `Are you sure you want to delete booking #${bookingId.slice(-8)}?\n\nThis booking will be marked as deleted and hidden from the active bookings list. It will not be permanently removed from the database.`
+    );
+
+    if (!confirmed) return;
+
+    setDeletingId(bookingId);
+    setError("");
+    setSuccess("");
+
+    try {
+      await api.delete(
+        `/bookings/owner/${encodeURIComponent(bookingId)}`
+      );
+
+      setBookings((previous) =>
+        previous.filter(
+          (item) => getBookingId(item) !== bookingId
+        )
+      );
+
+      setSuccess("Booking deleted successfully.");
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setDeletingId("");
+    }
+  };
 
   const filteredBookings = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     return bookings.filter((booking) => {
-      const customer = getCustomerName(booking).toLowerCase();
-      const event = getEventName(booking).toLowerCase();
-      const reference = String(getReference(booking)).toLowerCase();
-      const phone = String(
-        booking?.customer?.phone ||
-        booking?.customerPhone ||
-        booking?.phone ||
-        ""
-      ).toLowerCase();
+      const bookingId = getBookingId(booking);
+      const customerName = getCustomerName(booking);
+      const phone = getCustomerPhone(booking);
+      const eventType = getEventType(booking);
+      const status = getStatus(booking);
 
       const matchesSearch =
         !query ||
-        customer.includes(query) ||
-        event.includes(query) ||
-        reference.includes(query) ||
-        phone.includes(query);
+        bookingId.toLowerCase().includes(query) ||
+        String(customerName).toLowerCase().includes(query) ||
+        String(phone).toLowerCase().includes(query) ||
+        String(eventType).toLowerCase().includes(query);
 
       const matchesStatus =
-        statusFilter === "all" ||
-        getStatus(booking) === statusFilter;
+        statusFilter === "all" || status === statusFilter;
 
-      const rawDate = getEventDate(booking);
-      const parsedDate = rawDate ? new Date(rawDate) : null;
-      const bookingDate =
-        parsedDate && !Number.isNaN(parsedDate.getTime())
-          ? [
-              parsedDate.getFullYear(),
-              String(parsedDate.getMonth() + 1).padStart(2, "0"),
-              String(parsedDate.getDate()).padStart(2, "0"),
-            ].join("-")
-          : "";
+      const eventDate = getEventDate(booking);
+      const normalizedDate = eventDate
+        ? new Date(eventDate).toISOString().slice(0, 10)
+        : "";
 
-      return (
-        matchesSearch &&
-        matchesStatus &&
-        (!dateFilter || bookingDate === dateFilter)
-      );
+      const matchesDate =
+        !dateFilter || normalizedDate === dateFilter;
+
+      return matchesSearch && matchesStatus && matchesDate;
     });
   }, [bookings, search, statusFilter, dateFilter]);
 
-  const handleStatusChange = async (booking, nextStatus) => {
-    const bookingId = getBookingId(booking);
+  const stats = useMemo(() => {
+    const total = bookings.length;
 
-    if (!isValidBookingId(bookingId)) {
-      setError("Invalid booking ID. Please refresh the page.");
-      return;
-    }
-
-    if (!STATUSES.includes(nextStatus)) {
-      setError("Invalid booking status.");
-      return;
-    }
-
-    if (getStatus(booking) === nextStatus) return;
-
-    if (
-      !window.confirm(
-        `Change this booking status to "${nextStatus}"?`
-      )
-    ) {
-      return;
-    }
-
-    setUpdatingId(bookingId);
-    setError("");
-    setSuccess("");
-
-    try {
-      await api.patch(`/bookings/${bookingId}/status`, {
-        status: nextStatus,
-      });
-
-      setBookings((previous) =>
-        previous.map((item) =>
-          getBookingId(item) === bookingId
-            ? { ...item, status: nextStatus }
-            : item
-        )
-      );
-
-      setSuccess("Booking status updated successfully.");
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setUpdatingId("");
-    }
-  };
-
-  const clearFilters = () => {
-    setSearch("");
-    setStatusFilter("all");
-    setDateFilter("");
-  };
+    return {
+      total,
+      pending: bookings.filter(
+        (item) => getStatus(item) === "pending"
+      ).length,
+      confirmed: bookings.filter(
+        (item) => getStatus(item) === "confirmed"
+      ).length,
+      completed: bookings.filter(
+        (item) => getStatus(item) === "completed"
+      ).length,
+    };
+  }, [bookings]);
 
   return (
     <section className="bookings-page">
@@ -246,7 +252,7 @@ export default function Bookings() {
           </span>
           <h1>Booking Management</h1>
           <p>
-            Manage customer bookings, event details and booking status.
+            Manage customer bookings, event schedules and booking status.
           </p>
         </div>
 
@@ -256,62 +262,70 @@ export default function Bookings() {
       </div>
 
       <div className="bookings-stats">
-        <div className="booking-stat-card">
-          <div className="booking-stat-icon stat-total">
+        <article className="booking-stat-card">
+          <div className="booking-stat-icon booking-stat-blue">
             <ClipboardList size={22} />
           </div>
           <div>
             <span>Total Bookings</span>
-            <h3>{counts.total}</h3>
+            <h3>{stats.total}</h3>
           </div>
-        </div>
+        </article>
 
-        <div className="booking-stat-card">
-          <div className="booking-stat-icon stat-pending">
+        <article className="booking-stat-card">
+          <div className="booking-stat-icon booking-stat-orange">
             <Clock size={22} />
           </div>
           <div>
             <span>Pending</span>
-            <h3>{counts.pending}</h3>
+            <h3>{stats.pending}</h3>
           </div>
-        </div>
+        </article>
 
-        <div className="booking-stat-card">
-          <div className="booking-stat-icon stat-confirmed">
+        <article className="booking-stat-card">
+          <div className="booking-stat-icon booking-stat-green">
             <CheckCircle2 size={22} />
           </div>
           <div>
             <span>Confirmed</span>
-            <h3>{counts.confirmed}</h3>
+            <h3>{stats.confirmed}</h3>
           </div>
-        </div>
+        </article>
 
-        <div className="booking-stat-card">
-          <div className="booking-stat-icon stat-completed">
+        <article className="booking-stat-card">
+          <div className="booking-stat-icon booking-stat-purple">
             <Users size={22} />
           </div>
           <div>
             <span>Completed</span>
-            <h3>{counts.completed}</h3>
+            <h3>{stats.completed}</h3>
           </div>
-        </div>
+        </article>
       </div>
 
       {error && (
-        <div className="bookings-alert bookings-alert-error" role="alert">
+        <div className="bookings-alert error" role="alert">
           <XCircle size={18} />
           <span>{error}</span>
-          <button type="button" onClick={() => setError("")}>
+          <button
+            type="button"
+            onClick={() => setError("")}
+            aria-label="Dismiss error"
+          >
             ×
           </button>
         </div>
       )}
 
       {success && (
-        <div className="bookings-alert bookings-alert-success" role="status">
+        <div className="bookings-alert success" role="status">
           <CheckCircle2 size={18} />
           <span>{success}</span>
-          <button type="button" onClick={() => setSuccess("")}>
+          <button
+            type="button"
+            onClick={() => setSuccess("")}
+            aria-label="Dismiss success"
+          >
             ×
           </button>
         </div>
@@ -320,68 +334,84 @@ export default function Bookings() {
       <div className="bookings-toolbar">
         <div>
           <h2>All Bookings</h2>
-          <p>Search and filter customer event bookings.</p>
+          <p>Search, filter and manage customer bookings.</p>
         </div>
 
         <button
           type="button"
           className="bookings-refresh-btn"
           onClick={fetchBookings}
-          disabled={loading || Boolean(updatingId)}
+          disabled={loading || Boolean(deletingId)}
         >
           <RefreshCw size={17} />
           Refresh
         </button>
       </div>
 
-      <div className="bookings-filters">
+      <div className="bookings-filter-panel">
         <div className="bookings-search">
-          <Search size={19} />
+          <Search size={18} />
           <input
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search customer, phone or booking ID..."
+            placeholder="Search booking ID, customer, phone..."
             aria-label="Search bookings"
           />
+
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
         </div>
 
         <div className="bookings-filter-control">
-          <label htmlFor="booking-status-filter">Status</label>
+          <Filter size={17} />
           <select
-            id="booking-status-filter"
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
+            aria-label="Filter booking status"
           >
-            <option value="all">All statuses</option>
-            {STATUSES.map((status) => (
+            {STATUS_OPTIONS.map((status) => (
               <option key={status} value={status}>
-                {status.charAt(0).toUpperCase() + status.slice(1)}
+                {status === "all" ? "All Statuses" : getStatusLabel(status)}
               </option>
             ))}
           </select>
         </div>
 
-        <div className="bookings-filter-control">
-          <label htmlFor="booking-date-filter">Event date</label>
-          <div className="bookings-date-input">
-            <CalendarDays size={17} />
-            <input
-              id="booking-date-filter"
-              type="date"
-              value={dateFilter}
-              onChange={(event) => setDateFilter(event.target.value)}
-            />
-          </div>
+        <div className="bookings-date-filter">
+          <CalendarDays size={17} />
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(event) => setDateFilter(event.target.value)}
+            aria-label="Filter by event date"
+          />
         </div>
 
-        <button
-          type="button"
-          className="bookings-clear-btn"
-          onClick={clearFilters}
-        >
-          Clear
-        </button>
+        {(search || statusFilter !== "all" || dateFilter) && (
+          <button
+            type="button"
+            className="bookings-clear-filter"
+            onClick={() => {
+              setSearch("");
+              setStatusFilter("all");
+              setDateFilter("");
+            }}
+          >
+            Clear Filters
+          </button>
+        )}
+
+        <span className="bookings-result-count">
+          {filteredBookings.length} booking(s)
+        </span>
       </div>
 
       <div className="bookings-table-card">
@@ -403,18 +433,38 @@ export default function Bookings() {
               {loading ? (
                 <tr>
                   <td colSpan={7} className="bookings-table-message">
-                    Loading bookings...
+                    <div className="bookings-loading">
+                      <span className="bookings-spinner" />
+                      Loading bookings...
+                    </div>
                   </td>
                 </tr>
               ) : filteredBookings.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="bookings-table-message">
-                    <div className="bookings-empty-state">
-                      <ClipboardList size={34} />
-                      <strong>No bookings found</strong>
+                    <div className="bookings-empty">
+                      {error ? (
+                        <AlertCircle size={36} />
+                      ) : (
+                        <ClipboardList size={36} />
+                      )}
+                      <strong>
+                        {error
+                          ? "Bookings could not be loaded"
+                          : search || statusFilter !== "all" || dateFilter
+                            ? "No matching bookings"
+                            : "No bookings found"}
+                      </strong>
                       <span>
-                        Try changing your search or filter options.
+                        {error
+                          ? "Check your API connection and try again."
+                          : "Bookings will appear here when customers submit them."}
                       </span>
+                      {error && (
+                        <button type="button" onClick={fetchBookings}>
+                          Try Again
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -422,79 +472,93 @@ export default function Bookings() {
                 filteredBookings.map((booking) => {
                   const id = getBookingId(booking);
                   const status = getStatus(booking);
-                  const validStatus = STATUSES.includes(status)
-                    ? status
-                    : "pending";
+                  const customerName = getCustomerName(booking);
+                  const phone = getCustomerPhone(booking);
+                  const eventType = getEventType(booking);
+                  const eventDate = getEventDate(booking);
+                  const isDeleting = deletingId === id;
 
                   return (
                     <tr key={id}>
                       <td>
-                        <span className="booking-reference">
-                          #{String(getReference(booking)).slice(-8)}
+                        <span className="booking-id-cell">
+                          #{id.slice(-8) || "N/A"}
                         </span>
                       </td>
 
                       <td>
                         <div className="booking-customer-cell">
                           <span className="booking-customer-avatar">
-                            {getCustomerName(booking)
-                              .charAt(0)
-                              .toUpperCase()}
+                            {String(customerName).charAt(0).toUpperCase()}
                           </span>
                           <div>
-                            <strong>{getCustomerName(booking)}</strong>
+                            <strong>{customerName}</strong>
                             <span>
-                              {booking?.customer?.phone ||
-                                booking?.customerPhone ||
-                                booking?.phone ||
-                                "No phone"}
+                              <Phone size={12} />
+                              {phone}
                             </span>
                           </div>
                         </div>
                       </td>
 
-                      <td>{getEventName(booking)}</td>
-                      <td>{formatDate(getEventDate(booking))}</td>
+                      <td>
+                        <span className="booking-event-name">
+                          {eventType}
+                        </span>
+                      </td>
 
                       <td>
-                        <span className="booking-persons">
+                        <span className="booking-date-cell">
+                          <CalendarDays size={15} />
+                          {formatDate(eventDate)}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span className="booking-persons-cell">
                           <Users size={15} />
                           {getPersons(booking)}
                         </span>
                       </td>
 
                       <td>
-                        <select
-                          className={`booking-status-select status-${validStatus}`}
-                          value={validStatus}
-                          disabled={updatingId === id}
-                          aria-label={`Update status for booking ${id}`}
-                          onChange={(event) =>
-                            handleStatusChange(booking, event.target.value)
-                          }
-                        >
-                          {STATUSES.map((item) => (
-                            <option key={item} value={item}>
-                              {item.charAt(0).toUpperCase() + item.slice(1)}
-                            </option>
-                          ))}
-                        </select>
-
-                        {updatingId === id && (
-                          <span className="booking-updating-label">
-                            Updating...
-                          </span>
-                        )}
+                        <span className={`booking-status-badge status-${status}`}>
+                          <span />
+                          {getStatusLabel(status)}
+                        </span>
                       </td>
 
                       <td>
-                        <Link
-                          to={`/bookings/${encodeURIComponent(id)}`}
-                          className="booking-view-btn"
-                        >
-                          <Eye size={16} />
-                          View
-                        </Link>
+                        <div className="booking-actions">
+                          {id && (
+                            <Link
+                              to={`/bookings/${encodeURIComponent(id)}`}
+                              className="booking-view-btn"
+                              aria-label="View booking details"
+                              title="View booking"
+                            >
+                              <Eye size={16} />
+                            </Link>
+                          )}
+
+                          <button
+                            type="button"
+                            className="booking-delete-btn"
+                            onClick={() => handleDelete(booking)}
+                            disabled={Boolean(deletingId)}
+                            aria-label="Delete booking"
+                            title="Soft delete booking"
+                          >
+                            {isDeleting ? (
+                              <RefreshCw
+                                size={16}
+                                className="booking-delete-spin"
+                              />
+                            ) : (
+                              <Trash2 size={16} />
+                            )}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -506,7 +570,7 @@ export default function Bookings() {
 
         <div className="bookings-table-footer">
           <span>
-            Showing {filteredBookings.length} of {bookings.length} bookings
+            Showing {filteredBookings.length} of {bookings.length} active bookings
           </span>
         </div>
       </div>

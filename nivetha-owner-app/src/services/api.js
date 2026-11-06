@@ -1,36 +1,76 @@
+
 import axios from "axios";
+
 const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ||"https://nivetha-fastapi-backend.onrender.com/api/v1").replace(/\/+$/, "");
-const api = axios.create({baseURL: API_BASE_URL,timeout: 60000,headers: {"Content-Type": "application/json",},});
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://nivetha-fastapi-backend.onrender.com/api/v1"
+).replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 60000,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("ownerToken");
-    config.headers = config.headers || {};
-    if (token) {config.headers.Authorization = `Bearer ${token}`;} else {delete config.headers.Authorization;}
-    return config;},(error) => Promise.reject(error));
-api.interceptors.response.use((response) => response,(error) => {const status = error.response?.status;
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      delete config.headers.Authorization;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response?.status;
+    const requestUrl = error.config?.url || "";
+
     if (!error.response) {
       error.message =
         error.code === "ECONNABORTED"
           ? "Request timed out. Please try again."
-          : "Cannot connect to the server. Check your internet connection.";} else if (status === 401) {
-      localStorage.removeItem("ownerToken");
+          : "Cannot connect to the server. Check your internet connection.";
+    } else if (status === 401) {
+      const isLoginRequest =
+        requestUrl.includes("/auth/owner-login") ||
+        requestUrl.includes("/auth/admin-login");
+
+      if (!isLoginRequest) {
+        localStorage.removeItem("ownerToken");
+        localStorage.removeItem("ownerUser");
+      }
+
       error.message =
         error.response.data?.detail ||
-        error.response.data?.message ||
-        "Authentication required. Please check the Owner API access.";} else if (status === 403) {
+        "Invalid credentials or authentication expired.";
+    } else if (status === 403) {
       error.message =
         error.response.data?.detail ||
-        error.response.data?.message ||
-        "Access denied. Owner permission is required.";} else if (status >= 500) {
+        "Access denied. Your account does not have permission.";
+    } else if (status >= 500) {
       error.message =
         error.response.data?.detail ||
-        error.response.data?.message ||
-        "Server error. Please try again later.";} else {
+        "Server error. Please try again later.";
+    } else {
       error.message =
         error.response.data?.detail ||
         error.response.data?.message ||
         error.message ||
-        "Something went wrong. Please try again.";}
-    return Promise.reject(error);});
+        "Something went wrong.";
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 export default api;

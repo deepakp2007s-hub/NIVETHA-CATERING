@@ -1,6 +1,9 @@
+
 import {
   createContext,
   useContext,
+  useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -9,73 +12,61 @@ import authService from "../services/authService";
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(
-    () => localStorage.getItem("ownerToken")
-  );
+  const [token, setToken] = useState(() => authService.getToken());
+  const [user, setUser] = useState(() => authService.getUser());
+  const [loading, setLoading] = useState(true);
 
-  // Login page is not required.
-  // The dashboard can open without a local user session.
-  const [user, setUser] = useState({
-    role: "owner",
-    name: "Anna",
-  });
+  useEffect(() => {
+    const savedToken = authService.getToken();
+    const savedUser = authService.getUser();
 
-  const [loading] = useState(false);
-
-  // Optional login function for future use.
-  const login = async ({ phone, password }) => {
-    if (typeof authService.login !== "function") {
-      throw new Error(
-        "Owner login is not configured in authService."
-      );
+    if (
+      !savedToken ||
+      !savedUser ||
+      !["owner", "admin"].includes(savedUser.role)
+    ) {
+      authService.logout();
+      setToken(null);
+      setUser(null);
+    } else {
+      setToken(savedToken);
+      setUser(savedUser);
     }
 
-    const response = await authService.login(
-      phone.trim(),
-      password
-    );
+    setLoading(false);
+  }, []);
 
-    const owner = response?.owner || response?.user;
-
-    if (!response?.token || !owner) {
-      throw new Error(
-        response?.message || "Owner login failed."
-      );
-    }
-
-    localStorage.setItem("ownerToken", response.token);
+  const login = async (email, password, role = "owner") => {
+    const response = await authService.login(email, password, role);
 
     setToken(response.token);
-    setUser({
-      ...owner,
-      role: owner.role || "owner",
-    });
+    setUser(response.user);
 
     return response;
   };
 
   const logout = () => {
-    authService.logout?.();
-    localStorage.removeItem("ownerToken");
-
+    authService.logout();
     setToken(null);
-
-    // Keep the dashboard accessible without a login page.
-    setUser({
-      role: "owner",
-      name: "Anna",
-    });
+    setUser(null);
   };
 
-  const value = {
-    user,
-    owner: user,
-    token,
-    loading,
-    isAuthenticated: true,
-    login,
-    logout,
-  };
+  const isAuthenticated = Boolean(
+    token && ["owner", "admin"].includes(user?.role)
+  );
+
+  const value = useMemo(
+    () => ({
+      token,
+      user,
+      owner: user,
+      loading,
+      isAuthenticated,
+      login,
+      logout,
+    }),
+    [token, user, loading, isAuthenticated]
+  );
 
   return (
     <AuthContext.Provider value={value}>
@@ -88,9 +79,7 @@ export function useAuth() {
   const context = useContext(AuthContext);
 
   if (!context) {
-    throw new Error(
-      "useAuth must be used inside AuthProvider"
-    );
+    throw new Error("useAuth must be used inside AuthProvider");
   }
 
   return context;

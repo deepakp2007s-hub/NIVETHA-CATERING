@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   CalendarDays,
@@ -15,21 +16,23 @@ import {
   IndianRupee,
   Utensils,
   AlertCircle,
+  Mail,
+  Trash2,
 } from "lucide-react";
 import api from "../services/api";
 import "./BookingDetails.css";
 
-const STATUSES = [
-  "pending",
-  "confirmed",
-  "rejected",
-  "cancelled",
-  "completed",
-];
-
 const getErrorMessage = (error) =>
+  error?.response?.data?.detail ||
   error?.response?.data?.message ||
+  error?.message ||
   "Unable to complete the request. Please try again.";
+
+const getBookingId = (booking) =>
+  String(booking?._id || booking?.id || "");
+
+const getValue = (...values) =>
+  values.find((value) => value !== undefined && value !== null && value !== "");
 
 const formatDate = (value) => {
   if (!value) return "Not specified";
@@ -58,65 +61,97 @@ const formatCurrency = (value) => {
   });
 };
 
-const getBookingId = (booking) =>
-  String(booking?._id || booking?.id || "");
-
-const getCustomer = (booking) =>
-  booking?.customer || {};
-
-const getCustomerName = (booking) => {
-  const customer = getCustomer(booking);
-
-  return (
-    customer?.name ||
-    booking?.customerName ||
-    booking?.name ||
+const getCustomerName = (booking) =>
+  getValue(
+    booking?.customer_name,
+    booking?.customerName,
+    booking?.customer?.name,
+    booking?.name,
     "Customer"
   );
-};
 
-const getPhone = (booking) => {
-  const customer = getCustomer(booking);
-
-  return (
-    customer?.phone ||
-    booking?.customerPhone ||
-    booking?.phone ||
+const getPhone = (booking) =>
+  getValue(
+    booking?.customer_phone,
+    booking?.customerPhone,
+    booking?.customer?.phone,
+    booking?.phone,
     "Not provided"
   );
-};
+
+const getEmail = (booking) =>
+  getValue(
+    booking?.customer_email,
+    booking?.customerEmail,
+    booking?.customer?.email,
+    ""
+  );
 
 const getEventType = (booking) =>
-  booking?.eventType ||
-  booking?.functionType ||
-  booking?.eventName ||
-  booking?.customerType ||
-  "Function";
+  getValue(
+    booking?.function_type,
+    booking?.event_type,
+    booking?.eventType,
+    booking?.functionType,
+    "Function"
+  );
 
 const getEventDate = (booking) =>
-  booking?.eventDate ||
-  booking?.functionDate ||
-  booking?.date ||
-  "";
+  getValue(
+    booking?.event_date,
+    booking?.function_date,
+    booking?.eventDate,
+    booking?.functionDate,
+    booking?.date,
+    ""
+  );
 
 const getPersons = (booking) =>
-  booking?.numberOfPersons ??
-  booking?.persons ??
-  booking?.guestCount ??
-  0;
+  getValue(
+    booking?.persons_count,
+    booking?.number_of_persons,
+    booking?.numberOfPersons,
+    booking?.persons,
+    booking?.guest_count,
+    booking?.guestCount,
+    0
+  );
 
 const getFoodItems = (booking) => {
-  const items =
-    (booking?.selectedFoodNames?.length
-      ? booking.selectedFoodNames.map((name) => ({ name }))
-      : null) ||
-    booking?.selectedFoods ||
-    booking?.foods ||
-    booking?.menuItems ||
-    booking?.foodItems;
+  const items = getValue(
+    booking?.selected_foods,
+    booking?.selectedFoods,
+    booking?.foods,
+    booking?.menu_items,
+    booking?.menuItems,
+    booking?.food_items,
+    booking?.foodItems,
+    []
+  );
 
   return Array.isArray(items) ? items : [];
 };
+
+const getStatus = (booking) =>
+  String(booking?.status || "pending").toLowerCase();
+
+const getAvailableStatuses = (status) => {
+  switch (status) {
+    case "pending":
+      return ["pending", "confirmed", "rejected"];
+    case "confirmed":
+      return ["confirmed", "completed"];
+    case "rejected":
+    case "completed":
+    case "cancelled":
+      return [status];
+    default:
+      return [status];
+  }
+};
+
+const getStatusLabel = (status) =>
+  status.charAt(0).toUpperCase() + status.slice(1);
 
 export default function BookingDetails() {
   const { id } = useParams();
@@ -125,13 +160,14 @@ export default function BookingDetails() {
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   const fetchBooking = useCallback(async () => {
     if (!id || !/^[a-fA-F0-9]{24}$/.test(id)) {
-      setError("Invalid booking ID.");
       setBooking(null);
+      setError("Invalid booking ID.");
       setLoading(false);
       return;
     }
@@ -141,7 +177,7 @@ export default function BookingDetails() {
 
     try {
       const response = await api.get(
-        `/bookings/${encodeURIComponent(id)}`
+        `/bookings/owner/${encodeURIComponent(id)}`
       );
 
       const data = response?.data;
@@ -155,14 +191,14 @@ export default function BookingDetails() {
         throw new Error("Booking details were not found.");
       }
 
+      if (getStatus(result) === "deleted") {
+        throw new Error("This booking has already been deleted.");
+      }
+
       setBooking(result);
     } catch (err) {
       setBooking(null);
-      setError(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Unable to load booking details."
-      );
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -173,41 +209,59 @@ export default function BookingDetails() {
   }, [fetchBooking]);
 
   const handleStatusUpdate = async (nextStatus) => {
+    if (!booking || updating || deleting) return;
+
     const bookingId = getBookingId(booking);
+    const currentStatus = getStatus(booking);
+    const allowedStatuses = getAvailableStatuses(currentStatus);
 
     if (!/^[a-fA-F0-9]{24}$/.test(bookingId)) {
       setError("Invalid booking ID.");
       return;
     }
 
-    if (!STATUSES.includes(nextStatus)) {
-      setError("Invalid booking status.");
+    if (
+      !allowedStatuses.includes(nextStatus) ||
+      nextStatus === currentStatus
+    ) {
+      setError("This status transition is not allowed.");
       return;
     }
 
-    if (String(booking?.status || "pending").toLowerCase() === nextStatus) {
+    if (
+      !window.confirm(
+        `Are you sure you want to change this booking to ${nextStatus}?`
+      )
+    ) {
       return;
     }
-
-    const confirmed = window.confirm(
-      `Are you sure you want to change the booking status to "${nextStatus}"?`
-    );
-
-    if (!confirmed) return;
 
     setUpdating(true);
     setError("");
     setSuccess("");
 
     try {
-      await api.patch(`/bookings/${bookingId}/status`, {
-        status: nextStatus,
-      });
+      const response = await api.patch(
+        `/bookings/owner/${encodeURIComponent(bookingId)}/status`,
+        { status: nextStatus }
+      );
 
-      setBooking((previous) => ({
-        ...previous,
-        status: nextStatus,
-      }));
+      const updatedBooking =
+        response?.data?.booking ||
+        response?.data?.data ||
+        response?.data;
+
+      if (updatedBooking && typeof updatedBooking === "object") {
+        setBooking((previous) => ({
+          ...previous,
+          ...updatedBooking,
+        }));
+      } else {
+        setBooking((previous) => ({
+          ...previous,
+          status: nextStatus,
+        }));
+      }
 
       setSuccess("Booking status updated successfully.");
     } catch (err) {
@@ -216,6 +270,133 @@ export default function BookingDetails() {
       setUpdating(false);
     }
   };
+
+  const handleDeleteBooking = async () => {
+    if (!booking || deleting || updating) return;
+
+    const bookingId = getBookingId(booking);
+
+    if (!/^[a-fA-F0-9]{24}$/.test(bookingId)) {
+      setError("Invalid booking ID.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this booking?\n\nThis booking will be hidden from the active bookings list. It will not be permanently removed from the database."
+    );
+
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await api.delete(
+        `/bookings/owner/${encodeURIComponent(bookingId)}`
+      );
+
+      setSuccess("Booking moved to deleted status successfully.");
+
+      navigate("/bookings", {
+        replace: true,
+        state: {
+          successMessage: "Booking deleted successfully.",
+        },
+      });
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const details = useMemo(() => {
+    if (!booking) return null;
+
+    const payment = booking.payment || {};
+
+    const total = Number(
+      getValue(
+        payment.total_payment,
+        payment.totalPayment,
+        booking.total_payment,
+        booking.totalPayment,
+        booking.total_amount,
+        booking.totalAmount,
+        0
+      )
+    );
+
+    const advance = Number(
+      getValue(
+        payment.advance_payment,
+        payment.advancePayment,
+        booking.advance_payment,
+        booking.advancePayment,
+        0
+      )
+    );
+
+    const balance = Number(
+      getValue(
+        payment.balance_payment,
+        payment.balancePayment,
+        booking.balance_payment,
+        booking.balancePayment,
+        Math.max(total - advance, 0)
+      )
+    );
+
+    const services = [
+      ...(Array.isArray(booking.catering_services)
+        ? booking.catering_services
+        : Array.isArray(booking.cateringServices)
+          ? booking.cateringServices
+          : []),
+      (booking.cooking_service || booking.cookingService) &&
+        "Cooking Service",
+      (booking.serving_staff || booking.servingStaff) &&
+        "Serving Staff",
+    ].filter(Boolean);
+
+    return {
+      status: getStatus(booking),
+      customerName: getCustomerName(booking),
+      phone: getPhone(booking),
+      email: getEmail(booking),
+      eventType: getEventType(booking),
+      eventDate: getEventDate(booking),
+      eventTime: getValue(
+        booking.event_time,
+        booking.eventTime,
+        booking.function_time,
+        booking.functionTime,
+        booking.time,
+        "Not specified"
+      ),
+      persons: getPersons(booking),
+      location: getValue(
+        booking.event_location,
+        booking.eventLocation,
+        booking.location,
+        booking.address,
+        "Not provided"
+      ),
+      foods: getFoodItems(booking),
+      services,
+      requirements: getValue(
+        booking.extra_requirements,
+        booking.extraRequirements,
+        booking.requirements,
+        booking.notes,
+        ""
+      ),
+      total,
+      advance,
+      balance,
+    };
+  }, [booking]);
 
   if (loading) {
     return (
@@ -226,17 +407,19 @@ export default function BookingDetails() {
     );
   }
 
-  if (!booking) {
+  if (!booking || !details) {
     return (
       <div className="booking-details-state booking-details-error-state">
         <AlertCircle size={42} />
         <h2>Booking not found</h2>
         <p>{error || "The requested booking could not be loaded."}</p>
+
         <div className="booking-details-state-actions">
           <button type="button" onClick={fetchBooking}>
             <RefreshCw size={16} />
             Try Again
           </button>
+
           <button
             type="button"
             className="booking-details-secondary-btn"
@@ -249,55 +432,7 @@ export default function BookingDetails() {
     );
   }
 
-  const status = String(booking.status || "pending").toLowerCase();
-  const validStatus = STATUSES.includes(status) ? status : "pending";
-
-  const customer = getCustomer(booking);
-  const foodItems = getFoodItems(booking);
-
-  const payment = booking?.payment || {};
-  const paymentTotal = Number(
-    payment?.totalPayment ??
-      booking?.totalPayment ??
-      booking?.totalAmount ??
-      0
-  );
-
-  const advance = Number(
-    payment?.advancePayment ??
-      booking?.advancePayment ??
-      0
-  );
-
-  const balance = Number(
-    payment?.balancePayment ??
-      booking?.balancePayment ??
-      Math.max(paymentTotal - advance, 0)
-  );
-
-  const location =
-    booking?.location ||
-    booking?.eventLocation ||
-    booking?.address ||
-    "Not provided";
-
-  const eventTime =
-    booking?.eventTime ||
-    booking?.functionTime ||
-    booking?.time ||
-    "Not specified";
-
-  const cateringServices = [
-    ...(Array.isArray(booking?.cateringServices) ? booking.cateringServices : []),
-    booking?.cookingService && "Cooking Service",
-    booking?.servingStaff && "Serving Staff",
-  ].filter(Boolean);
-
-  const extraRequirements =
-    booking?.extraRequirements ||
-    booking?.requirements ||
-    booking?.notes ||
-    "";
+  const availableStatuses = getAvailableStatuses(details.status);
 
   return (
     <section className="booking-details-page">
@@ -311,15 +446,31 @@ export default function BookingDetails() {
           Back to Bookings
         </button>
 
-        <button
-          type="button"
-          className="booking-details-refresh-btn"
-          onClick={fetchBooking}
-          disabled={updating}
-        >
-          <RefreshCw size={16} />
-          Refresh
-        </button>
+        <div className="booking-details-topbar-actions">
+          <button
+            type="button"
+            className="booking-details-refresh-btn"
+            onClick={fetchBooking}
+            disabled={updating || deleting}
+          >
+            <RefreshCw size={16} />
+            Refresh
+          </button>
+
+          <button
+            type="button"
+            className="booking-details-delete-btn"
+            onClick={handleDeleteBooking}
+            disabled={updating || deleting}
+          >
+            {deleting ? (
+              <RefreshCw size={16} className="booking-details-delete-spin" />
+            ) : (
+              <Trash2 size={16} />
+            )}
+            {deleting ? "Deleting..." : "Delete Booking"}
+          </button>
+        </div>
       </div>
 
       <div className="booking-details-hero">
@@ -336,9 +487,9 @@ export default function BookingDetails() {
           </p>
         </div>
 
-        <div className={`booking-details-status status-${validStatus}`}>
+        <div className={`booking-details-status status-${details.status}`}>
           <span className="booking-details-status-dot" />
-          {validStatus.charAt(0).toUpperCase() + validStatus.slice(1)}
+          {getStatusLabel(details.status)}
         </div>
       </div>
 
@@ -378,19 +529,19 @@ export default function BookingDetails() {
             <div className="booking-details-info-grid">
               <div className="booking-details-info-item">
                 <span>Event Type</span>
-                <strong>{getEventType(booking)}</strong>
+                <strong>{details.eventType}</strong>
               </div>
 
               <div className="booking-details-info-item">
                 <span>Function Date</span>
-                <strong>{formatDate(getEventDate(booking))}</strong>
+                <strong>{formatDate(details.eventDate)}</strong>
               </div>
 
               <div className="booking-details-info-item">
                 <span>Function Time</span>
                 <strong className="booking-details-icon-value">
                   <Clock size={15} />
-                  {eventTime}
+                  {details.eventTime}
                 </strong>
               </div>
 
@@ -398,7 +549,7 @@ export default function BookingDetails() {
                 <span>Number of Persons</span>
                 <strong className="booking-details-icon-value">
                   <Users size={16} />
-                  {getPersons(booking)}
+                  {details.persons}
                 </strong>
               </div>
 
@@ -406,7 +557,7 @@ export default function BookingDetails() {
                 <span>Event Location</span>
                 <strong className="booking-details-icon-value">
                   <MapPin size={16} />
-                  {location}
+                  {details.location}
                 </strong>
               </div>
             </div>
@@ -425,18 +576,23 @@ export default function BookingDetails() {
 
             <div className="booking-details-customer">
               <div className="booking-details-customer-avatar">
-                {getCustomerName(booking).charAt(0).toUpperCase()}
+                {details.customerName.charAt(0).toUpperCase()}
               </div>
 
               <div className="booking-details-customer-content">
-                <h3>{getCustomerName(booking)}</h3>
+                <h3>{details.customerName}</h3>
 
                 <p>
                   <Phone size={15} />
-                  {getPhone(booking)}
+                  {details.phone}
                 </p>
 
-                {customer?.email && <p>{customer.email}</p>}
+                {details.email && (
+                  <p>
+                    <Mail size={15} />
+                    {details.email}
+                  </p>
+                )}
               </div>
             </div>
           </article>
@@ -453,11 +609,16 @@ export default function BookingDetails() {
             </div>
 
             <div className="booking-details-service-list">
-              {cateringServices.length > 0 ? (
-                cateringServices.map((service) => (
-                  <span key={service} className="booking-details-service-tag">
+              {details.services.length > 0 ? (
+                details.services.map((service, index) => (
+                  <span
+                    key={`${typeof service === "string" ? service : service?.name}-${index}`}
+                    className="booking-details-service-tag"
+                  >
                     <CheckCircle2 size={15} />
-                    {service}
+                    {typeof service === "string"
+                      ? service
+                      : service?.name || "Catering Service"}
                   </span>
                 ))
               ) : (
@@ -467,13 +628,16 @@ export default function BookingDetails() {
               )}
             </div>
 
-            {foodItems.length > 0 ? (
+            {details.foods.length > 0 ? (
               <div className="booking-details-food-list">
-                {foodItems.map((food, index) => {
+                {details.foods.map((food, index) => {
                   const foodName =
                     typeof food === "string"
                       ? food
-                      : food?.name || food?.foodName || "Food item";
+                      : food?.name ||
+                        food?.food_name ||
+                        food?.foodName ||
+                        "Food item";
 
                   const foodId =
                     typeof food === "object"
@@ -481,7 +645,10 @@ export default function BookingDetails() {
                       : `${food}-${index}`;
 
                   return (
-                    <div className="booking-details-food-item" key={foodId}>
+                    <div
+                      className="booking-details-food-item"
+                      key={foodId}
+                    >
                       <div>
                         <Utensils size={16} />
                         <span>{foodName}</span>
@@ -501,10 +668,10 @@ export default function BookingDetails() {
               </p>
             )}
 
-            {extraRequirements && (
+            {details.requirements && (
               <div className="booking-details-requirements">
                 <span>Extra Requirements</span>
-                <p>{extraRequirements}</p>
+                <p>{details.requirements}</p>
               </div>
             )}
           </article>
@@ -531,14 +698,18 @@ export default function BookingDetails() {
 
             <select
               id="booking-detail-status"
-              className={`booking-details-status-select status-${validStatus}`}
-              value={validStatus}
-              disabled={updating}
+              className={`booking-details-status-select status-${details.status}`}
+              value={details.status}
+              disabled={
+                updating ||
+                deleting ||
+                availableStatuses.length === 1
+              }
               onChange={(event) => handleStatusUpdate(event.target.value)}
             >
-              {STATUSES.map((item) => (
-                <option key={item} value={item}>
-                  {item.charAt(0).toUpperCase() + item.slice(1)}
+              {availableStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {getStatusLabel(status)}
                 </option>
               ))}
             </select>
@@ -552,7 +723,8 @@ export default function BookingDetails() {
             <div className="booking-details-status-note">
               <AlertCircle size={16} />
               <p>
-                Confirm the correct status before updating the booking.
+                Pending bookings can be confirmed or rejected. Confirmed
+                bookings can be marked completed.
               </p>
             </div>
           </article>
@@ -570,19 +742,19 @@ export default function BookingDetails() {
 
             <div className="booking-details-payment-row">
               <span>Total Amount</span>
-              <strong>{formatCurrency(paymentTotal)}</strong>
+              <strong>{formatCurrency(details.total)}</strong>
             </div>
 
             <div className="booking-details-payment-row">
               <span>Advance Paid</span>
               <strong className="payment-positive">
-                {formatCurrency(advance)}
+                {formatCurrency(details.advance)}
               </strong>
             </div>
 
             <div className="booking-details-payment-row payment-balance">
               <span>Balance Amount</span>
-              <strong>{formatCurrency(balance)}</strong>
+              <strong>{formatCurrency(details.balance)}</strong>
             </div>
 
             <p className="booking-details-payment-note">
@@ -590,13 +762,24 @@ export default function BookingDetails() {
             </p>
           </article>
 
-          <Link
-            to="/bookings"
+          <button
+            type="button"
             className="booking-details-back-link"
+            onClick={() => navigate("/bookings")}
           >
             <ArrowLeft size={17} />
             Return to All Bookings
-          </Link>
+          </button>
+
+          <button
+            type="button"
+            className="booking-details-delete-bottom-btn"
+            onClick={handleDeleteBooking}
+            disabled={updating || deleting}
+          >
+            <Trash2 size={17} />
+            {deleting ? "Deleting Booking..." : "Delete This Booking"}
+          </button>
         </aside>
       </div>
     </section>
