@@ -50,31 +50,13 @@ def get_client() -> AsyncIOMotorClient:
 # ---------------------------------------------------------------------
 
 def get_database() -> AsyncIOMotorDatabase:
-    client = get_client()
-
-    database_name = getattr(
-        settings,
-        "CUSTOMER_DATABASE_NAME",
-        "nivetha_catering_db",
-    )
-
-    return client[database_name]
+    database_name = settings.CUSTOMER_DATABASE_NAME
+    return get_client()[database_name]
 
 
 def get_owner_database() -> AsyncIOMotorDatabase:
-    client = get_client()
-
-    database_name = getattr(
-        settings,
-        "OWNER_DATABASE_NAME",
-        getattr(
-            settings,
-            "CUSTOMER_DATABASE_NAME",
-            "nivetha_catering_db",
-        ),
-    )
-
-    return client[database_name]
+    database_name = settings.OWNER_DATABASE_NAME
+    return get_client()[database_name]
 
 
 # ---------------------------------------------------------------------
@@ -96,19 +78,12 @@ class LazyDatabase:
         self.database_name_attribute = database_name_attribute
 
     def _get_db(self) -> AsyncIOMotorDatabase:
-        client = get_client()
-
         database_name = getattr(
             settings,
             self.database_name_attribute,
-            getattr(
-                settings,
-                "CUSTOMER_DATABASE_NAME",
-                "nivetha_catering_db",
-            ),
         )
 
-        return client[database_name]
+        return get_client()[database_name]
 
     def __getitem__(self, collection_name: str):
         return LazyCollection(self, collection_name)
@@ -137,8 +112,6 @@ async def ensure_index(
     try:
         existing_indexes = await collection.index_information()
 
-        # First check whether the same key already exists,
-        # regardless of its index name.
         for existing_name, existing in existing_indexes.items():
             existing_keys = list(existing.get("key", []))
 
@@ -165,7 +138,6 @@ async def ensure_index(
 
             return
 
-        # Same index name but different key specification.
         if name in existing_indexes:
             logger.warning(
                 "Index name '%s' already exists with a different "
@@ -174,10 +146,7 @@ async def ensure_index(
             )
             return
 
-        # Build only the required options.
-        index_options = {
-            "name": name,
-        }
+        index_options = {"name": name}
 
         if unique:
             index_options["unique"] = True
@@ -199,9 +168,8 @@ async def ensure_index(
         if error.code in {85, 86}:
             logger.warning(
                 "MongoDB index conflict for '%s'. "
-                "Existing index preserved: %s",
+                "Existing index preserved.",
                 name,
-                error,
             )
             return
 
@@ -228,14 +196,11 @@ async def create_database_indexes():
 
     logger.info("Starting MongoDB index initialization")
 
-    # CUSTOMER INDEXES
-
     await ensure_index(
         database["customers"],
         [("email", 1)],
         name="unique_customer_email",
         unique=True,
-        sparse=False,
     )
 
     await ensure_index(
@@ -245,8 +210,6 @@ async def create_database_indexes():
         unique=True,
         sparse=True,
     )
-
-    # BOOKING INDEXES
 
     await ensure_index(
         database["bookings"],
@@ -266,8 +229,6 @@ async def create_database_indexes():
         name="booking_status_created",
     )
 
-    # FOOD INDEXES
-
     await ensure_index(
         database["foods"],
         [
@@ -276,8 +237,6 @@ async def create_database_indexes():
         ],
         name="food_category_available",
     )
-
-    # NOTIFICATION INDEXES
 
     await ensure_index(
         database["notifications"],
@@ -298,8 +257,6 @@ async def create_database_indexes():
         ],
         name="notification_role_read",
     )
-
-    # REVIEW INDEXES
 
     await ensure_index(
         database["reviews"],
@@ -330,6 +287,10 @@ async def connect_to_mongo() -> None:
         logger.info(
             "Nivetha Catering database initialization completed."
         )
+
+    except PyMongoError:
+        logger.exception("MongoDB connection or operation failed.")
+        raise
 
     except Exception:
         logger.exception("MongoDB initialization failed.")

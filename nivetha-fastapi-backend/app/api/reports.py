@@ -291,12 +291,11 @@ async def get_popular_foods(
 
 @router.get("/monthly-bookings")
 async def get_monthly_booking_report(
-    year: int = Query(
-        default_factory=lambda: datetime.now(timezone.utc).year,
-        ge=2000,
-        le=2100,
-    ),
-    user: dict = Depends(require_owner_or_admin),
+     year: int = Query(
+    default=datetime.now(timezone.utc).year,
+    ge=2000,
+    le=2100,
+     )
 ):
     try:
         pipeline = [

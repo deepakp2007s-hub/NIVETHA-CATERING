@@ -1,6 +1,7 @@
 
 import logging
 import re
+import secrets
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
@@ -26,6 +27,11 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=72)
 
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return value.strip().lower()
+
 
 class CustomerRegisterRequest(BaseModel):
     full_name: str = Field(min_length=2, max_length=100)
@@ -37,10 +43,8 @@ class CustomerRegisterRequest(BaseModel):
     @classmethod
     def validate_name(cls, value: str) -> str:
         value = value.strip()
-
         if len(value) < 2:
             raise ValueError("Full name must contain at least 2 characters.")
-
         return value
 
     @field_validator("email")
@@ -89,44 +93,65 @@ def verify_staff_credentials(
     role: str,
 ) -> dict[str, Any] | None:
     if role == "owner":
-        expected_email = settings.OWNER_EMAIL
+        expected_email = settings.OWNER_EMAIL.strip().lower()
         expected_password = settings.OWNER_PASSWORD
     elif role == "admin":
-        expected_email = settings.ADMIN_EMAIL
+        expected_email = settings.ADMIN_EMAIL.strip().lower()
         expected_password = settings.ADMIN_PASSWORD
     else:
         return None
 
-    if (
-        email.strip().lower() == expected_email
-        and password == expected_password
-    ):
-        return {
-            "id": role,
-            "email": expected_email,
-            "role": role,
-        }
+    email_matches = secrets.compare_digest(
+        email.strip().lower().encode("utf-8"),
+        expected_email.encode("utf-8"),
+    )
+    password_matches = secrets.compare_digest(
+        password.encode("utf-8"),
+        expected_password.encode("utf-8"),
+    )
 
-    return None
+    if not (email_matches and password_matches):
+        return None
+
+    return {
+        "id": role,
+        "email": expected_email,
+        "role": role,
+    }
 
 
 async def authenticate_customer(
     email: str,
     password: str,
 ) -> dict[str, Any] | None:
-    user = await customers_col.find_one(
-        {"email": email.strip().lower()}
-    )
+    try:
+        user = await customers_col.find_one(
+            {"email": email.strip().lower()}
+        )
 
-    if not user:
-        return None
+        if not user:
+            return None
 
-    stored_password = user.get("password_hash") or user.get("password", "")
+        stored_password = user.get("password_hash")
 
-    if not verify_password(password, stored_password):
-        return None
+        # Backward compatibility for older customer records.
+        if not stored_password:
+            stored_password = user.get("password", "")
 
-    return user
+        if not isinstance(stored_password, str) or not stored_password:
+            return None
+
+        if not verify_password(password, stored_password):
+            return None
+
+        return user
+
+    except PyMongoError as exc:
+        logger.exception("Customer authentication database error.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service is temporarily unavailable.",
+        ) from exc
 
 
 async def register_customer(
@@ -146,7 +171,6 @@ async def register_customer(
     try:
         result = await customers_col.insert_one(new_user)
         new_user["_id"] = result.inserted_id
-
         return new_user
 
     except DuplicateKeyError as exc:
@@ -163,10 +187,7 @@ async def register_customer(
         ) from exc
 
 
-@router.post(
-    "/owner-login",
-    response_model=TokenResponse,
-)
+@router.post("/owner-login", response_model=TokenResponse)
 async def owner_login(payload: LoginRequest):
     user = verify_staff_credentials(
         payload.email,
@@ -180,19 +201,14 @@ async def owner_login(payload: LoginRequest):
             detail="Invalid owner credentials.",
         )
 
-    token = create_role_token("owner", "owner")
-
     return TokenResponse(
-        access_token=token,
+        access_token=create_role_token("owner", "owner"),
         role="owner",
         user=user,
     )
 
 
-@router.post(
-    "/admin-login",
-    response_model=TokenResponse,
-)
+@router.post("/admin-login", response_model=TokenResponse)
 async def admin_login(payload: LoginRequest):
     user = verify_staff_credentials(
         payload.email,
@@ -206,10 +222,8 @@ async def admin_login(payload: LoginRequest):
             detail="Invalid admin credentials.",
         )
 
-    token = create_role_token("admin", "admin")
-
     return TokenResponse(
-        access_token=token,
+        access_token=create_role_token("admin", "admin"),
         role="admin",
         user=user,
     )
@@ -224,19 +238,15 @@ async def customer_register(payload: CustomerRegisterRequest):
     user = await register_customer(payload)
 
     user_id = str(user["_id"])
-    token = create_role_token(user_id, "customer")
 
     return TokenResponse(
-        access_token=token,
+        access_token=create_role_token(user_id, "customer"),
         role="customer",
         user=create_user_response(user),
     )
 
 
-@router.post(
-    "/customer/login",
-    response_model=TokenResponse,
-)
+@router.post("/customer/login", response_model=TokenResponse)
 async def customer_login(payload: LoginRequest):
     user = await authenticate_customer(
         payload.email,
@@ -250,47 +260,31 @@ async def customer_login(payload: LoginRequest):
         )
 
     user_id = str(user["_id"])
-    token = create_role_token(user_id, "customer")
 
     return TokenResponse(
-        access_token=token,
+        access_token=create_role_token(user_id, "customer"),
         role="customer",
         user=create_user_response(user),
     )
 
 
-@router.post(
-    "/login",
-    response_model=TokenResponse,
-)
+@router.post("/login", response_model=TokenResponse)
 async def unified_login(payload: LoginRequest):
     email = payload.email.strip().lower()
 
-    owner = verify_staff_credentials(
-        email,
-        payload.password,
-        "owner",
-    )
-
-    if owner:
-        return TokenResponse(
-            access_token=create_role_token("owner", "owner"),
-            role="owner",
-            user=owner,
+    for role in ("owner", "admin"):
+        staff = verify_staff_credentials(
+            email,
+            payload.password,
+            role,
         )
 
-    admin = verify_staff_credentials(
-        email,
-        payload.password,
-        "admin",
-    )
-
-    if admin:
-        return TokenResponse(
-            access_token=create_role_token("admin", "admin"),
-            role="admin",
-            user=admin,
-        )
+        if staff:
+            return TokenResponse(
+                access_token=create_role_token(role, role),
+                role=role,
+                user=staff,
+            )
 
     customer = await authenticate_customer(
         email,
