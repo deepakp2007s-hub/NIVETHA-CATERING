@@ -1,20 +1,27 @@
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  Plus,
+  Search,
+  RefreshCw,
+  Pencil,
+  Trash2,
+  UtensilsCrossed,
+  CheckCircle2,
+  XCircle,
+  Leaf,
+  Drumstick,
+  ImageOff,
+  Filter,
+  X,
+} from "lucide-react";
 import api from "../services/api";
 import "./FoodMenu.css";
 
-const CATEGORIES = [
-  "Breakfast",
-  "Lunch",
-  "Dinner",
-  "Snacks",
-  "Desserts",
-  "Drinks",
-];
+const CATEGORIES = ["Breakfast", "Lunch", "Dinner", "Sweets"];
 
 const getFoodList = (response) => {
-  const data = response?.data;
+  const data = response?.data ?? response;
 
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.foods)) return data.foods;
@@ -24,18 +31,32 @@ const getFoodList = (response) => {
   return [];
 };
 
-const getFoodId = (food) => food?._id || food?.id;
+const getFoodId = (food) => food?.id || food?._id;
 
-const getFoodType = (food) => {
-  const value = String(food?.type || food?.foodType || "Veg").toLowerCase();
-  return value === "non-veg" || value === "nonveg" ? "Non-Veg" : "Veg";
-};
+const isFoodAvailable = (food) =>
+  food?.is_available ?? food?.available ?? food?.isAvailable ?? true;
+
+const isVegetarian = (food) =>
+  food?.is_vegetarian ?? food?.isVegetarian ?? true;
+
+const getFoodImage = (food) =>
+  food?.image_url || food?.imageUrl || food?.image || "";
+
+const getFoodCategory = (food) =>
+  food?.category || food?.meal || "Other";
+
+const getErrorMessage = (error, fallback) =>
+  error?.response?.data?.detail ||
+  error?.response?.data?.message ||
+  error?.message ||
+  fallback;
 
 export default function FoodMenu() {
   const navigate = useNavigate();
 
   const [foods, setFoods] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
@@ -44,20 +65,28 @@ export default function FoodMenu() {
   const [availabilityFilter, setAvailabilityFilter] = useState("All");
   const [busyId, setBusyId] = useState("");
 
-  const loadFoods = useCallback(async () => {
+  const loadFoods = useCallback(async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
       setError("");
 
-      const response = await api.get("/foods");
+      const response = await api.get("/foods/");
       setFoods(getFoodList(response));
     } catch (err) {
       setError(
-        err.response?.data?.message ||
+        getErrorMessage(
+          err,
           "Unable to load foods. Check owner login and backend connection."
+        )
       );
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -65,66 +94,89 @@ export default function FoodMenu() {
     loadFoods();
   }, [loadFoods]);
 
+  useEffect(() => {
+    if (!notice) return undefined;
+
+    const timer = window.setTimeout(() => setNotice(""), 3500);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
   const toggleAvailability = async (food) => {
     const id = getFoodId(food);
+
     if (!id || busyId) return;
 
-    const currentAvailability = food.available ?? food.isAvailable ?? true;
+    const currentAvailability = isFoodAvailable(food);
+    const nextAvailability = !currentAvailability;
 
     try {
       setBusyId(String(id));
       setError("");
       setNotice("");
 
-      await api.patch(`/foods/${id}/availability`);
+      const response = await api.patch(
+        `/foods/${encodeURIComponent(id)}/availability`,
+        { is_available: nextAvailability }
+      );
+
+      const updatedFood = response?.data?.food;
 
       setFoods((current) =>
         current.map((item) =>
           String(getFoodId(item)) === String(id)
-            ? { ...item, available: !currentAvailability }
+            ? {
+                ...item,
+                ...(updatedFood || {}),
+                is_available: nextAvailability,
+              }
             : item
         )
       );
 
       setNotice(
-        currentAvailability
-          ? "Food is now unavailable."
-          : "Food is now available."
+        nextAvailability
+          ? "Food is now available."
+          : "Food is now unavailable."
       );
     } catch (err) {
       setError(
-        err.response?.data?.message ||
-          "Could not update food availability."
+        getErrorMessage(err, "Could not update food availability.")
       );
     } finally {
       setBusyId("");
     }
   };
 
-  const deleteFood = async (food) => {
+  const disableFood = async (food) => {
     const id = getFoodId(food);
-    if (!id || busyId) return;
 
-    if (!window.confirm(`Delete "${food.name}" from the food menu?`)) {
-      return;
-    }
+    if (!id || busyId || !isFoodAvailable(food)) return;
+
+    const confirmed = window.confirm(
+      `Disable "${food.name}"? It will no longer be available to customers.`
+    );
+
+    if (!confirmed) return;
 
     try {
       setBusyId(String(id));
       setError("");
       setNotice("");
 
-      await api.delete(`/foods/${id}`);
+      await api.delete(`/foods/${encodeURIComponent(id)}`);
 
       setFoods((current) =>
-        current.filter((item) => String(getFoodId(item)) !== String(id))
+        current.map((item) =>
+          String(getFoodId(item)) === String(id)
+            ? { ...item, is_available: false }
+            : item
+        )
       );
 
-      setNotice("Food deleted successfully.");
+      setNotice("Food disabled successfully.");
     } catch (err) {
       setError(
-        err.response?.data?.message ||
-          "Could not delete food. Please try again."
+        getErrorMessage(err, "Could not disable food. Please try again.")
       );
     } finally {
       setBusyId("");
@@ -135,81 +187,118 @@ export default function FoodMenu() {
     const query = search.trim().toLowerCase();
 
     return foods.filter((food) => {
-      const nameMatches =
-        !query ||
-        [food.name, food.tamilName, food.description]
-          .filter(Boolean)
-          .some((value) =>
-            String(value).toLowerCase().includes(query)
-          );
+      const searchableText = [
+        food?.name,
+        food?.description,
+        food?.tamil_name,
+        food?.tamilName,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
 
-      const category = food.category || food.meal || "Other";
-      const type = getFoodType(food);
-      const available = food.available ?? food.isAvailable ?? true;
+      const nameMatches = !query || searchableText.includes(query);
+      const categoryMatches =
+        categoryFilter === "All" ||
+        getFoodCategory(food).toLowerCase() === categoryFilter.toLowerCase();
+
+      const vegetarian = isVegetarian(food);
+      const typeMatches =
+        typeFilter === "All" ||
+        (typeFilter === "Veg" && vegetarian) ||
+        (typeFilter === "Non-Veg" && !vegetarian);
+
+      const available = isFoodAvailable(food);
+      const availabilityMatches =
+        availabilityFilter === "All" ||
+        (availabilityFilter === "Available" && available) ||
+        (availabilityFilter === "Unavailable" && !available);
 
       return (
         nameMatches &&
-        (categoryFilter === "All" || category === categoryFilter) &&
-        (typeFilter === "All" || type === typeFilter) &&
-        (availabilityFilter === "All" ||
-          (availabilityFilter === "Available" && available) ||
-          (availabilityFilter === "Unavailable" && !available))
+        categoryMatches &&
+        typeMatches &&
+        availabilityMatches
       );
     });
-  }, [
-    foods,
-    search,
-    categoryFilter,
-    typeFilter,
-    availabilityFilter,
-  ]);
+  }, [foods, search, categoryFilter, typeFilter, availabilityFilter]);
 
-  const availableCount = foods.filter(
-    (food) => food.available ?? food.isAvailable ?? true
-  ).length;
+  const availableCount = foods.filter(isFoodAvailable).length;
+  const unavailableCount = foods.length - availableCount;
 
   const openAddFood = () => navigate("/add-food");
 
+  const openEditFood = (food) => {
+    const id = getFoodId(food);
+    if (id) navigate(`/foods/edit/${encodeURIComponent(id)}`);
+  };
+
   return (
     <main className="food-menu-page">
-      <section className="food-menu-hero">
+      <header className="food-menu-hero">
         <div className="food-hero-copy">
           <span className="food-menu-eyebrow">
-            ✦ NIVETHA CATERING SERVICE
+            <span className="food-eyebrow-dot" />
+            NIVETHA CATERING SERVICE
           </span>
+
           <h1>Food Menu</h1>
-          <p>Manage your dishes and control what customers can order.</p>
+
+          <p>
+            Manage your dishes, update availability and organise your catering
+            collection.
+          </p>
+
+          <button
+            type="button"
+            className="food-add-button hero-add-button"
+            onClick={openAddFood}
+          >
+            <Plus size={18} />
+            Add New Food
+          </button>
         </div>
 
         <div className="food-hero-emblem" aria-hidden="true">
-          <span>✦</span>
-          <strong>N</strong>
-          <small>EST. NIVETHA</small>
+          <div className="food-emblem-circle">
+            <UtensilsCrossed size={38} />
+          </div>
+          <span>✦ NIVETHA ✦</span>
+          <small>QUALITY · TASTE · SERVICE</small>
         </div>
-      </section>
+      </header>
 
       <section className="food-menu-summary">
         <article className="food-summary-card">
-          <span className="summary-icon">▤</span>
+          <span className="summary-icon">
+            <UtensilsCrossed size={21} />
+          </span>
           <div>
             <p>Total Dishes</p>
             <strong>{loading ? "—" : foods.length}</strong>
+            <small>In your menu</small>
           </div>
         </article>
 
         <article className="food-summary-card">
-          <span className="summary-icon summary-icon-green">✓</span>
+          <span className="summary-icon summary-icon-green">
+            <CheckCircle2 size={21} />
+          </span>
           <div>
             <p>Available</p>
             <strong>{loading ? "—" : availableCount}</strong>
+            <small>Ready for customers</small>
           </div>
         </article>
 
         <article className="food-summary-card">
-          <span className="summary-icon summary-icon-gold">◈</span>
+          <span className="summary-icon summary-icon-gold">
+            <XCircle size={21} />
+          </span>
           <div>
-            <p>Categories</p>
-            <strong>{CATEGORIES.length}</strong>
+            <p>Unavailable</p>
+            <strong>{loading ? "—" : unavailableCount}</strong>
+            <small>Currently disabled</small>
           </div>
         </article>
       </section>
@@ -217,48 +306,64 @@ export default function FoodMenu() {
       <section className="food-menu-toolbar">
         <div className="food-toolbar-heading">
           <div>
-            <span className="food-menu-section-label">
-              YOUR COLLECTION
-            </span>
+            <span className="food-menu-section-label">YOUR COLLECTION</span>
             <h2>Manage Dishes</h2>
-            <p>Organise your catering menu in one place.</p>
+            <p>Search, filter and manage your catering menu.</p>
           </div>
 
           <button
             type="button"
-            className="food-add-button"
-            onClick={openAddFood}
+            className="food-refresh-button"
+            onClick={() => loadFoods(true)}
+            disabled={refreshing}
           >
-            <span>＋</span> Add New Food
+            <RefreshCw
+              size={16}
+              className={refreshing ? "food-refresh-spinning" : ""}
+            />
+            {refreshing ? "Refreshing..." : "Refresh"}
           </button>
         </div>
 
         <div className="food-filter-row">
           <label className="food-search-box">
-            <span aria-hidden="true">⌕</span>
+            <Search size={17} />
             <input
               type="search"
-              placeholder="Search English or Tamil name..."
+              placeholder="Search food name or description..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               aria-label="Search food menu"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
+              >
+                <X size={15} />
+              </button>
+            )}
+          </label>
+
+          <label className="food-select-wrap">
+            <Filter size={15} />
+            <select
+              value={categoryFilter}
+              onChange={(event) => setCategoryFilter(event.target.value)}
+              aria-label="Filter category"
+            >
+              <option value="All">All Categories</option>
+              {CATEGORIES.map((category) => (
+                <option value={category} key={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
           </label>
 
           <select
-            value={categoryFilter}
-            onChange={(event) => setCategoryFilter(event.target.value)}
-            aria-label="Filter category"
-          >
-            <option value="All">All Categories</option>
-            {CATEGORIES.map((category) => (
-              <option value={category} key={category}>
-                {category}
-              </option>
-            ))}
-          </select>
-
-          <select
+            className="food-filter-select"
             value={typeFilter}
             onChange={(event) => setTypeFilter(event.target.value)}
             aria-label="Filter food type"
@@ -269,10 +374,9 @@ export default function FoodMenu() {
           </select>
 
           <select
+            className="food-filter-select"
             value={availabilityFilter}
-            onChange={(event) =>
-              setAvailabilityFilter(event.target.value)
-            }
+            onChange={(event) => setAvailabilityFilter(event.target.value)}
             aria-label="Filter availability"
           >
             <option value="All">All Status</option>
@@ -284,24 +388,28 @@ export default function FoodMenu() {
 
       {notice && (
         <div className="food-menu-notice" role="status">
-          <span>✓</span>
+          <CheckCircle2 size={17} />
           <p>{notice}</p>
           <button
             type="button"
             onClick={() => setNotice("")}
             aria-label="Dismiss message"
           >
-            ×
+            <X size={16} />
           </button>
         </div>
       )}
 
       {error && (
         <div className="food-menu-error" role="alert">
-          <span>!</span>
+          <XCircle size={18} />
           <p>{error}</p>
-          <button type="button" onClick={loadFoods} disabled={loading}>
-            {loading ? "Loading..." : "Retry"}
+          <button
+            type="button"
+            onClick={() => loadFoods()}
+            disabled={loading}
+          >
+            Retry
           </button>
         </div>
       )}
@@ -309,9 +417,7 @@ export default function FoodMenu() {
       <section className="food-menu-results">
         <div className="food-results-heading">
           <div>
-            <span className="food-menu-section-label">
-              MENU OVERVIEW
-            </span>
+            <span className="food-menu-section-label">MENU OVERVIEW</span>
             <h2>Food Collection</h2>
           </div>
 
@@ -327,23 +433,41 @@ export default function FoodMenu() {
           </div>
         ) : filteredFoods.length === 0 ? (
           <div className="food-menu-empty">
-            <div className="food-empty-icon">♨</div>
+            <div className="food-empty-icon">
+              <UtensilsCrossed size={30} />
+            </div>
+
             <h3>
               {foods.length ? "No matching dishes" : "Your menu is empty"}
             </h3>
+
             <p>
               {foods.length
                 ? "Try another search term or change the filters."
-                : "Add your first dish to start building the menu."}
+                : "Add your first dish to start building your menu."}
             </p>
 
-            {foods.length === 0 && (
+            {foods.length === 0 ? (
               <button
                 type="button"
                 className="food-add-button"
                 onClick={openAddFood}
               >
-                <span>＋</span> Add First Food
+                <Plus size={17} />
+                Add First Food
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="food-reset-filter"
+                onClick={() => {
+                  setSearch("");
+                  setCategoryFilter("All");
+                  setTypeFilter("All");
+                  setAvailabilityFilter("All");
+                }}
+              >
+                Reset filters
               </button>
             )}
           </div>
@@ -351,9 +475,10 @@ export default function FoodMenu() {
           <div className="food-menu-grid">
             {filteredFoods.map((food, index) => {
               const id = getFoodId(food);
-              const available = food.available ?? food.isAvailable ?? true;
-              const category = food.category || food.meal || "Other";
-              const type = getFoodType(food);
+              const available = isFoodAvailable(food);
+              const vegetarian = isVegetarian(food);
+              const category = getFoodCategory(food);
+              const image = getFoodImage(food);
               const busy = String(id) === busyId;
 
               return (
@@ -364,27 +489,36 @@ export default function FoodMenu() {
                   key={id || `${food.name}-${index}`}
                 >
                   <div className="food-card-image-wrap">
-                    {food.image ? (
+                    {image ? (
                       <img
-                        src={food.image}
+                        src={image}
                         alt={food.name || "Food"}
                         className="food-card-image"
                         loading="lazy"
+                        onError={(event) => {
+                          event.currentTarget.style.display = "none";
+                          event.currentTarget.nextElementSibling?.removeAttribute(
+                            "hidden"
+                          );
+                        }}
                       />
-                    ) : (
-                      <div className="food-image-placeholder">
-                        <span>♨</span>
-                        <small>NIVETHA</small>
-                      </div>
-                    )}
+                    ) : null}
+
+                    <div
+                      className="food-image-placeholder"
+                      hidden={Boolean(image)}
+                    >
+                      <ImageOff size={28} />
+                      <small>NIVETHA CATERING</small>
+                    </div>
 
                     <span
                       className={`food-type-badge ${
-                        type === "Non-Veg" ? "non-veg" : "veg"
+                        vegetarian ? "veg" : "non-veg"
                       }`}
                     >
-                      <span />
-                      {type}
+                      {vegetarian ? <Leaf size={12} /> : <Drumstick size={12} />}
+                      {vegetarian ? "Veg" : "Non-Veg"}
                     </span>
 
                     {!available && (
@@ -395,20 +529,8 @@ export default function FoodMenu() {
                   </div>
 
                   <div className="food-card-content">
-                    <span className="food-meal-label">{category}</span>
-                    <h3>{food.name || "Untitled Dish"}</h3>
-
-                    {food.tamilName && (
-                      <p className="food-tamil-name">{food.tamilName}</p>
-                    )}
-
-                    {food.description && (
-                      <p className="food-description">
-                        {food.description}
-                      </p>
-                    )}
-
-                    <div className="food-card-status-row">
+                    <div className="food-card-title-row">
+                      <span className="food-meal-label">{category}</span>
                       <span
                         className={`food-availability ${
                           available ? "is-available" : "is-unavailable"
@@ -419,14 +541,21 @@ export default function FoodMenu() {
                       </span>
                     </div>
 
+                    <h3>{food.name || "Untitled Dish"}</h3>
+
+                    {food.description && (
+                      <p className="food-description">{food.description}</p>
+                    )}
+
                     <div className="food-card-actions">
                       <button
                         type="button"
                         className="food-edit-button"
-                        onClick={() => navigate(`/foods/edit/${id}`)}
-                        disabled={busy || Boolean(busyId)}
+                        onClick={() => openEditFood(food)}
+                        disabled={busy || Boolean(busyId) || !id}
                       >
-                        ✎ Edit
+                        <Pencil size={14} />
+                        Edit
                       </button>
 
                       <button
@@ -447,12 +576,12 @@ export default function FoodMenu() {
                       <button
                         type="button"
                         className="food-delete-button"
-                        onClick={() => deleteFood(food)}
-                        disabled={busy || Boolean(busyId)}
-                        aria-label={`Delete ${food.name}`}
-                        title="Delete food"
+                        onClick={() => disableFood(food)}
+                        disabled={busy || Boolean(busyId) || !available}
+                        aria-label={`Disable ${food.name}`}
+                        title="Disable food"
                       >
-                        ×
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </div>

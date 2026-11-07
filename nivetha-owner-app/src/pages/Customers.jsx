@@ -12,17 +12,20 @@ import {
   ClipboardList,
   AlertCircle,
   XCircle,
+  Trash2,
+  LoaderCircle,
 } from "lucide-react";
-import api from "../services/api";
+
+import customerService from "../services/customerService";
 import "./Customers.css";
 
 const getCustomerList = (response) => {
-  const data = response?.data;
-
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.customers)) return data.customers;
-  if (Array.isArray(data?.data)) return data.data;
-  if (Array.isArray(data?.data?.customers)) return data.data.customers;
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.customers)) return response.customers;
+  if (Array.isArray(response?.data)) return response.data;
+  if (Array.isArray(response?.data?.customers)) {
+    return response.data.customers;
+  }
 
   return [];
 };
@@ -31,8 +34,9 @@ const getCustomerId = (customer) =>
   String(customer?._id || customer?.id || "");
 
 const getCustomerName = (customer) =>
-  customer?.name ||
+  customer?.full_name ||
   customer?.fullName ||
+  customer?.name ||
   customer?.customerName ||
   "Customer";
 
@@ -42,16 +46,16 @@ const getPhone = (customer) =>
   customer?.mobileNumber ||
   "";
 
-const getEmail = (customer) =>
-  customer?.email || "";
+const getEmail = (customer) => customer?.email || "";
 
 const getBookingCount = (customer) => {
   const value =
+    customer?.total_bookings ??
     customer?.bookingCount ??
     customer?.totalBookings ??
     customer?.bookingsCount;
 
-  if (value != null && Number.isFinite(Number(value))) {
+  if (value !== undefined && value !== null && Number.isFinite(Number(value))) {
     return Number(value);
   }
 
@@ -74,25 +78,49 @@ const formatDate = (value) => {
   });
 };
 
-const getErrorMessage = (error) =>
-  error?.response?.data?.message ||
-  "Unable to load customers. Please try again.";
+const getErrorMessage = (error) => {
+  const detail = error?.response?.data?.detail;
+
+  if (typeof detail === "string") return detail;
+
+  if (Array.isArray(detail)) {
+    return detail.map((item) => item.msg || "Validation error").join(", ");
+  }
+
+  return (
+    error?.response?.data?.message ||
+    error?.message ||
+    "Unable to complete the request. Please try again."
+  );
+};
 
 export default function Customers() {
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const response = await api.get("/customers");
-      setCustomers(getCustomerList(response));
+      const response = await customerService.getAll({ limit: 100 });
+
+      const list = getCustomerList(response);
+
+      setCustomers(
+        list.filter(
+          (customer) =>
+            customer?.is_deleted !== true &&
+            customer?.status !== "deleted"
+        )
+      );
     } catch (err) {
       setError(getErrorMessage(err));
+      setCustomers([]);
     } finally {
       setLoading(false);
     }
@@ -101,6 +129,42 @@ export default function Customers() {
   useEffect(() => {
     fetchCustomers();
   }, [fetchCustomers]);
+
+  const handleDeleteCustomer = async (customer) => {
+    const customerId = getCustomerId(customer);
+
+    if (!customerId) {
+      setError("Invalid customer ID. Cannot delete this customer.");
+      return;
+    }
+
+    const customerName = getCustomerName(customer);
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${customerName}?\n\n` +
+        "This customer will be hidden from the active customer list."
+    );
+
+    if (!confirmed) return;
+
+    setDeletingId(customerId);
+    setError("");
+    setSuccess("");
+
+    try {
+      await customerService.delete(customerId);
+
+      setCustomers((previous) =>
+        previous.filter((item) => getCustomerId(item) !== customerId)
+      );
+
+      setSuccess(`${customerName} deleted successfully.`);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setDeletingId("");
+    }
+  };
 
   const filteredCustomers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -123,15 +187,17 @@ export default function Customers() {
   }, [customers, search]);
 
   const totalBookings = useMemo(
-    () => customers.reduce(
-      (total, customer) => total + getBookingCount(customer),
-      0
-    ),
+    () =>
+      customers.reduce(
+        (total, customer) => total + getBookingCount(customer),
+        0
+      ),
     [customers]
   );
 
   const customersWithBookings = useMemo(
-    () => customers.filter((customer) => getBookingCount(customer) > 0).length,
+    () =>
+      customers.filter((customer) => getBookingCount(customer) > 0).length,
     [customers]
   );
 
@@ -142,7 +208,9 @@ export default function Customers() {
           <span className="customers-eyebrow">
             NIVETHA CATERING SERVICE
           </span>
+
           <h1>Customer Management</h1>
+
           <p>
             View customer contact information and their booking activity
             in one place.
@@ -159,6 +227,7 @@ export default function Customers() {
           <div className="customer-stat-icon customer-stat-gold">
             <Users size={22} />
           </div>
+
           <div>
             <span>Total Customers</span>
             <h3>{customers.length}</h3>
@@ -169,6 +238,7 @@ export default function Customers() {
           <div className="customer-stat-icon customer-stat-green">
             <UserRound size={22} />
           </div>
+
           <div>
             <span>Customers With Bookings</span>
             <h3>{customersWithBookings}</h3>
@@ -179,6 +249,7 @@ export default function Customers() {
           <div className="customer-stat-icon customer-stat-blue">
             <ClipboardList size={22} />
           </div>
+
           <div>
             <span>Total Recorded Bookings</span>
             <h3>{totalBookings}</h3>
@@ -190,6 +261,7 @@ export default function Customers() {
         <div className="customers-alert" role="alert">
           <XCircle size={18} />
           <span>{error}</span>
+
           <button
             type="button"
             onClick={() => setError("")}
@@ -200,19 +272,38 @@ export default function Customers() {
         </div>
       )}
 
+      {success && (
+        <div className="customers-success" role="status">
+          <span>{success}</span>
+
+          <button
+            type="button"
+            onClick={() => setSuccess("")}
+            aria-label="Dismiss success message"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <div className="customers-toolbar">
         <div>
           <h2>All Customers</h2>
-          <p>Search customer names, phone numbers or email addresses.</p>
+          <p>
+            Search customer names, phone numbers or email addresses.
+          </p>
         </div>
 
         <button
           type="button"
           className="customers-refresh-btn"
           onClick={fetchCustomers}
-          disabled={loading}
+          disabled={loading || Boolean(deletingId)}
         >
-          <RefreshCw size={17} />
+          <RefreshCw
+            size={17}
+            className={loading ? "customers-refresh-spin" : ""}
+          />
           Refresh
         </button>
       </div>
@@ -220,6 +311,7 @@ export default function Customers() {
       <div className="customers-search-panel">
         <div className="customers-search">
           <Search size={19} />
+
           <input
             type="search"
             value={search}
@@ -227,6 +319,7 @@ export default function Customers() {
             placeholder="Search name, phone, email or customer ID..."
             aria-label="Search customers"
           />
+
           {search && (
             <button
               type="button"
@@ -276,6 +369,7 @@ export default function Customers() {
                       ) : (
                         <Users size={34} />
                       )}
+
                       <strong>
                         {error
                           ? "Customers could not be loaded"
@@ -283,6 +377,7 @@ export default function Customers() {
                             ? "No matching customers"
                             : "No customers found"}
                       </strong>
+
                       <span>
                         {error
                           ? "Check the API connection and try again."
@@ -290,11 +385,9 @@ export default function Customers() {
                             ? "Try another search term."
                             : "Customers will appear here when available in the backend."}
                       </span>
+
                       {error && (
-                        <button
-                          type="button"
-                          onClick={fetchCustomers}
-                        >
+                        <button type="button" onClick={fetchCustomers}>
                           Try Again
                         </button>
                       )}
@@ -308,6 +401,7 @@ export default function Customers() {
                   const phone = getPhone(customer);
                   const email = getEmail(customer);
                   const bookingCount = getBookingCount(customer);
+                  const isDeleting = deletingId === id;
 
                   return (
                     <tr key={id || `${name}-${phone}`}>
@@ -316,6 +410,7 @@ export default function Customers() {
                           <span className="customer-avatar">
                             {name.charAt(0).toUpperCase()}
                           </span>
+
                           <div>
                             <strong>{name}</strong>
                             <span>
@@ -364,25 +459,47 @@ export default function Customers() {
                         <span className="customer-date">
                           <CalendarDays size={15} />
                           {formatDate(
-                            customer?.createdAt ||
-                            customer?.registeredAt ||
-                            customer?.created_at
+                            customer?.created_at ||
+                              customer?.createdAt ||
+                              customer?.registeredAt
                           )}
                         </span>
                       </td>
 
                       <td>
-                        {id ? (
-                          <Link
-                            to={`/customers/${encodeURIComponent(id)}`}
-                            className="customer-view-btn"
+                        <div className="customer-actions">
+                          {id ? (
+                            <Link
+                              to={`/customers/${encodeURIComponent(id)}`}
+                              className="customer-view-btn"
+                              aria-label={`View ${name}`}
+                            >
+                              <Eye size={16} />
+                              View
+                            </Link>
+                          ) : (
+                            <span className="customer-no-action">—</span>
+                          )}
+
+                          <button
+                            type="button"
+                            className="customer-delete-btn"
+                            onClick={() => handleDeleteCustomer(customer)}
+                            disabled={!id || Boolean(deletingId)}
+                            aria-label={`Delete ${name}`}
                           >
-                            <Eye size={16} />
-                            View
-                          </Link>
-                        ) : (
-                          <span className="customer-no-action">—</span>
-                        )}
+                            {isDeleting ? (
+                              <LoaderCircle
+                                size={16}
+                                className="customer-delete-spinner"
+                              />
+                            ) : (
+                              <Trash2 size={16} />
+                            )}
+
+                            {isDeleting ? "Deleting..." : "Delete"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

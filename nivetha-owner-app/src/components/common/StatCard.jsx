@@ -4,8 +4,10 @@ import {
   TrendingDown,
   Minus,
 } from "lucide-react";
+
 import { formatNumber } from "../../utils/formatters";
 import "./StatCard.css";
+
 export default function StatCard({
   title,
   value = 0,
@@ -25,6 +27,7 @@ export default function StatCard({
   };
 
   const numericValue = Number(value);
+
   const validValue = Number.isFinite(numericValue)
     ? numericValue
     : 0;
@@ -63,17 +66,18 @@ export default function StatCard({
         ? "stat-trend-up"
         : "stat-trend-down";
 
-  return (
-    <article className="stat-card">
-      <div className="stat-card-top">
-        <p className="stat-card-title">{title}</p>
+  const iconClass = colorClasses[color] || colorClasses.green;
 
-        <div
-          className={`stat-card-icon ${
-            colorClasses[color] || colorClasses.green
-          }`}
-        >
-          {Icon ? <Icon size={22} /> : <TrendingUp size={22} />}
+  return (
+    <article className={`stat-card ${iconClass}`}>
+      <div className="stat-card-top">
+        <div className="stat-card-heading">
+          <span className="stat-card-label">OVERVIEW</span>
+          <p className="stat-card-title">{title}</p>
+        </div>
+
+        <div className={`stat-card-icon ${iconClass}`}>
+          {Icon ? <Icon size={23} strokeWidth={2.2} /> : <TrendingUp size={23} />}
         </div>
       </div>
 
@@ -87,17 +91,28 @@ export default function StatCard({
         </p>
       )}
 
-      {validTrend !== null && (
-        <div className={`stat-trend ${trendClass}`}>
-          <TrendIcon size={15} />
-          <span>
-            {Math.abs(validTrend)}%
+      <div className="stat-card-footer">
+        {validTrend !== null ? (
+          <div className={`stat-trend ${trendClass}`}>
+            <TrendIcon size={15} strokeWidth={2.5} />
+
+            <span className="stat-trend-value">
+              {Math.abs(validTrend)}%
+            </span>
+
+            <span className="stat-trend-label">
+              {trendLabel}
+            </span>
+          </div>
+        ) : (
+          <span className="stat-no-trend">
+            <span className="stat-status-dot" />
+            Live statistics
           </span>
-          <span className="stat-trend-label">
-            {trendLabel}
-          </span>
-        </div>
-      )}
+        )}
+      </div>
+
+      <div className="stat-card-decoration" />
     </article>
   );
 }

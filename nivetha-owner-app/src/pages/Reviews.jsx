@@ -1,4 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Star,
+  Search,
+  RefreshCw,
+  MessageSquareText,
+  TrendingUp,
+  Award,
+  Users,
+  CalendarDays,
+  X,
+  AlertCircle,
+  CheckCircle2,
+  Sparkles,
+} from "lucide-react";
 import api from "../services/api";
 import "./Reviews.css";
 
@@ -13,20 +28,42 @@ const getReviewList = (response) => {
   return [];
 };
 
+const getErrorMessage = (error) =>
+  error?.response?.data?.detail ||
+  error?.response?.data?.message ||
+  error?.message ||
+  "Unable to load reviews. Please try again.";
+
 const getRating = (review) => {
-  const rating = Number(review?.rating ?? review?.stars ?? 0);
-  return Number.isFinite(rating) ? Math.min(5, Math.max(0, rating)) : 0;
+  const value = Number(review?.rating ?? review?.stars ?? 0);
+
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(5, Math.max(0, value));
 };
 
 const getCustomerName = (review) =>
+  review?.customer_name ||
   review?.customerName ||
-  review?.customer?.name ||
+  review?.customer?.full_name ||
   review?.customer?.fullName ||
+  review?.customer?.name ||
   review?.name ||
   "Customer";
 
+const getReviewComment = (review) =>
+  review?.comment ||
+  review?.review ||
+  review?.feedback ||
+  review?.message ||
+  "";
+
 const getReviewDate = (review) => {
-  const value = review?.createdAt || review?.date;
+  const value =
+    review?.created_at ||
+    review?.createdAt ||
+    review?.date ||
+    review?.updated_at;
+
   if (!value) return null;
 
   const date = new Date(value);
@@ -42,45 +79,60 @@ const formatDate = (date) =>
       })
     : "Date unavailable";
 
+const renderStars = (rating, className = "") => {
+  const roundedRating = Math.round(rating);
+
+  return (
+    <span
+      className={`reviews-stars ${className}`}
+      role="img"
+      aria-label={`${rating.toFixed(1)} out of 5 stars`}
+    >
+      {Array.from({ length: 5 }, (_, index) => (
+        <Star
+          key={index}
+          size={15}
+          fill={index < roundedRating ? "currentColor" : "none"}
+        />
+      ))}
+    </span>
+  );
+};
+
 export default function Reviews() {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const [ratingFilter, setRatingFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [ratingFilter, setRatingFilter] = useState("all");
+
+  const fetchReviews = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      setError("");
+
+      const response = await api.get("/reviews/");
+      const reviewList = getReviewList(response);
+
+      setReviews(reviewList);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let active = true;
+    fetchReviews();
 
-    const loadReviews = async () => {
-      try {
-        setLoading(true);
-        setError("");
-
-        // Change this path only if your existing backend uses another route.
-        const response = await api.get("/reviews");
-
-        if (active) {
-          setReviews(getReviewList(response));
-        }
-      } catch (err) {
-        if (active) {
-          setError(
-            err?.response?.data?.message ||
-              "Unable to load reviews. Please check the backend connection."
-          );
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-
-    loadReviews();
-
-    return () => {
-      active = false;
-    };
-  }, []);
+  }, [fetchReviews]);
 
   const filteredReviews = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -88,64 +140,82 @@ export default function Reviews() {
     return reviews.filter((review) => {
       const rating = getRating(review);
       const customer = getCustomerName(review).toLowerCase();
-      const comment = String(
-        review?.comment || review?.review || review?.feedback || ""
-      ).toLowerCase();
+      const comment = getReviewComment(review).toLowerCase();
 
       const matchesRating =
-        ratingFilter === "all" || rating === Number(ratingFilter);
+        ratingFilter === "all" || Math.round(rating) === Number(ratingFilter);
 
       const matchesSearch =
-        !query || customer.includes(query) || comment.includes(query);
+        !query ||
+        customer.includes(query) ||
+        comment.includes(query);
 
       return matchesRating && matchesSearch;
     });
-  }, [reviews, ratingFilter, search]);
+  }, [reviews, search, ratingFilter]);
 
   const stats = useMemo(() => {
     const total = reviews.length;
+
     const ratingTotal = reviews.reduce(
       (sum, review) => sum + getRating(review),
       0
     );
 
-    const distribution = [5, 4, 3, 2, 1].map((rating) => ({
-      rating,
-      count: reviews.filter(
+    const average = total ? ratingTotal / total : 0;
+
+    const distribution = [5, 4, 3, 2, 1].map((rating) => {
+      const count = reviews.filter(
         (review) => Math.round(getRating(review)) === rating
-      ).length,
-    }));
+      ).length;
+
+      return {
+        rating,
+        count,
+        percentage: total ? (count / total) * 100 : 0,
+      };
+    });
 
     return {
       total,
-      average: total ? (ratingTotal / total).toFixed(1) : "0.0",
-      fiveStars: distribution[0].count,
+      average: average.toFixed(1),
+      fiveStars: distribution.find((item) => item.rating === 5)?.count || 0,
       distribution,
     };
   }, [reviews]);
+
+  const clearFilters = () => {
+    setSearch("");
+    setRatingFilter("all");
+  };
 
   if (loading) {
     return (
       <div className="reviews-page">
         <div className="reviews-state">
           <span className="reviews-spinner" />
-          <p>Loading customer reviews...</p>
+          <h2>Loading Reviews</h2>
+          <p>Fetching customer feedback...</p>
         </div>
       </div>
     );
   }
 
-  if (error) {
+  if (error && reviews.length === 0) {
     return (
       <div className="reviews-page">
-        <div className="reviews-state">
-          <div className="reviews-error-icon">!</div>
-          <h2>Reviews unavailable</h2>
+        <div className="reviews-state reviews-error-state">
+          <div className="reviews-state-icon">
+            <AlertCircle size={30} />
+          </div>
+          <h2>Reviews Unavailable</h2>
           <p>{error}</p>
           <button
-            className="reviews-btn"
-            onClick={() => window.location.reload()}
+            type="button"
+            className="reviews-primary-btn"
+            onClick={() => fetchReviews()}
           >
+            <RefreshCw size={16} />
             Try Again
           </button>
         </div>
@@ -156,103 +226,172 @@ export default function Reviews() {
   return (
     <div className="reviews-page">
       <header className="reviews-header">
-        <div>
-          <span className="reviews-eyebrow">CUSTOMER EXPERIENCE</span>
+        <div className="reviews-header-content">
+          <span className="reviews-eyebrow">
+            <Sparkles size={14} />
+            CUSTOMER EXPERIENCE
+          </span>
+
           <h1>Reviews & Feedback</h1>
-          <p>Understand what customers think about your catering service.</p>
+
+          <p>
+            Discover customer opinions and monitor your catering service
+            performance.
+          </p>
         </div>
 
-        <div className="reviews-count-chip">
-          <span className="reviews-count-dot" />
-          {stats.total} review{stats.total === 1 ? "" : "s"}
+        <div className="reviews-header-actions">
+          <div className="reviews-count-chip">
+            <span className="reviews-count-dot" />
+            {stats.total} {stats.total === 1 ? "Review" : "Reviews"}
+          </div>
+
+          <button
+            type="button"
+            className="reviews-refresh-btn"
+            onClick={() => fetchReviews(true)}
+            disabled={refreshing}
+          >
+            <RefreshCw
+              size={16}
+              className={refreshing ? "reviews-refresh-spin" : ""}
+            />
+            {refreshing ? "Refreshing" : "Refresh"}
+          </button>
         </div>
       </header>
 
+      {error && (
+        <div className="reviews-inline-error" role="alert">
+          <AlertCircle size={17} />
+          <span>{error}</span>
+          <button type="button" onClick={() => setError("")}>
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       <section className="reviews-stats-grid">
         <article className="reviews-stat-card reviews-stat-primary">
-          <span className="reviews-stat-label">Average Rating</span>
+          <div className="reviews-stat-top">
+            <span className="reviews-stat-label">Average Rating</span>
+            <span className="reviews-stat-icon">
+              <Star size={20} fill="currentColor" />
+            </span>
+          </div>
+
           <div className="reviews-average-row">
             <strong>{stats.average}</strong>
-            <span className="reviews-big-star">★</span>
+            <span className="reviews-out-of">/ 5.0</span>
           </div>
-          <div className="reviews-stars" aria-label={`${stats.average} out of 5`}>
-            {"★".repeat(Math.round(Number(stats.average)))}
-            <span>{"★".repeat(5 - Math.round(Number(stats.average)))}</span>
-          </div>
-          <small>Based on available reviews</small>
+
+          {renderStars(Number(stats.average), "reviews-average-stars")}
+
+          <small>Based on customer reviews</small>
         </article>
 
         <article className="reviews-stat-card">
-          <div className="reviews-stat-icon">✦</div>
-          <span className="reviews-stat-label">Total Reviews</span>
+          <div className="reviews-stat-top">
+            <span className="reviews-stat-label">Total Reviews</span>
+            <span className="reviews-stat-icon purple">
+              <MessageSquareText size={20} />
+            </span>
+          </div>
+
           <strong className="reviews-stat-value">{stats.total}</strong>
           <small>Customer feedback received</small>
+          <div className="reviews-stat-decoration">
+            <Users size={46} />
+          </div>
         </article>
 
         <article className="reviews-stat-card">
-          <div className="reviews-stat-icon">★</div>
-          <span className="reviews-stat-label">5-Star Reviews</span>
+          <div className="reviews-stat-top">
+            <span className="reviews-stat-label">5-Star Reviews</span>
+            <span className="reviews-stat-icon cyan">
+              <Award size={20} />
+            </span>
+          </div>
+
           <strong className="reviews-stat-value">{stats.fiveStars}</strong>
           <small>Highest-rated feedback</small>
+          <div className="reviews-stat-decoration cyan-decoration">
+            <TrendingUp size={46} />
+          </div>
         </article>
       </section>
 
       <section className="reviews-content-grid">
         <article className="reviews-panel reviews-distribution-panel">
           <div className="reviews-panel-heading">
-            <h2>Rating Distribution</h2>
-            <p>Breakdown of customer ratings</p>
+            <div>
+              <h2>Rating Distribution</h2>
+              <p>Customer rating breakdown</p>
+            </div>
+            <div className="reviews-heading-icon">
+              <Star size={19} />
+            </div>
           </div>
 
           <div className="reviews-distribution">
-            {stats.distribution.map((item) => {
-              const percentage = stats.total
-                ? (item.count / stats.total) * 100
-                : 0;
+            {stats.distribution.map((item) => (
+              <div className="reviews-rating-row" key={item.rating}>
+                <span className="reviews-rating-label">
+                  {item.rating}
+                  <Star size={13} fill="currentColor" />
+                </span>
 
-              return (
-                <div className="reviews-rating-row" key={item.rating}>
-                  <span className="reviews-rating-label">
-                    {item.rating} <span>★</span>
-                  </span>
-
-                  <div className="reviews-rating-track">
-                    <div
-                      className="reviews-rating-fill"
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-
-                  <span className="reviews-rating-count">
-                    {item.count}
-                  </span>
+                <div
+                  className="reviews-rating-track"
+                  role="progressbar"
+                  aria-label={`${item.rating} star reviews`}
+                  aria-valuenow={Math.round(item.percentage)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <div
+                    className="reviews-rating-fill"
+                    style={{ width: `${item.percentage}%` }}
+                  />
                 </div>
-              );
-            })}
+
+                <span className="reviews-rating-count">
+                  {item.count}
+                </span>
+              </div>
+            ))}
           </div>
         </article>
 
         <article className="reviews-panel reviews-feedback-panel">
           <div className="reviews-panel-heading">
-            <h2>Feedback Overview</h2>
-            <p>Summary of the available customer feedback</p>
+            <div>
+              <h2>Feedback Overview</h2>
+              <p>Overall customer satisfaction</p>
+            </div>
+            <div className="reviews-heading-icon cyan">
+              <TrendingUp size={19} />
+            </div>
           </div>
 
           {stats.total === 0 ? (
-            <div className="reviews-empty">
-              <span>☆</span>
-              <h3>No feedback yet</h3>
-              <p>Customer reviews will appear here when they are submitted.</p>
+            <div className="reviews-overview-empty">
+              <MessageSquareText size={34} />
+              <strong>No feedback yet</strong>
+              <p>Customer reviews will appear here after submission.</p>
             </div>
           ) : (
             <div className="reviews-feedback-summary">
-              <div className="reviews-feedback-icon">✓</div>
+              <div className="reviews-feedback-icon">
+                <CheckCircle2 size={25} />
+              </div>
+
               <div>
-                <strong>{stats.average} / 5</strong>
+                <strong>{stats.average} / 5.0</strong>
                 <p>Average customer rating</p>
                 <small>
-                  Calculated from {stats.total} available review
-                  {stats.total === 1 ? "" : "s"}.
+                  Calculated from {stats.total} customer{" "}
+                  {stats.total === 1 ? "review" : "reviews"}.
                 </small>
               </div>
             </div>
@@ -274,7 +413,7 @@ export default function Reviews() {
 
         <div className="reviews-toolbar">
           <div className="reviews-search">
-            <span>⌕</span>
+            <Search size={18} />
             <input
               type="search"
               value={search}
@@ -282,6 +421,16 @@ export default function Reviews() {
               placeholder="Search customer or feedback..."
               aria-label="Search customer reviews"
             />
+
+            {search && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => setSearch("")}
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
 
           <select
@@ -290,36 +439,55 @@ export default function Reviews() {
             onChange={(event) => setRatingFilter(event.target.value)}
             aria-label="Filter reviews by rating"
           >
-            <option value="all">All ratings</option>
-            <option value="5">5 stars</option>
-            <option value="4">4 stars</option>
-            <option value="3">3 stars</option>
-            <option value="2">2 stars</option>
-            <option value="1">1 star</option>
+            <option value="all">All Ratings</option>
+            <option value="5">5 Stars</option>
+            <option value="4">4 Stars</option>
+            <option value="3">3 Stars</option>
+            <option value="2">2 Stars</option>
+            <option value="1">1 Star</option>
           </select>
         </div>
 
         {filteredReviews.length === 0 ? (
           <div className="reviews-empty">
-            <span>☆</span>
-            <h3>{reviews.length ? "No matching reviews" : "No reviews found"}</h3>
+            <div className="reviews-empty-icon">
+              <MessageSquareText size={30} />
+            </div>
+
+            <h3>
+              {reviews.length ? "No Matching Reviews" : "No Reviews Found"}
+            </h3>
+
             <p>
               {reviews.length
                 ? "Try changing your search or rating filter."
-                : "Reviews will appear here after customers submit feedback."}
+                : "Reviews will appear here when customers submit feedback."}
             </p>
+
+            {(search || ratingFilter !== "all") && (
+              <button
+                type="button"
+                className="reviews-clear-btn"
+                onClick={clearFilters}
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
         ) : (
           <div className="reviews-list">
             {filteredReviews.map((review, index) => {
               const id =
-                review?._id || review?.id || review?.reviewId || index;
+                review?._id ||
+                review?.id ||
+                review?.review_id ||
+                review?.reviewId ||
+                `review-${index}`;
+
               const name = getCustomerName(review);
               const rating = getRating(review);
               const comment =
-                review?.comment ||
-                review?.review ||
-                review?.feedback ||
+                getReviewComment(review) ||
                 "No written comment was provided.";
               const date = getReviewDate(review);
 
@@ -331,27 +499,22 @@ export default function Reviews() {
 
                   <div className="reviews-item-content">
                     <div className="reviews-item-top">
-                      <div>
+                      <div className="reviews-customer-info">
                         <h3>{name}</h3>
+
                         <span className="reviews-item-date">
+                          <CalendarDays size={13} />
                           {formatDate(date)}
                         </span>
                       </div>
 
                       <span className="reviews-item-rating">
-                        <span>★</span> {rating.toFixed(1)}
+                        <Star size={15} fill="currentColor" />
+                        {rating.toFixed(1)}
                       </span>
                     </div>
 
-                    <div
-                      className="reviews-item-stars"
-                      aria-label={`${rating} out of 5 stars`}
-                    >
-                      {"★".repeat(Math.floor(rating))}
-                      <span>
-                        {"★".repeat(5 - Math.floor(rating))}
-                      </span>
-                    </div>
+                    {renderStars(rating, "reviews-item-stars")}
 
                     <p className="reviews-item-comment">{comment}</p>
                   </div>

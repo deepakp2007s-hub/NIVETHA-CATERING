@@ -1,6 +1,7 @@
 
 import { LoaderCircle } from "lucide-react";
 import "./Loader.css";
+
 export default function Loader({
   message = "Loading...",
   fullScreen = false,
@@ -11,17 +12,19 @@ export default function Loader({
       className={`page-loading ${fullScreen ? "app-loading" : ""}`}
       role="status"
       aria-live="polite"
+      aria-busy="true"
     >
-      <div style={{ textAlign: "center" }}>
-        <LoaderCircle
-          className="loading-spinner-icon"
-          size={size}
-          aria-hidden="true"
-        />
+      <div className="loader-content">
+        <div className="loader-icon-wrapper">
+          <LoaderCircle
+            className="loading-spinner-icon"
+            size={size}
+            strokeWidth={2.5}
+            aria-hidden="true"
+          />
+        </div>
 
-        <p style={{ marginTop: 12, marginBottom: 0 }}>
-          {message}
-        </p>
+        <p className="loader-message">{message}</p>
       </div>
     </div>
   );

@@ -1,9 +1,8 @@
-
 import axios from "axios";
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
-  "https://nivetha-fastapi-backend.onrender.com/api/v1"
+  "http://127.0.0.1:8000/api/v1"
 ).replace(/\/+$/, "");
 
 const api = axios.create({
@@ -11,12 +10,16 @@ const api = axios.create({
   timeout: 60000,
   headers: {
     "Content-Type": "application/json",
+    Accept: "application/json",
   },
 });
 
+// Attach JWT token to every request
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("ownerToken");
+
+    config.headers = config.headers || {};
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -29,44 +32,63 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+const getErrorMessage = (data, fallback) => {
+  if (typeof data?.detail === "string") {
+    return data.detail;
+  }
+
+  if (Array.isArray(data?.detail)) {
+    return data.detail
+      .map((item) => item.msg || "Validation error")
+      .join(", ");
+  }
+
+  return data?.message || fallback;
+};
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status;
     const requestUrl = error.config?.url || "";
+    const data = error.response?.data;
 
     if (!error.response) {
       error.message =
         error.code === "ECONNABORTED"
           ? "Request timed out. Please try again."
-          : "Cannot connect to the server. Check your internet connection.";
+          : "Cannot connect to the server.";
     } else if (status === 401) {
-      const isLoginRequest =
-        requestUrl.includes("/auth/owner-login") ||
-        requestUrl.includes("/auth/admin-login");
+      const isLoginRequest = requestUrl.includes("/auth/");
 
       if (!isLoginRequest) {
         localStorage.removeItem("ownerToken");
         localStorage.removeItem("ownerUser");
+
+        if (window.location.pathname !== "/login") {
+          window.location.replace("/login");
+        }
       }
 
-      error.message =
-        error.response.data?.detail ||
-        "Invalid credentials or authentication expired.";
+      error.message = getErrorMessage(
+        data,
+        "Authentication failed. Please login again."
+      );
     } else if (status === 403) {
-      error.message =
-        error.response.data?.detail ||
-        "Access denied. Your account does not have permission.";
+      error.message = getErrorMessage(data, "Access denied.");
+    } else if (status === 404) {
+      error.message = getErrorMessage(data, "Resource not found.");
+    } else if (status === 405) {
+      error.message = getErrorMessage(data, "HTTP method not allowed.");
+    } else if (status === 422) {
+      error.message = getErrorMessage(data, "Invalid request data.");
     } else if (status >= 500) {
-      error.message =
-        error.response.data?.detail ||
-        "Server error. Please try again later.";
+      error.message = getErrorMessage(data, "Server error.");
     } else {
-      error.message =
-        error.response.data?.detail ||
-        error.response.data?.message ||
-        error.message ||
-        "Something went wrong.";
+      error.message = getErrorMessage(
+        data,
+        error.message || "Something went wrong."
+      );
     }
 
     return Promise.reject(error);

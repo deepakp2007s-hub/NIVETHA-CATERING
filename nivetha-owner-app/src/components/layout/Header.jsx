@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Menu,
@@ -7,6 +6,14 @@ import {
   LogOut,
   UserRound,
   ChevronDown,
+  LayoutDashboard,
+  CalendarDays,
+  Users,
+  UtensilsCrossed,
+  BarChart3,
+  Star,
+  Settings,
+  X,
 } from "lucide-react";
 
 import { useAuth } from "../../context/AuthContext";
@@ -23,29 +30,82 @@ const pageTitles = {
   "/notifications": "Notifications",
 };
 
+const pageIcons = {
+  "/dashboard": LayoutDashboard,
+  "/bookings": CalendarDays,
+  "/customers": Users,
+  "/food-menu": UtensilsCrossed,
+  "/reports": BarChart3,
+  "/reviews": Star,
+  "/settings": Settings,
+};
+
 export default function Header({ onMenuClick }) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
-  const title = location.pathname.startsWith("/bookings/")
+  const currentPath = location.pathname;
+
+  const title = currentPath.startsWith("/bookings/")
     ? "Booking Details"
-    : pageTitles[location.pathname] || "Nivetha Owner";
+    : pageTitles[currentPath] || "Nivetha Owner";
 
-  const userName = user?.name || user?.email || "User";
+  const PageIcon =
+    pageIcons[currentPath] ||
+    (currentPath.startsWith("/bookings/")
+      ? CalendarDays
+      : LayoutDashboard);
+
+  const userName = user?.name || user?.full_name || user?.email || "Owner";
   const userRole = user?.role === "admin" ? "Admin" : "Owner";
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [currentPath]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target)
+      ) {
+        setMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
 
   const handleNotifications = () => {
     setMenuOpen(false);
     navigate("/notifications");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setMenuOpen(false);
-    logout();
-    navigate("/login", { replace: true });
+
+    try {
+      await logout();
+      navigate("/login", { replace: true });
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
   };
 
   return (
@@ -54,14 +114,21 @@ export default function Header({ onMenuClick }) {
         <button
           type="button"
           className="header-menu-button"
-          aria-label="Open navigation"
+          aria-label="Open navigation menu"
           onClick={onMenuClick}
         >
-          <Menu size={23} />
+          <Menu size={22} />
         </button>
 
-        <div>
-          <h1>{title}</h1>
+        <div className="header-page-info">
+          <div className="header-title-row">
+            <div className="header-page-icon">
+              <PageIcon size={19} />
+            </div>
+
+            <h1>{title}</h1>
+          </div>
+
           <p>Welcome to Nivetha Catering Service</p>
         </div>
       </div>
@@ -77,39 +144,43 @@ export default function Header({ onMenuClick }) {
           <Bell size={20} />
         </button>
 
-        <div className="header-profile">
+        <div className="header-profile" ref={dropdownRef}>
           <div className="owner-avatar">
             <UserRound size={21} />
           </div>
 
           <div className="owner-info">
-            <strong>{userName}</strong>
+            <strong title={userName}>{userName}</strong>
             <span>{userRole}</span>
           </div>
 
           <button
             type="button"
-            className="profile-menu-button"
-            aria-label="User menu"
+            className={`profile-menu-button ${
+              menuOpen ? "profile-menu-active" : ""
+            }`}
+            aria-label="Toggle user menu"
             aria-expanded={menuOpen}
             aria-haspopup="true"
             onClick={() => setMenuOpen((value) => !value)}
           >
-            <ChevronDown
-              size={18}
-              style={{
-                transform: menuOpen ? "rotate(180deg)" : "rotate(0deg)",
-                transition: "transform 0.2s ease",
-              }}
-            />
+            <ChevronDown size={18} />
           </button>
 
           {menuOpen && (
             <div className="profile-dropdown">
               <div className="profile-dropdown-heading">
-                <strong>{userName}</strong>
-                <span>{userRole} account</span>
+                <div className="dropdown-avatar">
+                  <UserRound size={20} />
+                </div>
+
+                <div className="dropdown-user-details">
+                  <strong>{userName}</strong>
+                  <span>{user?.email || `${userRole} account`}</span>
+                </div>
               </div>
+
+              <div className="dropdown-divider" />
 
               <button
                 type="button"

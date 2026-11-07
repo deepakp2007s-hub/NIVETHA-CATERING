@@ -14,13 +14,14 @@ const INITIAL_FORM = {
   available: true,
 };
 
+const CATEGORIES = ["Breakfast", "Lunch", "Dinner", "Sweets"];
+
 export default function AddFood() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState(INITIAL_FORM);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target;
@@ -34,39 +35,61 @@ export default function AddFood() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
-    setSuccess("");
 
-    if (!form.name.trim()) {
+    const name = form.name.trim();
+    const description = form.description.trim();
+    const imageUrl = form.image.trim();
+
+    if (!name) {
       setError("Food name is required.");
       return;
     }
 
+    if (imageUrl) {
+      try {
+        new URL(imageUrl);
+      } catch {
+        setError("Please enter a valid image URL.");
+        return;
+      }
+    }
+
+    const payload = {
+      name,
+      category: form.category,
+      description,
+      image_url: imageUrl || null,
+      is_available: form.available,
+      is_vegetarian: form.type === "Veg",
+    };
+
     try {
       setLoading(true);
 
-      await api.post("/foods", {
-        name: form.name.trim(),
-        tamilName: form.tamilName.trim(),
-        category: form.category,
-        type: form.type,
-        description: form.description.trim(),
-        image: form.image.trim(),
-        available: form.available,
-      });
+      const response = await api.post("/foods/", payload);
 
-      setSuccess("Food added successfully!");
+      if (response.data?.success === false) {
+        throw new Error(response.data?.message || "Unable to add food.");
+      }
 
-      // Redirect to the correct Food Menu route.
       navigate("/food-menu", {
         replace: true,
         state: { foodAdded: true },
       });
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          err.response?.data?.error ||
-          "Unable to add food. Check owner login and backend connection."
-      );
+      const detail = err.response?.data?.detail;
+
+      const message =
+        typeof detail === "string"
+          ? detail
+          : Array.isArray(detail)
+            ? detail.map((item) => item.msg).join(", ")
+            : err.response?.data?.message ||
+              err.response?.data?.error ||
+              err.message ||
+              "Unable to add food. Check owner login and backend connection.";
+
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -83,12 +106,6 @@ export default function AddFood() {
       {error && (
         <p role="alert" className="food-error">
           {error}
-        </p>
-      )}
-
-      {success && (
-        <p role="status" className="food-success">
-          {success}
         </p>
       )}
 
@@ -124,12 +141,11 @@ export default function AddFood() {
             onChange={handleChange}
             required
           >
-            <option value="Breakfast">Breakfast</option>
-            <option value="Lunch">Lunch</option>
-            <option value="Dinner">Dinner</option>
-            <option value="Snacks">Snacks</option>
-            <option value="Desserts">Desserts</option>
-            <option value="Drinks">Drinks</option>
+            {CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
           </select>
         </label>
 

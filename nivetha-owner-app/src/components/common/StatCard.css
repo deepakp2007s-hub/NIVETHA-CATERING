@@ -1,171 +1,305 @@
+
+/* =====================================
+   NIVETHA CATERING - STAT CARD
+   Premium Dashboard UI
+===================================== */
+
 .stat-card {
   position: relative;
+  min-width: 0;
+  min-height: 185px;
+  padding: 23px;
+  overflow: hidden;
+
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  min-width: 0;
-  padding: 22px;
-  background: #ffffff;
-  border: 1px solid #eee8da;
-  border-radius: 16px;
-  box-shadow: 0 4px 16px rgba(35, 30, 18, 0.04);
-  transition: transform 0.25s ease, box-shadow 0.25s ease,
-    border-color 0.25s ease;
-  overflow: hidden;
+  justify-content: space-between;
+  gap: 15px;
+
+  background: linear-gradient(
+    145deg,
+    rgba(30, 32, 59, 0.98),
+    rgba(20, 23, 43, 0.98)
+  );
+
+  border: 1px solid rgba(148, 163, 184, 0.13);
+  border-radius: 20px;
+
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.16);
+
+  transition:
+    transform 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
 .stat-card:hover {
-  transform: translateY(-4px);
-  border-color: #d9bd75;
-  box-shadow: 0 10px 26px rgba(145, 110, 35, 0.12);
+  transform: translateY(-5px);
+  border-color: rgba(139, 92, 246, 0.45);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.27);
 }
 
-/* Card title and icon */
+/* TOP */
 
 .stat-card-top {
+  position: relative;
+  z-index: 2;
+
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
+.stat-card-heading {
+  min-width: 0;
+}
+
+.stat-card-label {
+  display: block;
+  margin-bottom: 7px;
+
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+}
+
 .stat-card-title {
   margin: 0;
-  color: #777267;
-  font-size: 14px;
-  font-weight: 500;
+
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 650;
   line-height: 1.5;
 }
 
+/* ICON */
+
 .stat-card-icon {
+  width: 49px;
+  height: 49px;
+  flex-shrink: 0;
+
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  width: 46px;
-  height: 46px;
-  border-radius: 13px;
-  transition: transform 0.25s ease;
+
+  border: 1px solid transparent;
+  border-radius: 15px;
+
+  transition: transform 0.3s ease;
 }
 
 .stat-card:hover .stat-card-icon {
-  transform: scale(1.06);
+  transform: rotate(-7deg) scale(1.08);
 }
 
-/* Icon colors */
-
-.stat-icon-green {
-  color: #168653;
-  background: #e9f7ef;
+.stat-icon-green .stat-card-icon,
+.stat-card.stat-icon-green > .stat-card-top .stat-card-icon {
+  color: #4ade80;
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.2);
 }
 
-.stat-icon-blue {
-  color: #2874c8;
-  background: #eaf3ff;
+.stat-icon-blue .stat-card-icon,
+.stat-card.stat-icon-blue > .stat-card-top .stat-card-icon {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.2);
 }
 
-.stat-icon-orange {
-  color: #c77916;
-  background: #fff3e2;
+.stat-icon-orange .stat-card-icon,
+.stat-card.stat-icon-orange > .stat-card-top .stat-card-icon {
+  color: #fb923c;
+  background: rgba(249, 115, 22, 0.12);
+  border-color: rgba(249, 115, 22, 0.2);
 }
 
-.stat-icon-purple {
-  color: #8250c7;
-  background: #f3eaff;
+.stat-icon-purple .stat-card-icon,
+.stat-card.stat-icon-purple > .stat-card-top .stat-card-icon {
+  color: #c084fc;
+  background: rgba(168, 85, 247, 0.12);
+  border-color: rgba(168, 85, 247, 0.2);
 }
 
-.stat-icon-red {
-  color: #d04444;
-  background: #fff0ef;
+.stat-icon-red .stat-card-icon,
+.stat-card.stat-icon-red > .stat-card-top .stat-card-icon {
+  color: #fb7185;
+  background: rgba(244, 63, 94, 0.12);
+  border-color: rgba(244, 63, 94, 0.2);
 }
 
-/* Main value */
+/* VALUE */
 
 .stat-card-value {
-  margin: 0;
-  color: #24231f;
-  font-size: clamp(24px, 2vw, 32px);
-  font-weight: 750;
-  line-height: 1.25;
-  letter-spacing: -0.8px;
+  position: relative;
+  z-index: 2;
+
+  color: #f8fafc;
+  font-size: clamp(25px, 2.3vw, 34px);
+  font-weight: 850;
+  letter-spacing: -1.2px;
+  line-height: 1.2;
+
   overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
 }
 
-/* Description */
+/* DESCRIPTION */
 
 .stat-card-description {
-  margin: -5px 0 0;
-  color: #898479;
-  font-size: 12px;
-  line-height: 1.6;
+  position: relative;
+  z-index: 2;
+
+  margin: -7px 0 0;
+
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
 }
 
-/* Trend indicator */
+/* FOOTER */
+
+.stat-card-footer {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  align-items: center;
+  min-height: 20px;
+}
 
 .stat-trend {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 5px;
-  margin-top: 2px;
-  font-size: 12px;
-  font-weight: 650;
+
+  font-size: 11px;
+  font-weight: 700;
 }
 
-.stat-trend-up {
-  color: #168653;
-}
-
-.stat-trend-down {
-  color: #d04444;
-}
-
-.stat-trend-neutral {
-  color: #817b70;
+.stat-trend-value {
+  font-weight: 800;
 }
 
 .stat-trend-label {
-  color: #898479;
-  font-size: 11px;
-  font-weight: 400;
+  margin-left: 3px;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 500;
 }
 
-/* Responsive layout */
+.stat-trend-up {
+  color: #4ade80;
+}
+
+.stat-trend-down {
+  color: #fb7185;
+}
+
+.stat-trend-neutral {
+  color: #94a3b8;
+}
+
+.stat-no-trend {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.stat-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22d3ee;
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.6);
+}
+
+/* DECORATIVE GLOW */
+
+.stat-card-decoration {
+  position: absolute;
+  right: -45px;
+  bottom: -65px;
+
+  width: 145px;
+  height: 145px;
+
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(139, 92, 246, 0.12),
+    transparent 70%
+  );
+
+  pointer-events: none;
+  transition: transform 0.4s ease;
+}
+
+.stat-card:hover .stat-card-decoration {
+  transform: scale(1.35);
+}
+
+/* RESPONSIVE */
 
 @media (max-width: 768px) {
   .stat-card {
-    gap: 12px;
-    padding: 18px;
-    border-radius: 14px;
+    min-height: 170px;
+    padding: 19px;
+    border-radius: 17px;
   }
 
   .stat-card-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 11px;
+    width: 43px;
+    height: 43px;
+    border-radius: 13px;
   }
 
   .stat-card-value {
-    font-size: 25px;
+    font-size: 27px;
   }
 }
 
 @media (max-width: 480px) {
   .stat-card {
-    padding: 15px;
+    min-height: 155px;
+    padding: 16px;
+    gap: 12px;
   }
 
   .stat-card-title {
     font-size: 12px;
   }
 
-  .stat-card-value {
-    font-size: 22px;
+  .stat-card-icon {
+    width: 39px;
+    height: 39px;
   }
 
-  .stat-card-description,
+  .stat-card-value {
+    font-size: 24px;
+  }
+
   .stat-trend-label {
-    font-size: 10px;
+    font-size: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stat-card,
+  .stat-card-icon,
+  .stat-card-decoration {
+    transition: none;
+  }
+
+  .stat-card:hover {
+    transform: none;
   }
 }

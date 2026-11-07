@@ -1,88 +1,69 @@
-/* ========================================
-   NIVETHA OWNER APP - LOADER CSS
-   White + Gold Professional Theme
-======================================== */
+
+/* =================================
+   NIVETHA CATERING - LOADER
+   Premium Violet + Cyan Theme
+================================= */
 
 .page-loading {
+  width: 100%;
+  min-height: 180px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  min-height: 220px;
-  padding: 32px 20px;
+  padding: 25px;
   box-sizing: border-box;
-  color: #777267;
-  background: transparent;
+  color: #cbd5e1;
+  text-align: center;
 }
-
-/* Full-screen loader */
 
 .page-loading.app-loading {
   position: fixed;
   inset: 0;
   z-index: 9999;
+  min-height: 100vh;
+  background: #0f1123;
+}
+
+.loader-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.loader-icon-wrapper {
+  width: 68px;
+  height: 68px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
-  padding: 24px;
-  box-sizing: border-box;
-  background: #fffdf8;
-  color: #28261f;
-}
-
-/* Loader card */
-
-.page-loading.app-loading > div {
-  width: min(90%, 360px);
-  padding: 36px 28px;
-  box-sizing: border-box;
-  text-align: center;
-  background: #ffffff;
-  border: 1px solid #eee3c8;
+  border: 1px solid rgba(139, 92, 246, 0.2);
   border-radius: 20px;
-  box-shadow: 0 12px 35px rgba(100, 75, 20, 0.08);
+  background: linear-gradient(
+    145deg,
+    rgba(124, 58, 237, 0.13),
+    rgba(6, 182, 212, 0.09)
+  );
+  box-shadow: 0 0 35px rgba(124, 58, 237, 0.12);
 }
-
-/* Spinner */
 
 .loading-spinner-icon {
-  display: block;
-  margin: 0 auto;
-  color: #c49a38;
-  animation: loader-spin 0.9s linear infinite;
-  filter: drop-shadow(0 2px 5px rgba(196, 154, 56, 0.15));
+  color: #a78bfa;
+  animation: loaderSpin 0.9s linear infinite;
+  filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.35));
 }
 
-.page-loading.app-loading .loading-spinner-icon {
-  color: #c49a38;
+.loader-message {
+  margin: 12px 0 0;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  line-height: 1.5;
 }
 
-/* Loading message */
-
-.page-loading p {
-  margin-top: 12px;
-  margin-bottom: 0;
-  color: #777267;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.6;
-  letter-spacing: 0.2px;
-}
-
-.page-loading.app-loading p {
-  margin-top: 16px !important;
-  margin-bottom: 0 !important;
-  color: #777267;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-/* Spinner animation */
-
-@keyframes loader-spin {
+@keyframes loaderSpin {
   from {
     transform: rotate(0deg);
   }
@@ -92,33 +73,29 @@
   }
 }
 
+/* Mobile */
+
+@media (max-width: 600px) {
+  .page-loading {
+    min-height: 150px;
+    padding: 18px;
+  }
+
+  .loader-icon-wrapper {
+    width: 58px;
+    height: 58px;
+    border-radius: 17px;
+  }
+
+  .loader-message {
+    font-size: 12px;
+  }
+}
+
 /* Accessibility */
 
 @media (prefers-reduced-motion: reduce) {
   .loading-spinner-icon {
-    animation: none;
-  }
-}
-
-/* Tablet */
-
-@media (max-width: 768px) {
-  .page-loading {
-    min-height: 200px;
-    padding: 24px 16px;
-  }
-}
-
-/* Mobile */
-
-@media (max-width: 480px) {
-  .page-loading.app-loading > div {
-    padding: 28px 20px;
-    border-radius: 16px;
-  }
-
-  .page-loading p,
-  .page-loading.app-loading p {
-    font-size: 13px;
+    animation-duration: 2.5s;
   }
 }

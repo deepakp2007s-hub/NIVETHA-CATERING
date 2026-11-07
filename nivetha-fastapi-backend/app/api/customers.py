@@ -64,6 +64,7 @@ async def require_owner_or_admin(
     except HTTPException:
         raise
     except Exception:
+        logger.exception("Customer authentication failed")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
@@ -84,6 +85,7 @@ def serialize_customer(customer: dict) -> dict:
         "name": customer.get("name") or customer.get("full_name", ""),
         "email": customer.get("email", ""),
         "phone": customer.get("phone", ""),
+        "is_deleted": customer.get("is_deleted", False),
         "created_at": (
             customer["created_at"].isoformat()
             if isinstance(customer.get("created_at"), datetime)
@@ -110,7 +112,9 @@ async def get_all_customers(
     user: dict = Depends(require_owner_or_admin),
 ):
     try:
-        query = {}
+        query = {
+            "is_deleted": {"$ne": True}
+        }
 
         if search and search.strip():
             search_text = search.strip()
@@ -162,7 +166,9 @@ async def get_customer_stats(
     user: dict = Depends(require_owner_or_admin),
 ):
     try:
-        total_customers = await customers.count_documents({})
+        total_customers = await customers.count_documents({
+            "is_deleted": {"$ne": True}
+        })
 
         total_bookings = await bookings.count_documents({})
 
@@ -206,6 +212,7 @@ async def get_customer(
 
         customer = await customers.find_one({
             "_id": customer_object_id,
+            "is_deleted": {"$ne": True},
         })
 
         if not customer:
@@ -292,6 +299,7 @@ async def update_customer(
 
         existing = await customers.find_one({
             "_id": customer_object_id,
+            "is_deleted": {"$ne": True},
         })
 
         if not existing:
@@ -304,6 +312,7 @@ async def update_customer(
             duplicate_email = await customers.find_one({
                 "email": update_data["email"],
                 "_id": {"$ne": customer_object_id},
+                "is_deleted": {"$ne": True},
             })
 
             if duplicate_email:
@@ -316,6 +325,7 @@ async def update_customer(
             duplicate_phone = await customers.find_one({
                 "phone": update_data["phone"],
                 "_id": {"$ne": customer_object_id},
+                "is_deleted": {"$ne": True},
             })
 
             if duplicate_phone:
@@ -327,13 +337,23 @@ async def update_customer(
         update_data["updated_at"] = datetime.now(timezone.utc)
 
         await customers.update_one(
-            {"_id": customer_object_id},
+            {
+                "_id": customer_object_id,
+                "is_deleted": {"$ne": True},
+            },
             {"$set": update_data},
         )
 
         updated_customer = await customers.find_one({
             "_id": customer_object_id,
+            "is_deleted": {"$ne": True},
         })
+
+        if not updated_customer:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Customer not found",
+            )
 
         return {
             "success": True,
@@ -348,4 +368,75 @@ async def update_customer(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to update customer",
+        )
+
+
+# ---------------------------------------------------------------------------
+# SOFT DELETE CUSTOMER
+# DELETE /api/v1/customers/{customer_id}
+# ---------------------------------------------------------------------------
+
+@router.delete("/{customer_id}")
+async def delete_customer(
+    customer_id: str,
+    user: dict = Depends(require_owner_or_admin),
+):
+    if not ObjectId.is_valid(customer_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid customer ID",
+        )
+
+    try:
+        customer_object_id = ObjectId(customer_id)
+        now = datetime.now(timezone.utc)
+
+        deleted_by = (
+            user.get("sub")
+            or user.get("id")
+            or user.get("email")
+            or "owner"
+        )
+
+        result = await customers.update_one(
+            {
+                "_id": customer_object_id,
+                "is_deleted": {"$ne": True},
+            },
+            {
+                "$set": {
+                    "is_deleted": True,
+                    "deleted_at": now,
+                    "deleted_by": str(deleted_by),
+                    "updated_at": now,
+                }
+            },
+        )
+
+        if result.matched_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Customer not found or already deleted",
+            )
+
+        logger.info(
+            "Customer %s soft deleted by %s",
+            customer_id,
+            deleted_by,
+        )
+
+        return {
+            "success": True,
+            "message": "Customer deleted successfully",
+            "customer_id": customer_id,
+            "deleted_at": now.isoformat(),
+        }
+
+    except HTTPException:
+        raise
+    except PyMongoError:
+        logger.exception("Failed to delete customer")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to delete customer",
         )
