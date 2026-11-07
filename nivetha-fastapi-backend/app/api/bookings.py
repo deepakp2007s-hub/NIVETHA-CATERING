@@ -1,4 +1,3 @@
-
 import logging
 from datetime import date, datetime, timezone
 from typing import Literal, Optional
@@ -56,6 +55,7 @@ BookingStatus = Literal[
     "rejected",
     "completed",
     "cancelled",
+    "deleted",
 ]
 
 
@@ -173,7 +173,7 @@ def serialize_booking(booking: dict) -> dict:
     if isinstance(result.get("customer_id"), ObjectId):
         result["customer_id"] = str(result["customer_id"])
 
-    for key in ("created_at", "updated_at", "event_date"):
+    for key in ("created_at", "updated_at", "event_date", "deleted_at"):
         value = result.get(key)
 
         if isinstance(value, (datetime, date)):
@@ -269,6 +269,7 @@ def booking_query_for_customer(
     return {
         "_id": ObjectId(booking_id),
         "customer_id": ObjectId(customer_id),
+        "status": {"$ne": "deleted"},
     }
 
 
@@ -435,6 +436,7 @@ async def get_my_bookings(
     try:
         cursor = bookings.find({
             "customer_id": ObjectId(customer_id),
+            "status": {"$ne": "deleted"},
         }).sort("created_at", -1)
 
         results = [
@@ -630,7 +632,7 @@ async def get_bookings_for_owner(
     user: dict = Depends(require_owner_or_admin),
 ):
     try:
-        query = {}
+        query = {"status": {"$ne": "deleted"}}
 
         if status_filter:
             query["status"] = status_filter
@@ -673,7 +675,7 @@ async def get_all_bookings(
     user: dict = Depends(require_owner_or_admin),
 ):
     try:
-        query = {}
+        query = {"status": {"$ne": "deleted"}}
 
         if status_filter:
             query["status"] = status_filter
@@ -700,6 +702,88 @@ async def get_all_bookings(
 
 
 # ---------------------------------------------------------------------------
+# OWNER / ADMIN: SOFT DELETE BOOKING
+# ---------------------------------------------------------------------------
+
+@router.delete("/owner/{booking_id}", summary="Soft delete a booking")
+async def soft_delete_booking(
+    booking_id: str,
+    user: dict = Depends(require_owner_or_admin),
+):
+    if not ObjectId.is_valid(booking_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid booking ID",
+        )
+
+    try:
+        booking_object_id = ObjectId(booking_id)
+
+        existing = await bookings.find_one({
+            "_id": booking_object_id
+        })
+
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Booking not found",
+            )
+
+        if existing.get("status") == "deleted":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Booking is already deleted",
+            )
+
+        now = datetime.now(timezone.utc)
+
+        updated = await bookings.find_one_and_update(
+            {
+                "_id": booking_object_id,
+                "status": {"$ne": "deleted"},
+            },
+            {
+                "$set": {
+                    "status": "deleted",
+                    "deleted_at": now,
+                    "deleted_by": user.get("sub"),
+                    "updated_at": now,
+                }
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+
+        if not updated:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Booking was modified. Please refresh and try again.",
+            )
+
+        return {
+            "success": True,
+            "message": "Booking deleted successfully",
+            "booking": serialize_booking(updated),
+        }
+
+    except HTTPException:
+        raise
+
+    except PyMongoError:
+        logger.exception("Database error while deleting booking")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to delete booking",
+        )
+
+    except Exception:
+        logger.exception("Unexpected error while deleting booking")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong while deleting booking",
+        )
+
+
+# ---------------------------------------------------------------------------
 # OWNER: GET SINGLE BOOKING
 # ---------------------------------------------------------------------------
 
@@ -716,7 +800,8 @@ async def get_owner_booking(
 
     try:
         booking = await bookings.find_one({
-            "_id": ObjectId(booking_id)
+            "_id": ObjectId(booking_id),
+            "status": {"$ne": "deleted"},
         })
 
         if not booking:
@@ -761,7 +846,8 @@ async def update_booking_status(
         booking_object_id = ObjectId(booking_id)
 
         existing = await bookings.find_one({
-            "_id": booking_object_id
+            "_id": booking_object_id,
+            "status": {"$ne": "deleted"},
         })
 
         if not existing:
