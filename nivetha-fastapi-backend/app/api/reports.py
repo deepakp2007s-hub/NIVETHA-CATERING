@@ -1,4 +1,3 @@
-
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -291,11 +290,12 @@ async def get_popular_foods(
 
 @router.get("/monthly-bookings")
 async def get_monthly_booking_report(
-     year: int = Query(
-    default=datetime.now(timezone.utc).year,
-    ge=2000,
-    le=2100,
-     )
+    year: int = Query(
+        default=datetime.now(timezone.utc).year,
+        ge=2000,
+        le=2100,
+    ),
+    user: dict = Depends(require_owner_or_admin),
 ):
     try:
         pipeline = [

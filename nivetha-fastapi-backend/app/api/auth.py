@@ -1,14 +1,14 @@
-
 import logging
 import re
 import secrets
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from pymongo.errors import DuplicateKeyError, PyMongoError
 
 from app.core.config import settings
+from app.core.rate_limit import auth_rate_limiter
 from app.core.security import (
     create_access_token,
     hash_password,
@@ -187,7 +187,11 @@ async def register_customer(
         ) from exc
 
 
-@router.post("/owner-login", response_model=TokenResponse)
+@router.post(
+    "/owner-login",
+    response_model=TokenResponse,
+    dependencies=[Depends(auth_rate_limiter)],
+)
 async def owner_login(payload: LoginRequest):
     user = verify_staff_credentials(
         payload.email,
@@ -208,7 +212,11 @@ async def owner_login(payload: LoginRequest):
     )
 
 
-@router.post("/admin-login", response_model=TokenResponse)
+@router.post(
+    "/admin-login",
+    response_model=TokenResponse,
+    dependencies=[Depends(auth_rate_limiter)],
+)
 async def admin_login(payload: LoginRequest):
     user = verify_staff_credentials(
         payload.email,
@@ -233,6 +241,7 @@ async def admin_login(payload: LoginRequest):
     "/customer/register",
     response_model=TokenResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(auth_rate_limiter)],
 )
 async def customer_register(payload: CustomerRegisterRequest):
     user = await register_customer(payload)
@@ -246,7 +255,11 @@ async def customer_register(payload: CustomerRegisterRequest):
     )
 
 
-@router.post("/customer/login", response_model=TokenResponse)
+@router.post(
+    "/customer/login",
+    response_model=TokenResponse,
+    dependencies=[Depends(auth_rate_limiter)],
+)
 async def customer_login(payload: LoginRequest):
     user = await authenticate_customer(
         payload.email,
@@ -268,7 +281,11 @@ async def customer_login(payload: LoginRequest):
     )
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    dependencies=[Depends(auth_rate_limiter)],
+)
 async def unified_login(payload: LoginRequest):
     email = payload.email.strip().lower()
 

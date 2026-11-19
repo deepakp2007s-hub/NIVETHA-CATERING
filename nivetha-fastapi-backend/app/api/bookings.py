@@ -3,7 +3,7 @@ from datetime import date, datetime, timezone
 from typing import Literal, Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field, ConfigDict
 from pymongo import ReturnDocument
@@ -426,18 +426,29 @@ async def create_booking(
 
 
 # ---------------------------------------------------------------------------
-# CUSTOMER: MY BOOKINGS
+# CUSTOMER: MY BOOKINGS (PAGINATED)
 # ---------------------------------------------------------------------------
 
 @router.get("/my-bookings")
 async def get_my_bookings(
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
     customer_id: str = Depends(get_customer_id),
 ):
     try:
-        cursor = bookings.find({
+        query = {
             "customer_id": ObjectId(customer_id),
             "status": {"$ne": "deleted"},
-        }).sort("created_at", -1)
+        }
+
+        total = await bookings.count_documents(query)
+
+        cursor = (
+            bookings.find(query)
+            .sort("created_at", -1)
+            .skip((page - 1) * limit)
+            .limit(limit)
+        )
 
         results = [
             serialize_booking(booking)
@@ -447,6 +458,10 @@ async def get_my_bookings(
         return {
             "success": True,
             "count": len(results),
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total + limit - 1) // limit,
             "bookings": results,
         }
 
@@ -623,12 +638,14 @@ async def cancel_booking(
 
 
 # ---------------------------------------------------------------------------
-# OWNER / ADMIN: GET BOOKINGS AT COLLECTION ROOT
+# OWNER / ADMIN: GET BOOKINGS AT COLLECTION ROOT (PAGINATED)
 # ---------------------------------------------------------------------------
 
 @router.get("/", summary="Get all bookings for owner or admin")
 async def get_bookings_for_owner(
     status_filter: Optional[BookingStatus] = None,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
     user: dict = Depends(require_owner_or_admin),
 ):
     try:
@@ -637,7 +654,14 @@ async def get_bookings_for_owner(
         if status_filter:
             query["status"] = status_filter
 
-        cursor = bookings.find(query).sort("created_at", -1)
+        total = await bookings.count_documents(query)
+
+        cursor = (
+            bookings.find(query)
+            .sort("created_at", -1)
+            .skip((page - 1) * limit)
+            .limit(limit)
+        )
 
         results = [
             serialize_booking(booking)
@@ -647,6 +671,10 @@ async def get_bookings_for_owner(
         return {
             "success": True,
             "count": len(results),
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total + limit - 1) // limit,
             "bookings": results,
         }
 
@@ -666,12 +694,14 @@ async def get_bookings_for_owner(
 
 
 # ---------------------------------------------------------------------------
-# OWNER: GET ALL BOOKINGS
+# OWNER: GET ALL BOOKINGS (PAGINATED)
 # ---------------------------------------------------------------------------
 
 @router.get("/owner/all")
 async def get_all_bookings(
     status_filter: Optional[BookingStatus] = None,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
     user: dict = Depends(require_owner_or_admin),
 ):
     try:
@@ -680,7 +710,14 @@ async def get_all_bookings(
         if status_filter:
             query["status"] = status_filter
 
-        cursor = bookings.find(query).sort("created_at", -1)
+        total = await bookings.count_documents(query)
+
+        cursor = (
+            bookings.find(query)
+            .sort("created_at", -1)
+            .skip((page - 1) * limit)
+            .limit(limit)
+        )
 
         results = [
             serialize_booking(booking)
@@ -690,6 +727,10 @@ async def get_all_bookings(
         return {
             "success": True,
             "count": len(results),
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total + limit - 1) // limit,
             "bookings": results,
         }
 
