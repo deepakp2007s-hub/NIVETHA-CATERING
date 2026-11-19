@@ -13,6 +13,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const int _featuredLimit = 10;
+
   final FoodService _foodService = FoodService();
   final AuthService _authService = AuthService();
 
@@ -23,20 +25,43 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadCustomerInfo();
-    _loadFoods();
+    _foodsFuture = _fetchFoods();
   }
 
   Future<void> _loadCustomerInfo() async {
     final customer = await _authService.getCurrentCustomer();
-    if (mounted && customer != null) {
-      setState(() {
-        _customer = customer;
-      });
+
+    if (!mounted) return;
+
+    if (customer != null) {
+      setState(() => _customer = customer);
+      return;
+    }
+
+    // getCurrentCustomer() clears the session on a 401 (expired token).
+    // If no session is left, send the user back to login.
+    final stillLoggedIn = await _authService.isLoggedIn();
+    if (!mounted) return;
+
+    if (!stillLoggedIn) {
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     }
   }
 
-  void _loadFoods() {
-    _foodsFuture = _foodService.getFoods();
+  Future<List<FoodModel>> _fetchFoods() async {
+    final foods = await _foodService.getFoods(availableOnly: true);
+    return foods.take(_featuredLimit).toList();
+  }
+
+  void _reloadFoods() {
+    setState(() {
+      _foodsFuture = _fetchFoods();
+    });
+  }
+
+  String _cleanError(Object? error) {
+    return (error?.toString() ?? 'Something went wrong')
+        .replaceAll('Exception: ', '');
   }
 
   @override
@@ -65,29 +90,35 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Icon(Icons.restaurant_rounded, color: primaryColor, size: 22),
             ),
             const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'NIVETHA CATERING',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                    letterSpacing: 1.1,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'NIVETHA CATERING',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      letterSpacing: 1.1,
+                    ),
                   ),
-                ),
-                Text(
-                  _customer != null
-                      ? 'Vanakkam, ${_customer!.name.split(' ').first}'
-                      : 'Authentic Grand Feasts',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.normal,
-                    color: Colors.white70,
+                  Text(
+                    _customer != null
+                        ? 'Vanakkam, ${_customer!.name.split(' ').first}'
+                        : 'Authentic Grand Feasts',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.normal,
+                      color: Colors.white70,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -108,9 +139,10 @@ class _HomeScreenState extends State<HomeScreen> {
       body: RefreshIndicator(
         onRefresh: () async {
           _loadCustomerInfo();
-          setState(() {
-            _loadFoods();
-          });
+          _reloadFoods();
+          try {
+            await _foodsFuture;
+          } catch (_) {}
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -123,8 +155,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(22),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: const [
+                  gradient: const LinearGradient(
+                    colors: [
                       Color(0xFFC85A17), // Deep warm terracotta
                       Color(0xFFE65100), // Vibrant amber
                       Color(0xFFF57C00),
@@ -145,7 +177,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.22),
                         borderRadius: BorderRadius.circular(20),
@@ -153,15 +188,23 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.stars_rounded, color: Colors.amberAccent, size: 16),
+                          Icon(
+                            Icons.stars_rounded,
+                            color: Colors.amberAccent,
+                            size: 16,
+                          ),
                           SizedBox(width: 6),
-                          Text(
-                            'PREMIUM CATERING SERVICE',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.8,
+                          Flexible(
+                            child: Text(
+                              'PREMIUM CATERING SERVICE',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.8,
+                              ),
                             ),
                           ),
                         ],
@@ -200,11 +243,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      onPressed: () => Navigator.pushNamed(context, '/create-booking'),
+                      onPressed: () =>
+                          Navigator.pushNamed(context, '/create-booking'),
                       icon: const Icon(Icons.calendar_month_rounded, size: 20),
                       label: const Text(
                         'Book Catering Event',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                   ],
@@ -220,7 +267,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _buildQuickActionCard(
                       icon: Icons.menu_book_rounded,
                       title: 'Food Menu',
-                      subtitle: 'Browse 50+ dishes',
+                      subtitle: 'Browse our dishes',
                       color: const Color(0xFF2E7D32),
                       onTap: () => Navigator.pushNamed(context, '/menu'),
                     ),
@@ -241,29 +288,11 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 28),
 
               // Catering Occasions Section
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Occasions We Cater',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: const Color(0xFF1F2937),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pushNamed(context, '/create-booking'),
-                    child: Text(
-                      'Book Now',
-                      style: TextStyle(
-                        color: primaryColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ],
+              _buildSectionHeader(
+                title: 'Occasions We Cater',
+                actionLabel: 'Book Now',
+                onAction: () => Navigator.pushNamed(context, '/create-booking'),
+                primaryColor: primaryColor,
               ),
               const SizedBox(height: 12),
 
@@ -309,33 +338,14 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 28),
 
               // Featured Delicacies Section
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Specialty Dishes',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: const Color(0xFF1F2937),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pushNamed(context, '/menu'),
-                    child: Text(
-                      'View All',
-                      style: TextStyle(
-                        color: primaryColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ],
+              _buildSectionHeader(
+                title: 'Specialty Dishes',
+                actionLabel: 'View All',
+                onAction: () => Navigator.pushNamed(context, '/menu'),
+                primaryColor: primaryColor,
               ),
               const SizedBox(height: 12),
 
-              // FutureBuilder for Featured Dishes
               FutureBuilder<List<FoodModel>>(
                 future: _foodsFuture,
                 builder: (context, snapshot) {
@@ -346,9 +356,45 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   }
 
+                  if (snapshot.hasError) {
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.red.shade100),
+                      ),
+                      child: Column(
+                        children: [
+                          const Icon(
+                            Icons.cloud_off_rounded,
+                            color: Colors.red,
+                            size: 32,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _cleanError(snapshot.error),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          OutlinedButton(
+                            onPressed: _reloadFoods,
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
                   final foods = snapshot.data ?? [];
                   if (foods.isEmpty) {
                     return Container(
+                      width: double.infinity,
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -361,15 +407,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   }
 
                   return SizedBox(
-                    height: 230,
+                    height: 220,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       clipBehavior: Clip.none,
                       itemCount: foods.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 14),
                       itemBuilder: (context, index) {
-                        final food = foods[index];
-                        return _buildFeaturedFoodCard(context, food);
+                        return _buildFeaturedFoodCard(context, foods[index]);
                       },
                     ),
                   );
@@ -404,15 +449,21 @@ class _HomeScreenState extends State<HomeScreen> {
                             color: primaryColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: Icon(Icons.verified_rounded, color: primaryColor, size: 22),
+                          child: Icon(
+                            Icons.verified_rounded,
+                            color: primaryColor,
+                            size: 22,
+                          ),
                         ),
                         const SizedBox(width: 12),
-                        const Text(
-                          'The Nivetha Catering Promise',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1F2937),
+                        const Expanded(
+                          child: Text(
+                            'The Nivetha Catering Promise',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1F2937),
+                            ),
                           ),
                         ),
                       ],
@@ -444,6 +495,41 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSectionHeader({
+    required String title,
+    required String actionLabel,
+    required VoidCallback onAction,
+    required Color primaryColor,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: const Color(0xFF1F2937),
+                ),
+          ),
+        ),
+        TextButton(
+          onPressed: onAction,
+          child: Text(
+            actionLabel,
+            style: TextStyle(
+              color: primaryColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -488,6 +574,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -497,6 +585,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 11,
                       color: Colors.grey.shade600,
@@ -547,6 +637,8 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 12),
           Text(
             title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 14,
@@ -556,6 +648,8 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 4),
           Text(
             guestRange,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 11,
               color: Colors.grey.shade600,
@@ -595,12 +689,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: double.infinity,
                   decoration: BoxDecoration(
                     color: Colors.orange.shade50,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
+                    ),
                   ),
                   child: food.imageUrl != null
                       ? ClipRRect(
-                          borderRadius:
-                              const BorderRadius.vertical(top: Radius.circular(16)),
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16),
+                          ),
                           child: Image.network(
                             food.imageUrl!,
                             fit: BoxFit.cover,
@@ -654,7 +751,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   top: 8,
                   right: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.65),
                       borderRadius: BorderRadius.circular(12),
@@ -686,17 +786,19 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Color(0xFF1F2937),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    food.description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade600,
-                      height: 1.3,
+                  if (food.description.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      food.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade600,
+                        height: 1.3,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

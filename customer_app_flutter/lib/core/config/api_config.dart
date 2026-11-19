@@ -21,18 +21,36 @@ class ApiConfig {
   // ---------------------------------------------------------------------------
   // FOOD CATALOG ENDPOINTS
   // ---------------------------------------------------------------------------
-  static const String foods = '/foods';
+  static const String foods = '/foods/';
   static const String foodCategories = '/foods/categories';
+  static String foodById(String id) => '/foods/$id';
 
   // ---------------------------------------------------------------------------
   // BOOKING ENDPOINTS
   // ---------------------------------------------------------------------------
-  static const String createBooking = '/bookings';
+  static const String createBooking = '/bookings/';
   static const String myBookings = '/bookings/my-bookings';
   static const String previewBooking = '/bookings/preview';
+  static String bookingById(String id) => '/bookings/$id';
+  static String cancelBooking(String id) => '/bookings/$id/cancel';
 
   // ---------------------------------------------------------------------------
   // PROFILE ENDPOINTS
   // ---------------------------------------------------------------------------
   static const String profile = '/profile/me';
+
+  // ---------------------------------------------------------------------------
+  // NOTIFICATION ENDPOINTS
+  // ---------------------------------------------------------------------------
+  static const String myNotifications = '/notifications/my-notifications';
+  static const String unreadNotificationsCount = '/notifications/unread-count';
+  static const String markAllNotificationsRead = '/notifications/read-all';
+  static String markNotificationRead(String id) => '/notifications/$id/read';
+
+  // ---------------------------------------------------------------------------
+  // REVIEW ENDPOINTS
+  // ---------------------------------------------------------------------------
+  static const String reviews = '/reviews/';
+  static const String reviewSummary = '/reviews/summary';
+  static const String myReviews = '/reviews/my-reviews';
 }

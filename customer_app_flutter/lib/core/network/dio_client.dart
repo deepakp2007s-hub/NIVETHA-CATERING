@@ -97,6 +97,8 @@ class DioClient {
             return 'Resource conflict or duplicate record found.';
           } else if (code == 422) {
             return 'Please review the entered details and try again.';
+          } else if (code == 429) {
+            return 'Too many attempts. Please wait a minute and try again.';
           } else if (code != null && code >= 500) {
             return 'Server is temporarily unavailable. Please try again later.';
           }

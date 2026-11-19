@@ -27,31 +27,29 @@ class FoodModel {
   }
 
   factory FoodModel.fromJson(Map<String, dynamic> json) {
-    // Determine image URL from common backend field variants
     final String? img = json['image_url']?.toString() ??
         json['imageUrl']?.toString() ??
         json['image']?.toString();
 
-    // Determine vegetarian status
     bool isVeg = true;
     if (json.containsKey('is_vegetarian')) {
       isVeg = json['is_vegetarian'] == true ||
-          json['is_vegetarian'].toString() == 'true';
+          json['is_vegetarian'].toString().toLowerCase() == 'true';
     } else if (json.containsKey('isVegetarian')) {
       isVeg = json['isVegetarian'] == true ||
-          json['isVegetarian'].toString() == 'true';
+          json['isVegetarian'].toString().toLowerCase() == 'true';
     } else if (json.containsKey('is_veg')) {
-      isVeg = json['is_veg'] == true || json['is_veg'].toString() == 'true';
+      isVeg = json['is_veg'] == true ||
+          json['is_veg'].toString().toLowerCase() == 'true';
     }
 
-    // Determine availability
     bool available = true;
     if (json.containsKey('is_available')) {
       available = json['is_available'] == true ||
-          json['is_available'].toString() == 'true';
+          json['is_available'].toString().toLowerCase() == 'true';
     } else if (json.containsKey('isAvailable')) {
       available = json['isAvailable'] == true ||
-          json['isAvailable'].toString() == 'true';
+          json['isAvailable'].toString().toLowerCase() == 'true';
     }
 
     double parsedPrice = 0.0;
@@ -59,11 +57,14 @@ class FoodModel {
       parsedPrice = double.tryParse(json['price'].toString()) ?? 0.0;
     }
 
+    final rawName = json['name']?.toString().trim() ?? '';
+    final rawCategory = json['category']?.toString().trim() ?? '';
+
     return FoodModel(
       id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
-      name: json['name']?.toString() ?? 'Delicious Dish',
-      category: json['category']?.toString() ?? 'General',
-      description: json['description']?.toString() ?? '',
+      name: rawName.isNotEmpty ? rawName : 'Delicious Dish',
+      category: rawCategory.isNotEmpty ? rawCategory : 'General',
+      description: json['description']?.toString().trim() ?? '',
       imageUrl: (img != null && img.trim().isNotEmpty) ? img.trim() : null,
       isAvailable: available,
       isVegetarian: isVeg,

@@ -24,7 +24,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _loadProfile() {
-    _profileFuture = _profileService.getProfile();
+    setState(() {
+      _profileFuture = _profileService.getProfile();
+    });
   }
 
   Future<void> _showEditProfileDialog(CustomerModel customer) async {
@@ -126,16 +128,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               backgroundColor: Color(0xFF2E7D32),
                             ),
                           );
-                          setState(() {
-                            _loadProfile();
-                          });
+                          _loadProfile();
                         }
                       } catch (e) {
                         setDialogState(() => isSaving = false);
                         if (mounted) {
+                          final errorMsg = e.toString().replaceAll('Exception: ', '');
                           messenger.showSnackBar(
                             SnackBar(
-                              content: Text(e.toString().replaceAll('Exception: ', '')),
+                              content: Text(errorMsg),
                               backgroundColor: const Color(0xFFC62828),
                             ),
                           );
@@ -207,6 +208,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         actions: [
           IconButton(
+            tooltip: 'Refresh',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _loadProfile,
+          ),
+          IconButton(
             tooltip: 'Sign Out',
             icon: const Icon(Icons.logout_rounded),
             onPressed: _handleLogout,
@@ -220,6 +226,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
+          if (snapshot.hasError) {
+            final errorMsg = snapshot.error.toString().replaceAll('Exception: ', '');
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline_rounded, size: 48, color: Colors.red),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Failed to load profile.\n$errorMsg',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _loadProfile,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
           final customer = snapshot.data ??
               CustomerModel(
                 id: '',
@@ -228,230 +260,234 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 phone: '+91 98765 43210',
               );
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              children: [
-                // Profile Avatar & Identity Card
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24.0),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: Colors.grey.shade200),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Stack(
-                        children: [
-                          Container(
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: LinearGradient(
-                                colors: [primaryColor, const Color(0xFFE65100)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: primaryColor.withValues(alpha: 0.35),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: Text(
-                                customer.initials,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 28,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF2E7D32),
+          return RefreshIndicator(
+            onRefresh: () async => _loadProfile(),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                children: [
+                  // Profile Avatar & Identity Card
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24.0),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: Colors.grey.shade200),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Stack(
+                          children: [
+                            Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
                                 shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  colors: [primaryColor, const Color(0xFFE65100)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: primaryColor.withValues(alpha: 0.35),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
                               ),
-                              child: const Icon(
-                                Icons.check_rounded,
-                                size: 14,
-                                color: Colors.white,
+                              child: Center(
+                                child: Text(
+                                  customer.initials,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 28,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
                               ),
                             ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF2E7D32),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.check_rounded,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          customer.name,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1F2937),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        customer.name,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1F2937),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        customer.email,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                      if (customer.phone.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         Text(
-                          customer.phone,
+                          customer.email,
                           style: TextStyle(
                             fontSize: 13,
                             color: Colors.grey.shade600,
                           ),
                         ),
-                      ],
-                      const SizedBox(height: 18),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: primaryColor,
-                          side: BorderSide(color: primaryColor),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                        if (customer.phone.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            customer.phone,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                            ),
                           ),
+                        ],
+                        const SizedBox(height: 18),
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: primaryColor,
+                            side: BorderSide(color: primaryColor),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () => _showEditProfileDialog(customer),
+                          icon: const Icon(Icons.edit_outlined, size: 16),
+                          label: const Text('Edit Profile Details'),
                         ),
-                        onPressed: () => _showEditProfileDialog(customer),
-                        icon: const Icon(Icons.edit_outlined, size: 16),
-                        label: const Text('Edit Profile Details'),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
 
-                const SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
-                // Catering Navigation Section
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.grey.shade200),
+                  // Catering Navigation Section
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildProfileTile(
+                          icon: Icons.calendar_month_rounded,
+                          title: 'My Catering Bookings',
+                          subtitle: 'Check confirmation status and event menus',
+                          onTap: () => Navigator.pushNamed(context, '/my-bookings'),
+                        ),
+                        const Divider(height: 1),
+                        _buildProfileTile(
+                          icon: Icons.restaurant_menu_rounded,
+                          title: 'Browse Complete Food Catalog',
+                          subtitle: 'Dishes, multi-course feast menus & sweets',
+                          onTap: () => Navigator.pushNamed(context, '/menu'),
+                        ),
+                        const Divider(height: 1),
+                        _buildProfileTile(
+                          icon: Icons.add_business_rounded,
+                          title: 'Plan a New Event Booking',
+                          subtitle: 'Weddings, Receptions, Housewarmings',
+                          onTap: () => Navigator.pushNamed(context, '/create-booking'),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Column(
-                    children: [
-                      _buildProfileTile(
-                        icon: Icons.calendar_month_rounded,
-                        title: 'My Catering Bookings',
-                        subtitle: 'Check confirmation status and event menus',
-                        onTap: () => Navigator.pushNamed(context, '/my-bookings'),
-                      ),
-                      const Divider(height: 1),
-                      _buildProfileTile(
-                        icon: Icons.restaurant_menu_rounded,
-                        title: 'Browse Complete Food Catalog',
-                        subtitle: 'Dishes, multi-course feast menus & sweets',
-                        onTap: () => Navigator.pushNamed(context, '/menu'),
-                      ),
-                      const Divider(height: 1),
-                      _buildProfileTile(
-                        icon: Icons.add_business_rounded,
-                        title: 'Plan a New Event Booking',
-                        subtitle: 'Weddings, Receptions, Housewarmings',
-                        onTap: () => Navigator.pushNamed(context, '/create-booking'),
-                      ),
-                    ],
-                  ),
-                ),
 
-                const SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
-                // About & Support Section
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildProfileTile(
-                        icon: Icons.support_agent_rounded,
-                        title: 'Customer Support Helpline',
-                        subtitle: '+91 98765 43210 (24/7 Event Assistance)',
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Calling Nivetha Catering support: +91 98765 43210'),
-                            ),
-                          );
-                        },
-                      ),
-                      const Divider(height: 1),
-                      _buildProfileTile(
-                        icon: Icons.info_outline_rounded,
-                        title: 'About Nivetha Catering',
-                        subtitle: 'Over 20 years of authentic South Indian feast mastery',
-                        onTap: () {
-                          showAboutDialog(
-                            context: context,
-                            applicationName: 'Nivetha Catering',
-                            applicationVersion: '2.0.0',
-                            applicationIcon: Icon(
-                              Icons.restaurant_rounded,
-                              size: 40,
-                              color: primaryColor,
-                            ),
-                            children: const [
-                              Text(
-                                'Nivetha Catering is Tamil Nadu\'s premier traditional event caterer, renowned for grand wedding feasts, authentic regional flavors, and gracious hospitality.',
+                  // About & Support Section
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildProfileTile(
+                          icon: Icons.support_agent_rounded,
+                          title: 'Customer Support Helpline',
+                          subtitle: '+91 98765 43210 (24/7 Event Assistance)',
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Calling Nivetha Catering support: +91 98765 43210'),
                               ),
-                            ],
-                          );
-                        },
-                      ),
-                    ],
+                            );
+                          },
+                        ),
+                        const Divider(height: 1),
+                        _buildProfileTile(
+                          icon: Icons.info_outline_rounded,
+                          title: 'About Nivetha Catering',
+                          subtitle: 'Over 20 years of authentic South Indian feast mastery',
+                          onTap: () {
+                            showAboutDialog(
+                              context: context,
+                              applicationName: 'Nivetha Catering',
+                              applicationVersion: '2.0.0',
+                              applicationIcon: Icon(
+                                Icons.restaurant_rounded,
+                                size: 40,
+                                color: primaryColor,
+                              ),
+                              children: const [
+                                Text(
+                                  'Nivetha Catering is Tamil Nadu\'s premier traditional event caterer, renowned for grand wedding feasts, authentic regional flavors, and gracious hospitality.',
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                ),
 
-                const SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
-                // Sign Out Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: TextButton.icon(
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFFC62828),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                  // Sign Out Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFFC62828),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: _handleLogout,
+                      icon: const Icon(Icons.logout_rounded),
+                      label: const Text(
+                        'Log Out of Customer App',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                       ),
                     ),
-                    onPressed: _handleLogout,
-                    icon: const Icon(Icons.logout_rounded),
-                    label: const Text(
-                      'Log Out of Customer App',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-              ],
+                  const SizedBox(height: 12),
+                ],
+              ),
             ),
           );
         },

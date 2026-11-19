@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../data/models/food_model.dart';
 import '../../../data/services/food_service.dart';
@@ -22,14 +24,20 @@ class MenuScreen extends StatefulWidget {
 class _MenuScreenState extends State<MenuScreen> {
   final FoodService _foodService = FoodService();
   final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
 
   late Future<List<FoodModel>> _foodsFuture;
   String _selectedCategory = 'All';
   String _searchQuery = '';
   bool _vegOnly = false;
+  bool _isResolving = false;
 
+  /// IDs currently selected (includes IDs handed in by the booking screen).
   final Set<String> _selectedFoodIds = {};
-  final Map<String, FoodModel> _selectedFoodMap = {};
+
+  /// Every dish this screen has seen, so selected IDs can be turned back
+  /// into full FoodModel objects even when a filter hides them.
+  final Map<String, FoodModel> _foodCache = {};
 
   final List<String> _categories = [
     'All',
@@ -45,47 +53,116 @@ class _MenuScreenState extends State<MenuScreen> {
     if (widget.initialSelectedIds != null) {
       _selectedFoodIds.addAll(widget.initialSelectedIds!);
     }
-    _fetchMenu();
+    _foodsFuture = _loadMenu();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _fetchMenu() {
-    _foodsFuture = _foodService.getFoods(
+  Future<List<FoodModel>> _loadMenu() async {
+    final foods = await _foodService.getFoods(
       category: _selectedCategory == 'All' ? null : _selectedCategory,
       search: _searchQuery.isEmpty ? null : _searchQuery,
       vegetarianOnly: _vegOnly ? true : null,
+      // Only dishes a customer can actually book.
+      availableOnly: true,
     );
+    for (final food in foods) {
+      _foodCache[food.id] = food;
+    }
+    return foods;
   }
 
-  void _onCategorySelected(String category) {
+  void _reload() {
     setState(() {
-      _selectedCategory = category;
-      _fetchMenu();
+      _foodsFuture = _loadMenu();
     });
   }
 
+  void _onCategorySelected(String category) {
+    _selectedCategory = category;
+    _reload();
+  }
+
   void _onSearchChanged(String value) {
-    setState(() {
-      _searchQuery = value.trim();
-      _fetchMenu();
+    setState(() => _searchQuery = value.trim());
+
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 450), () {
+      if (mounted) _reload();
     });
   }
 
   void _toggleFoodSelection(FoodModel food) {
     setState(() {
+      _foodCache[food.id] = food;
       if (_selectedFoodIds.contains(food.id)) {
         _selectedFoodIds.remove(food.id);
-        _selectedFoodMap.remove(food.id);
       } else {
         _selectedFoodIds.add(food.id);
-        _selectedFoodMap[food.id] = food;
       }
     });
+  }
+
+  String _cleanError(Object? error) {
+    return (error?.toString() ?? 'Something went wrong')
+        .replaceAll('Exception: ', '');
+  }
+
+  /// Turn the selected IDs into FoodModels. IDs that came from the booking
+  /// screen may not be in the cache yet, so load the full catalog once.
+  Future<List<FoodModel>> _resolveSelectedFoods() async {
+    final missing =
+        _selectedFoodIds.where((id) => !_foodCache.containsKey(id)).toList();
+
+    if (missing.isNotEmpty) {
+      final all = await _foodService.getFoods(availableOnly: true);
+      for (final food in all) {
+        _foodCache[food.id] = food;
+      }
+    }
+
+    return _selectedFoodIds
+        .map((id) => _foodCache[id])
+        .whereType<FoodModel>()
+        .toList();
+  }
+
+  Future<void> _proceedToBooking() async {
+    if (_isResolving) return;
+    setState(() => _isResolving = true);
+
+    try {
+      final foods = await _resolveSelectedFoods();
+      if (!mounted) return;
+
+      if (widget.selectionMode) {
+        Navigator.pop(context, foods);
+      } else {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CreateBookingScreen(preSelectedFoods: foods),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_cleanError(e)),
+            backgroundColor: const Color(0xFFC62828),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isResolving = false);
+    }
   }
 
   void _showFoodDetails(FoodModel food) {
@@ -93,160 +170,202 @@ class _MenuScreenState extends State<MenuScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 44,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
+      builder: (sheetContext) {
+        final alreadySelected = _selectedFoodIds.contains(food.id);
+
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetContext).size.height * 0.9,
+          ),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
             ),
-            const SizedBox(height: 18),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(3),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: food.isVegetarian
-                                    ? const Color(0xFF2E7D32)
-                                    : const Color(0xFFC62828),
-                                width: 1.5,
-                              ),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: food.isVegetarian
-                                    ? const Color(0xFF2E7D32)
-                                    : const Color(0xFFC62828),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            food.isVegetarian ? 'Pure Vegetarian' : 'Non-Vegetarian',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: food.isVegetarian
-                                  ? const Color(0xFF2E7D32)
-                                  : const Color(0xFFC62828),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.shade50,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              food.formattedCategory,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.orange.shade900,
-                              ),
-                            ),
-                          ),
-                        ],
+            child: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
-                      const SizedBox(height: 10),
+                    ),
+                    const SizedBox(height: 18),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: food.isVegetarian
+                                      ? const Color(0xFF2E7D32)
+                                      : const Color(0xFFC62828),
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: food.isVegetarian
+                                      ? const Color(0xFF2E7D32)
+                                      : const Color(0xFFC62828),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              food.isVegetarian
+                                  ? 'Pure Vegetarian'
+                                  : 'Non-Vegetarian',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: food.isVegetarian
+                                    ? const Color(0xFF2E7D32)
+                                    : const Color(0xFFC62828),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            food.formattedCategory,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange.shade900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      food.name,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+                    if (food.description.isNotEmpty) ...[
+                      const SizedBox(height: 14),
                       Text(
-                        food.name,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1F2937),
+                        food.description,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade700,
+                          height: 1.5,
                         ),
                       ),
                     ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              food.description,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade700,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _selectedFoodIds.contains(food.id)
-                      ? Colors.red.shade700
-                      : Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: () {
-                  _toggleFoodSelection(food);
-                  Navigator.pop(context);
-                },
-                icon: Icon(
-                  _selectedFoodIds.contains(food.id)
-                      ? Icons.remove_circle_outline
-                      : Icons.add_circle_outline,
-                ),
-                label: Text(
-                  _selectedFoodIds.contains(food.id)
-                      ? 'Remove from Catering Menu'
-                      : 'Add to Catering Menu',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: alreadySelected
+                              ? Colors.red.shade700
+                              : Theme.of(sheetContext).colorScheme.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () {
+                          _toggleFoodSelection(food);
+                          Navigator.pop(sheetContext);
+                        },
+                        icon: Icon(
+                          alreadySelected
+                              ? Icons.remove_circle_outline
+                              : Icons.add_circle_outline,
+                        ),
+                        label: Text(
+                          alreadySelected
+                              ? 'Remove from Catering Menu'
+                              : 'Add to Catering Menu',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
-  void _proceedToBooking() {
-    if (widget.selectionMode) {
-      Navigator.pop(context, _selectedFoodMap.values.toList());
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CreateBookingScreen(
-            preSelectedFoods: _selectedFoodMap.values.toList(),
+  Widget _buildMessageState({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    String? subtitle,
+    Color? titleColor,
+    Widget? action,
+  }) {
+    // Scrollable so pull-to-refresh still works on empty / error states.
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(24.0),
+      children: [
+        const SizedBox(height: 60),
+        Icon(icon, size: 52, color: iconColor),
+        const SizedBox(height: 14),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: titleColor ?? const Color(0xFF374151),
           ),
         ),
-      );
-    }
+        if (subtitle != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+          ),
+        ],
+        if (action != null) ...[
+          const SizedBox(height: 16),
+          Center(child: action),
+        ],
+      ],
+    );
   }
 
   @override
@@ -254,12 +373,16 @@ class _MenuScreenState extends State<MenuScreen> {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
 
+    // In selection mode the bar is always shown so the user can confirm
+    // (or clear) their choice; otherwise only when something is selected.
+    final showActionBar = widget.selectionMode || _selectedFoodIds.isNotEmpty;
+
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
       appBar: AppBar(
-        title: const Text(
-          'Catering Menu Catalog',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        title: Text(
+          widget.selectionMode ? 'Select Dishes' : 'Catering Menu Catalog',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         actions: [
           IconButton(
@@ -269,10 +392,8 @@ class _MenuScreenState extends State<MenuScreen> {
               color: _vegOnly ? Colors.lightGreenAccent : Colors.white,
             ),
             onPressed: () {
-              setState(() {
-                _vegOnly = !_vegOnly;
-                _fetchMenu();
-              });
+              _vegOnly = !_vegOnly;
+              _reload();
             },
           ),
         ],
@@ -285,13 +406,16 @@ class _MenuScreenState extends State<MenuScreen> {
             color: Colors.white,
             child: Column(
               children: [
-                // Search Bar
                 TextField(
                   controller: _searchController,
                   onChanged: _onSearchChanged,
+                  textInputAction: TextInputAction.search,
                   decoration: InputDecoration(
                     hintText: 'Search dishes (e.g. Biryani, Meals, Payasam)...',
-                    hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade500,
+                    ),
                     prefixIcon: Icon(Icons.search, color: primaryColor),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
@@ -328,15 +452,20 @@ class _MenuScreenState extends State<MenuScreen> {
                           backgroundColor: Colors.white,
                           selectedColor: primaryColor.withValues(alpha: 0.15),
                           labelStyle: TextStyle(
-                            color: isSelected ? primaryColor : const Color(0xFF374151),
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            color: isSelected
+                                ? primaryColor
+                                : const Color(0xFF374151),
+                            fontWeight:
+                                isSelected ? FontWeight.bold : FontWeight.w500,
                             fontSize: 12.5,
                           ),
                           checkmarkColor: primaryColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                             side: BorderSide(
-                              color: isSelected ? primaryColor : Colors.grey.shade300,
+                              color: isSelected
+                                  ? primaryColor
+                                  : Colors.grey.shade300,
                             ),
                           ),
                         ),
@@ -352,9 +481,10 @@ class _MenuScreenState extends State<MenuScreen> {
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
-                setState(() {
-                  _fetchMenu();
-                });
+                _reload();
+                try {
+                  await _foodsFuture;
+                } catch (_) {}
               },
               child: FutureBuilder<List<FoodModel>>(
                 future: _foodsFuture,
@@ -364,27 +494,15 @@ class _MenuScreenState extends State<MenuScreen> {
                   }
 
                   if (snapshot.hasError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.error_outline_rounded,
-                                size: 48, color: Colors.red),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Failed to load catering menu.\n${snapshot.error}',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.red),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () => setState(() => _fetchMenu()),
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
+                    return _buildMessageState(
+                      icon: Icons.error_outline_rounded,
+                      iconColor: Colors.red,
+                      title: 'Failed to load catering menu',
+                      titleColor: Colors.red,
+                      subtitle: _cleanError(snapshot.error),
+                      action: ElevatedButton(
+                        onPressed: _reload,
+                        child: const Text('Retry'),
                       ),
                     );
                   }
@@ -392,36 +510,23 @@ class _MenuScreenState extends State<MenuScreen> {
                   final foods = snapshot.data ?? [];
 
                   if (foods.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.search_off_rounded,
-                                size: 56, color: Colors.grey.shade400),
-                            const SizedBox(height: 14),
-                            const Text(
-                              'No dishes found matching your search.',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF374151),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Try adjusting your search terms or category filters.',
-                              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                            ),
-                          ],
-                        ),
-                      ),
+                    return _buildMessageState(
+                      icon: Icons.search_off_rounded,
+                      iconColor: Colors.grey.shade400,
+                      title: 'No dishes found matching your search.',
+                      subtitle:
+                          'Try adjusting your search terms or category filters.',
                     );
                   }
 
                   return ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      16,
+                      16,
+                      showActionBar ? 90 : 16,
+                    ),
                     itemCount: foods.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
@@ -437,8 +542,8 @@ class _MenuScreenState extends State<MenuScreen> {
           ),
         ],
       ),
-      // Floating Bottom Action Bar if dishes are selected
-      bottomSheet: _selectedFoodIds.isNotEmpty
+      // Bottom action bar
+      bottomSheet: showActionBar
           ? Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               decoration: BoxDecoration(
@@ -452,27 +557,37 @@ class _MenuScreenState extends State<MenuScreen> {
                 ],
               ),
               child: SafeArea(
+                top: false,
                 child: Row(
                   children: [
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${_selectedFoodIds.length} Dishes Selected',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: Color(0xFF1F2937),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${_selectedFoodIds.length} Dishes Selected',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: Color(0xFF1F2937),
+                            ),
                           ),
-                        ),
-                        Text(
-                          'For catering feast package',
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                        ),
-                      ],
+                          Text(
+                            'For catering feast package',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 12),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryColor,
@@ -485,8 +600,19 @@ class _MenuScreenState extends State<MenuScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      onPressed: _proceedToBooking,
-                      icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                      onPressed: _isResolving ? null : _proceedToBooking,
+                      icon: _isResolving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : const Icon(Icons.arrow_forward_rounded, size: 18),
                       label: Text(
                         widget.selectionMode ? 'Done' : 'Proceed to Book',
                         style: const TextStyle(fontWeight: FontWeight.bold),
@@ -500,7 +626,11 @@ class _MenuScreenState extends State<MenuScreen> {
     );
   }
 
-  Widget _buildFoodItemCard(BuildContext context, FoodModel item, bool isSelected) {
+  Widget _buildFoodItemCard(
+    BuildContext context,
+    FoodModel item,
+    bool isSelected,
+  ) {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
 
@@ -595,18 +725,25 @@ class _MenuScreenState extends State<MenuScreen> {
                 children: [
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          item.formattedCategory,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey.shade700,
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            item.formattedCategory,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey.shade700,
+                            ),
                           ),
                         ),
                       ),
@@ -619,7 +756,8 @@ class _MenuScreenState extends State<MenuScreen> {
                           isSelected
                               ? Icons.check_circle_rounded
                               : Icons.add_circle_outline_rounded,
-                          color: isSelected ? primaryColor : Colors.grey.shade500,
+                          color:
+                              isSelected ? primaryColor : Colors.grey.shade500,
                           size: 24,
                         ),
                         onPressed: () => _toggleFoodSelection(item),
@@ -637,17 +775,19 @@ class _MenuScreenState extends State<MenuScreen> {
                       color: Color(0xFF1F2937),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    item.description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                      height: 1.3,
+                  if (item.description.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      item.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        height: 1.3,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

@@ -21,6 +21,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
     'Confirmed',
     'Completed',
     'Cancelled',
+    'Rejected',
   ];
 
   @override
@@ -30,7 +31,16 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
   }
 
   void _loadBookings() {
-    _bookingsFuture = _bookingService.getMyBookings();
+    _bookingsFuture = _bookingService.getMyBookings(page: 1, limit: 50);
+  }
+
+  Future<void> _openCreateBooking() async {
+    await Navigator.pushNamed(context, '/create-booking');
+    if (mounted) {
+      setState(() {
+        _loadBookings();
+      });
+    }
   }
 
   Future<void> _handleCancelBooking(String bookingId) async {
@@ -76,9 +86,10 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final msg = e.toString().replaceAll('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
+            content: Text(msg),
             backgroundColor: const Color(0xFFC62828),
           ),
         );
@@ -116,14 +127,17 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    booking.functionType,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1F2937),
+                  Expanded(
+                    child: Text(
+                      booking.functionType,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1F2937),
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
@@ -143,14 +157,23 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                 ],
               ),
               const Divider(height: 24),
-              _buildDetailItem(Icons.calendar_month_rounded, 'Date & Time',
-                  '${booking.formattedDate} at ${booking.eventTime}'),
+              _buildDetailItem(
+                Icons.calendar_month_rounded,
+                'Date & Time',
+                '${booking.formattedDate} at ${booking.eventTime}',
+              ),
               const SizedBox(height: 12),
-              _buildDetailItem(Icons.people_outline_rounded, 'Guest Capacity',
-                  '${booking.personsCount} Guests (${booking.mealType} - ${booking.foodPreference})'),
+              _buildDetailItem(
+                Icons.people_outline_rounded,
+                'Guest Capacity',
+                '${booking.personsCount} Guests (${booking.mealType} - ${booking.foodPreference})',
+              ),
               const SizedBox(height: 12),
-              _buildDetailItem(Icons.location_on_outlined, 'Venue Address',
-                  booking.location),
+              _buildDetailItem(
+                Icons.location_on_outlined,
+                'Venue Address',
+                booking.location,
+              ),
               const SizedBox(height: 12),
               _buildDetailItem(
                 Icons.room_service_outlined,
@@ -164,13 +187,19 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
               if (booking.specialRequirements != null &&
                   booking.specialRequirements!.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                _buildDetailItem(Icons.notes_rounded, 'Special Instructions',
-                    booking.specialRequirements!),
+                _buildDetailItem(
+                  Icons.notes_rounded,
+                  'Special Instructions',
+                  booking.specialRequirements!,
+                ),
               ],
               if (booking.ownerNote != null && booking.ownerNote!.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                _buildDetailItem(Icons.rate_review_rounded, 'Caterer Note',
-                    booking.ownerNote!),
+                _buildDetailItem(
+                  Icons.rate_review_rounded,
+                  'Caterer Note',
+                  booking.ownerNote!,
+                ),
               ],
               const SizedBox(height: 18),
               if (booking.selectedFoods.isNotEmpty) ...[
@@ -195,7 +224,8 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                 ),
                 const SizedBox(height: 18),
               ],
-              if (booking.status.toLowerCase() == 'pending') ...[
+              if (booking.status.toLowerCase() == 'pending' &&
+                  booking.id.isNotEmpty) ...[
                 SizedBox(
                   width: double.infinity,
                   height: 46,
@@ -279,7 +309,6 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
       ),
       body: Column(
         children: [
-          // Filter Chips Row
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             color: Colors.white,
@@ -311,8 +340,6 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
               ),
             ),
           ),
-
-          // Bookings List
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
@@ -328,6 +355,9 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                   }
 
                   if (snapshot.hasError) {
+                    final errorMsg = snapshot.error
+                        .toString()
+                        .replaceAll('Exception: ', '');
                     return Center(
                       child: Padding(
                         padding: const EdgeInsets.all(24.0),
@@ -338,7 +368,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                                 size: 48, color: Colors.red),
                             const SizedBox(height: 12),
                             Text(
-                              'Failed to load bookings.\n${snapshot.error}',
+                              'Failed to load bookings.\n$errorMsg',
                               textAlign: TextAlign.center,
                               style: const TextStyle(color: Colors.red),
                             ),
@@ -392,7 +422,9 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                                   : 'No bookings matching "$_selectedStatusFilter" status.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                  fontSize: 13, color: Colors.grey.shade600),
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                              ),
                             ),
                             const SizedBox(height: 20),
                             ElevatedButton.icon(
@@ -403,8 +435,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              onPressed: () =>
-                                  Navigator.pushNamed(context, '/create-booking'),
+                              onPressed: _openCreateBooking,
                               icon: const Icon(Icons.add_rounded),
                               label: const Text('Book Event Catering Now'),
                             ),
@@ -432,7 +463,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
-        onPressed: () => Navigator.pushNamed(context, '/create-booking'),
+        onPressed: _openCreateBooking,
         icon: const Icon(Icons.add_rounded),
         label: const Text('New Booking', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
@@ -461,35 +492,41 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header: Function Type & Status Badge
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF7ED),
-                          borderRadius: BorderRadius.circular(10),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF7ED),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.celebration_rounded,
+                            color: Color(0xFFC85A17),
+                            size: 20,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.celebration_rounded,
-                          color: Color(0xFFC85A17),
-                          size: 20,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            item.functionType,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1F2937),
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        item.functionType,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1F2937),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
@@ -508,18 +545,20 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                 ],
               ),
               const Divider(height: 20),
-
-              // Date, Guests & Location
               Row(
                 children: [
                   Icon(Icons.calendar_today_rounded,
                       size: 15, color: Colors.grey.shade600),
                   const SizedBox(width: 6),
-                  Text(
-                    '${item.formattedDate} • ${item.eventTime}',
-                    style: TextStyle(fontSize: 12.5, color: Colors.grey.shade800),
+                  Flexible(
+                    child: Text(
+                      '${item.formattedDate} • ${item.eventTime}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12.5, color: Colors.grey.shade800),
+                    ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   Icon(Icons.people_outline_rounded,
                       size: 16, color: Colors.grey.shade600),
                   const SizedBox(width: 4),
@@ -534,7 +573,6 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -551,8 +589,6 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                   ),
                 ],
               ),
-
-              // Dishes count & Action
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

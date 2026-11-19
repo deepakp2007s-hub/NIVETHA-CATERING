@@ -174,6 +174,11 @@ class BookingModel {
       updatedDate = DateTime.tryParse(json['updated_at'].toString());
     }
 
+    final rawCount = json['persons_count'] ?? json['guestCount'] ?? 100;
+    final int parsedPersonsCount = rawCount is int
+        ? rawCount
+        : int.tryParse(rawCount.toString()) ?? 100;
+
     return BookingModel(
       id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
       customerId: json['customer_id']?.toString() ??
@@ -190,7 +195,7 @@ class BookingModel {
           '',
       functionType: json['function_type']?.toString() ??
           json['eventType']?.toString() ??
-          'Event Catering',
+          'Other',
       eventDate: parsedDate,
       eventTime: json['event_time']?.toString() ??
           json['eventTime']?.toString() ??
@@ -198,7 +203,7 @@ class BookingModel {
       location: json['location']?.toString() ??
           json['venueAddress']?.toString() ??
           '',
-      personsCount: (json['persons_count'] ?? json['guestCount'] ?? 100) as int,
+      personsCount: parsedPersonsCount,
       cateringServiceRequired: json['catering_service_required'] ?? true,
       cookingService: json['cooking_service'] ?? true,
       servingStaffRequired: json['serving_staff_required'] ?? false,
@@ -213,30 +218,56 @@ class BookingModel {
     );
   }
 
-  Map<String, dynamic> toJson() {
+  /// Strict payload matching FastAPI BookingCreate (ConfigDict(extra="forbid"))
+  Map<String, dynamic> toCreateJson() {
     final dateIso =
         '${eventDate.year.toString().padLeft(4, '0')}-${eventDate.month.toString().padLeft(2, '0')}-${eventDate.day.toString().padLeft(2, '0')}';
 
     return {
       'function_type': functionType,
-      'eventType': functionType,
       'event_date': dateIso,
-      'eventDate': eventDate.toIso8601String(),
-      'event_time': eventTime,
-      'location': location,
-      'venueAddress': location,
+      'event_time': eventTime.trim(),
+      'location': location.trim(),
       'persons_count': personsCount,
-      'guestCount': personsCount,
       'catering_service_required': cateringServiceRequired,
       'cooking_service': cookingService,
       'serving_staff_required': servingStaffRequired,
       'meal_type': mealType,
       'food_preference': foodPreference,
       'selected_foods': selectedFoods.map((f) => f.toJson()).toList(),
-      'selectedFoodIds': selectedFoods.map((f) => f.foodId).toList(),
+      if (specialRequirements != null && specialRequirements!.trim().isNotEmpty)
+        'special_requirements': specialRequirements!.trim(),
+    };
+  }
+
+  /// Full JSON used for local caching
+  Map<String, dynamic> toJson() {
+    final dateIso =
+        '${eventDate.year.toString().padLeft(4, '0')}-${eventDate.month.toString().padLeft(2, '0')}-${eventDate.day.toString().padLeft(2, '0')}';
+
+    return {
+      'id': id,
+      'customer_id': customerId,
+      'customer_name': customerName,
+      'customer_email': customerEmail,
+      'customer_phone': customerPhone,
+      'function_type': functionType,
+      'event_date': dateIso,
+      'event_time': eventTime,
+      'location': location,
+      'persons_count': personsCount,
+      'catering_service_required': cateringServiceRequired,
+      'cooking_service': cookingService,
+      'serving_staff_required': servingStaffRequired,
+      'meal_type': mealType,
+      'food_preference': foodPreference,
+      'selected_foods': selectedFoods.map((f) => f.toJson()).toList(),
       if (specialRequirements != null && specialRequirements!.trim().isNotEmpty)
         'special_requirements': specialRequirements!.trim(),
       'status': status,
+      if (ownerNote != null) 'owner_note': ownerNote,
+      if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
+      if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
     };
   }
 }

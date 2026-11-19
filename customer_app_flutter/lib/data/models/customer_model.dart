@@ -27,7 +27,7 @@ class CustomerModel {
   }
 
   factory CustomerModel.fromJson(Map<String, dynamic> json) {
-    // Handle nested customer payload if present
+    // Handle nested customer/profile/user payload if present
     final Map<String, dynamic> data = json.containsKey('customer') &&
             json['customer'] is Map<String, dynamic>
         ? json['customer']
@@ -44,11 +44,15 @@ class CustomerModel {
       parsedDate = DateTime.tryParse(data['createdAt'].toString());
     }
 
+    final rawFullName = data['full_name']?.toString().trim() ?? '';
+    final rawName = data['name']?.toString().trim() ?? '';
+    final resolvedName = rawFullName.isNotEmpty
+        ? rawFullName
+        : (rawName.isNotEmpty ? rawName : 'Valued Customer');
+
     return CustomerModel(
       id: data['_id']?.toString() ?? data['id']?.toString() ?? '',
-      name: data['full_name']?.toString() ??
-          data['name']?.toString() ??
-          'Valued Customer',
+      name: resolvedName,
       email: data['email']?.toString() ?? '',
       phone: data['phone']?.toString() ?? '',
       role: data['role']?.toString() ?? 'customer',

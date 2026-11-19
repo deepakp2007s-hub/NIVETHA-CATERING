@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../data/models/food_model.dart';
 import '../../../data/services/food_service.dart';
+import '../../booking/screens/create_booking_screen.dart';
 
 /// Comprehensive food catalog screen displaying all dishes available for catering.
 class FoodsScreen extends StatefulWidget {
@@ -13,6 +16,7 @@ class FoodsScreen extends StatefulWidget {
 class _FoodsScreenState extends State<FoodsScreen> {
   final FoodService _foodService = FoodService();
   final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
 
   late Future<List<FoodModel>> _foodsFuture;
   String _searchQuery = '';
@@ -30,158 +34,247 @@ class _FoodsScreenState extends State<FoodsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadFoods();
+    _foodsFuture = _fetchFoods();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _loadFoods() {
-    _foodsFuture = _foodService.getFoods(
+  Future<List<FoodModel>> _fetchFoods() {
+    return _foodService.getFoods(
       category: _selectedCategory == 'All' ? null : _selectedCategory,
       search: _searchQuery.isEmpty ? null : _searchQuery,
       vegetarianOnly: _vegetarianOnly ? true : null,
+      // Customers should only see dishes they can actually book.
+      availableOnly: true,
     );
   }
 
-  void _onSearchChanged(String value) {
+  void _reload() {
     setState(() {
-      _searchQuery = value.trim();
-      _loadFoods();
+      _foodsFuture = _fetchFoods();
+    });
+  }
+
+  void _onSearchChanged(String value) {
+    // Update the clear (x) button immediately, hit the API after typing pauses.
+    setState(() => _searchQuery = value.trim());
+
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 450), () {
+      if (mounted) _reload();
     });
   }
 
   void _onCategorySelected(String category) {
-    setState(() {
-      _selectedCategory = category;
-      _loadFoods();
-    });
+    _selectedCategory = category;
+    _reload();
+  }
+
+  String _cleanError(Object? error) {
+    return (error?.toString() ?? 'Something went wrong')
+        .replaceAll('Exception: ', '');
   }
 
   void _showDishModal(FoodModel item) {
+    final outerContext = context;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      builder: (sheetContext) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(sheetContext).size.height * 0.9,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 44,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            if (item.imageUrl != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.network(
-                  item.imageUrl!,
-                  height: 180,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox(),
-                ),
-              ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: item.isVegetarian
-                        ? const Color(0xFFE8F5E9)
-                        : const Color(0xFFFFEBEE),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    item.isVegetarian ? 'Pure Vegetarian' : 'Non-Vegetarian',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: item.isVegetarian
-                          ? const Color(0xFF2E7D32)
-                          : const Color(0xFFC62828),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(8),
+                  const SizedBox(height: 20),
+                  if (item.imageUrl != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.network(
+                        item.imageUrl!,
+                        height: 180,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: item.isVegetarian
+                              ? const Color(0xFFE8F5E9)
+                              : const Color(0xFFFFEBEE),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          item.isVegetarian
+                              ? 'Pure Vegetarian'
+                              : 'Non-Vegetarian',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: item.isVegetarian
+                                ? const Color(0xFF2E7D32)
+                                : const Color(0xFFC62828),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          item.formattedCategory,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange.shade900,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Text(
-                    item.formattedCategory,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orange.shade900,
+                  const SizedBox(height: 12),
+                  Text(
+                    item.name,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1F2937),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              item.name,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF1F2937),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              item.description,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade700,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  if (item.description.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      item.description,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade700,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            Theme.of(sheetContext).colorScheme.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        if (!outerContext.mounted) return;
+                        // Carry the tapped dish into the booking form.
+                        Navigator.push(
+                          outerContext,
+                          MaterialPageRoute(
+                            builder: (_) => CreateBookingScreen(
+                              preSelectedFoods: [item],
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.calendar_month_rounded),
+                      label: const Text(
+                        'Book For Catering Event',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
                   ),
-                ),
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pushNamed(context, '/create-booking');
-                },
-                icon: const Icon(Icons.calendar_month_rounded),
-                label: const Text(
-                  'Book For Catering Event',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMessageState({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    String? subtitle,
+    Color? titleColor,
+    Widget? action,
+  }) {
+    // Scrollable so pull-to-refresh still works on empty / error states.
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(24.0),
+      children: [
+        const SizedBox(height: 60),
+        Icon(icon, size: 52, color: iconColor),
+        const SizedBox(height: 12),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: titleColor ?? const Color(0xFF374151),
+          ),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+          ),
+        ],
+        if (action != null) ...[
+          const SizedBox(height: 16),
+          Center(child: action),
+        ],
+      ],
     );
   }
 
@@ -205,10 +298,8 @@ class _FoodsScreenState extends State<FoodsScreen> {
               color: _vegetarianOnly ? Colors.lightGreenAccent : Colors.white,
             ),
             onPressed: () {
-              setState(() {
-                _vegetarianOnly = !_vegetarianOnly;
-                _loadFoods();
-              });
+              _vegetarianOnly = !_vegetarianOnly;
+              _reload();
             },
           ),
         ],
@@ -224,9 +315,13 @@ class _FoodsScreenState extends State<FoodsScreen> {
                 TextField(
                   controller: _searchController,
                   onChanged: _onSearchChanged,
+                  textInputAction: TextInputAction.search,
                   decoration: InputDecoration(
                     hintText: 'Search culinary dishes...',
-                    hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade500,
+                    ),
                     prefixIcon: Icon(Icons.search, color: primaryColor),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
@@ -260,8 +355,11 @@ class _FoodsScreenState extends State<FoodsScreen> {
                           onSelected: (_) => _onCategorySelected(category),
                           selectedColor: primaryColor,
                           labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : const Color(0xFF374151),
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            color: isSelected
+                                ? Colors.white
+                                : const Color(0xFF374151),
+                            fontWeight:
+                                isSelected ? FontWeight.bold : FontWeight.w500,
                             fontSize: 12,
                           ),
                           shape: RoundedRectangleBorder(
@@ -280,9 +378,10 @@ class _FoodsScreenState extends State<FoodsScreen> {
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
-                setState(() {
-                  _loadFoods();
-                });
+                _reload();
+                try {
+                  await _foodsFuture;
+                } catch (_) {}
               },
               child: FutureBuilder<List<FoodModel>>(
                 future: _foodsFuture,
@@ -292,27 +391,15 @@ class _FoodsScreenState extends State<FoodsScreen> {
                   }
 
                   if (snapshot.hasError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.error_outline_rounded,
-                                size: 48, color: Colors.red),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Failed to load foods.\n${snapshot.error}',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.red),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () => setState(() => _loadFoods()),
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
+                    return _buildMessageState(
+                      icon: Icons.error_outline_rounded,
+                      iconColor: Colors.red,
+                      title: 'Failed to load dishes',
+                      titleColor: Colors.red,
+                      subtitle: _cleanError(snapshot.error),
+                      action: ElevatedButton(
+                        onPressed: _reload,
+                        child: const Text('Retry'),
                       ),
                     );
                   }
@@ -320,36 +407,16 @@ class _FoodsScreenState extends State<FoodsScreen> {
                   final foods = snapshot.data ?? [];
 
                   if (foods.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.restaurant_outlined,
-                                size: 56, color: Colors.grey.shade400),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'No dishes found.',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF374151),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Try changing your search or category filter.',
-                              style: TextStyle(
-                                  fontSize: 13, color: Colors.grey.shade600),
-                            ),
-                          ],
-                        ),
-                      ),
+                    return _buildMessageState(
+                      icon: Icons.restaurant_outlined,
+                      iconColor: Colors.grey.shade400,
+                      title: 'No dishes found.',
+                      subtitle: 'Try changing your search or category filter.',
                     );
                   }
 
                   return ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16.0),
                     itemCount: foods.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
@@ -431,51 +498,52 @@ class _FoodsScreenState extends State<FoodsScreen> {
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.orange.shade50,
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              item.formattedCategory,
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.orange.shade900,
-                                              ),
-                                            ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.orange.shade50,
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          item.formattedCategory,
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.orange.shade900,
                                           ),
-                                        ],
+                                        ),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
                                         item.name,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 15,
                                           color: Color(0xFF1F2937),
                                         ),
                                       ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        item.description,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade600,
-                                          height: 1.3,
+                                      if (item.description.isNotEmpty) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          item.description,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey.shade600,
+                                            height: 1.3,
+                                          ),
                                         ),
-                                      ),
+                                      ],
                                     ],
                                   ),
                                 ),

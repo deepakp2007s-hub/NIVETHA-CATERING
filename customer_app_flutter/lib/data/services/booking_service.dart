@@ -5,8 +5,8 @@ import '../../core/config/api_config.dart';
 import '../../core/network/dio_client.dart';
 import '../models/booking_model.dart';
 
-/// Service managing customer event catering bookings, submissions,
-/// order status tracking, and cancellation requests.
+/// Service managing customer event catering bookings, previews,
+/// updates, status tracking, and cancellation requests.
 class BookingService {
   static final BookingService _instance = BookingService._internal();
   factory BookingService() => _instance;
@@ -16,12 +16,32 @@ class BookingService {
 
   BookingService._internal();
 
+  /// Preview booking payload on the server before final submission
+  Future<BookingModel> previewBooking(BookingModel booking) async {
+    try {
+      final response = await _dio.post(
+        ApiConfig.previewBooking,
+        data: booking.toCreateJson(),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data is Map<String, dynamic>
+            ? (response.data['booking'] ?? response.data)
+            : response.data;
+        return BookingModel.fromJson(data);
+      }
+      throw Exception('Failed to preview booking.');
+    } catch (e) {
+      throw Exception(DioClient.getErrorMessage(e));
+    }
+  }
+
   /// Submit a new event catering booking
   Future<BookingModel> createBooking(BookingModel booking) async {
     try {
       final response = await _dio.post(
         ApiConfig.createBooking,
-        data: booking.toJson(),
+        data: booking.toCreateJson(),
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {
@@ -30,66 +50,77 @@ class BookingService {
             : response.data;
         final created = BookingModel.fromJson(data);
 
-        // Prepend to local cached list
         await _saveBookingLocally(created);
         return created;
       }
       throw Exception('Failed to submit catering request.');
     } catch (e) {
-      // If server rejected or unavailable, check if we can give a clear error
-      final errorMsg = DioClient.getErrorMessage(e);
-
-      // In case server is in development or cold starting, save locally as pending so customer doesn't lose booking
-      if (e is DioException && (e.response == null || e.response!.statusCode! >= 500)) {
-        final offlineBooking = BookingModel(
-          id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
-          functionType: booking.functionType,
-          eventDate: booking.eventDate,
-          eventTime: booking.eventTime,
-          location: booking.location,
-          personsCount: booking.personsCount,
-          cateringServiceRequired: booking.cateringServiceRequired,
-          cookingService: booking.cookingService,
-          servingStaffRequired: booking.servingStaffRequired,
-          mealType: booking.mealType,
-          foodPreference: booking.foodPreference,
-          selectedFoods: booking.selectedFoods,
-          specialRequirements: booking.specialRequirements,
-          status: 'pending',
-          createdAt: DateTime.now(),
-        );
-        await _saveBookingLocally(offlineBooking);
-        return offlineBooking;
-      }
-
-      throw Exception(errorMsg);
+      throw Exception(DioClient.getErrorMessage(e));
     }
   }
 
-  /// Retrieve all bookings created by the authenticated customer
-  Future<List<BookingModel>> getMyBookings() async {
+  /// Edit an existing pending booking
+  Future<BookingModel> updateBooking(
+    String bookingId,
+    BookingModel booking,
+  ) async {
     try {
-      final response = await _dio.get(ApiConfig.myBookings);
+      final response = await _dio.put(
+        ApiConfig.bookingById(bookingId),
+        data: booking.toCreateJson(),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data is Map<String, dynamic>
+            ? (response.data['booking'] ?? response.data)
+            : response.data;
+        final updated = BookingModel.fromJson(data);
+        await _updateBookingInCache(updated);
+        return updated;
+      }
+      throw Exception('Failed to update booking.');
+    } catch (e) {
+      throw Exception(DioClient.getErrorMessage(e));
+    }
+  }
+
+  /// Retrieve bookings created by the authenticated customer (paginated)
+  Future<List<BookingModel>> getMyBookings({
+    int page = 1,
+    int limit = 20,
+  }) async {
+    try {
+      final response = await _dio.get(
+        ApiConfig.myBookings,
+        queryParameters: {
+          'page': page,
+          'limit': limit,
+        },
+      );
 
       if (response.statusCode == 200 && response.data != null) {
         final List items = response.data is List
             ? response.data
             : (response.data['bookings'] ?? []);
 
-        final bookings = items.map((json) => BookingModel.fromJson(json)).toList();
+        final bookings =
+            items.map((json) => BookingModel.fromJson(json)).toList();
 
-        // Update local cache
-        await _cacheAllBookings(bookings);
+        if (page == 1) {
+          await _cacheAllBookings(bookings);
+        }
         return bookings;
       }
       return await _loadCachedBookings();
     } catch (e) {
+      if (e is DioException && e.response?.statusCode == 401) {
+        throw Exception(DioClient.getErrorMessage(e));
+      }
       final cached = await _loadCachedBookings();
       if (cached.isNotEmpty) {
         return cached;
       }
-      // If no cache, return default representative sample
-      return _getInitialSampleBookings();
+      throw Exception(DioClient.getErrorMessage(e));
     }
   }
 
@@ -97,7 +128,7 @@ class BookingService {
   Future<BookingModel> cancelBooking(String bookingId) async {
     try {
       final response = await _dio.patch(
-        '${ApiConfig.createBooking}/$bookingId/cancel',
+        ApiConfig.cancelBooking(bookingId),
       );
 
       if (response.statusCode == 200 && response.data != null) {
@@ -110,34 +141,16 @@ class BookingService {
       }
       throw Exception('Failed to cancel booking.');
     } catch (e) {
-      // Also update in local cache if offline
-      final cached = await _loadCachedBookings();
-      final index = cached.indexWhere((b) => b.id == bookingId);
-      if (index != -1) {
-        final updated = BookingModel(
-          id: cached[index].id,
-          functionType: cached[index].functionType,
-          eventDate: cached[index].eventDate,
-          eventTime: cached[index].eventTime,
-          location: cached[index].location,
-          personsCount: cached[index].personsCount,
-          cateringServiceRequired: cached[index].cateringServiceRequired,
-          cookingService: cached[index].cookingService,
-          servingStaffRequired: cached[index].servingStaffRequired,
-          mealType: cached[index].mealType,
-          foodPreference: cached[index].foodPreference,
-          selectedFoods: cached[index].selectedFoods,
-          specialRequirements: cached[index].specialRequirements,
-          status: 'cancelled',
-          createdAt: cached[index].createdAt,
-          updatedAt: DateTime.now(),
-        );
-        cached[index] = updated;
-        await _cacheAllBookings(cached);
-        return updated;
-      }
       throw Exception(DioClient.getErrorMessage(e));
     }
+  }
+
+  /// Clear local booking cache on logout
+  Future<void> clearCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_cachedBookingsKey);
+    } catch (_) {}
   }
 
   // ---------------------------------------------------------------------------
@@ -183,38 +196,5 @@ class BookingService {
       }
     } catch (_) {}
     return [];
-  }
-
-  List<BookingModel> _getInitialSampleBookings() {
-    return [
-      BookingModel(
-        id: 'sample_01',
-        functionType: 'Wedding Reception',
-        eventDate: DateTime.now().add(const Duration(days: 14)),
-        eventTime: '06:30 PM',
-        location: 'Sri Venkateswara Mahal, Anna Nagar, Chennai',
-        personsCount: 450,
-        cateringServiceRequired: true,
-        cookingService: true,
-        servingStaffRequired: true,
-        mealType: 'Dinner',
-        foodPreference: 'Veg',
-        selectedFoods: [
-          SelectedFoodItemModel(
-            foodId: '672000000000000000000005',
-            foodName: 'Malabar Parotta with Paneer Butter Masala',
-            category: 'Dinner',
-          ),
-          SelectedFoodItemModel(
-            foodId: '672000000000000000000007',
-            foodName: 'Elaneer Payasam (Tender Coconut Kheer)',
-            category: 'Sweets',
-          ),
-        ],
-        specialRequirements: 'Arrange welcome drinks counter and live sweet stall.',
-        status: 'confirmed',
-        createdAt: DateTime.now().subtract(const Duration(days: 2)),
-      ),
-    ];
   }
 }

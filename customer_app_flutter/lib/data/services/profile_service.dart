@@ -24,7 +24,6 @@ class ProfileService {
       if (response.statusCode == 200 && response.data != null) {
         final customer = CustomerModel.fromJson(response.data);
 
-        // Update local session cache
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_userKey, jsonEncode(customer.toJson()));
 
@@ -32,21 +31,18 @@ class ProfileService {
       }
       throw Exception('Failed to retrieve customer profile.');
     } catch (e) {
-      // Fallback to locally cached customer data
+      if (e is DioException && e.response?.statusCode == 401) {
+        await AuthService().logout();
+        throw Exception(DioClient.getErrorMessage(e));
+      }
+
+      // Fallback to locally cached customer data only when offline
       final cachedCustomer = await AuthService().getCurrentCustomer();
       if (cachedCustomer != null) {
         return cachedCustomer;
       }
 
-      // Default placeholder if newly initialized
-      return CustomerModel(
-        id: 'cust_local',
-        name: 'Valued Customer',
-        email: 'customer@nivetha.com',
-        phone: '+91 98765 43210',
-        role: 'customer',
-        createdAt: DateTime.now(),
-      );
+      throw Exception(DioClient.getErrorMessage(e));
     }
   }
 
@@ -68,24 +64,14 @@ class ProfileService {
         updateData['phone'] = sanitizedPhone;
       }
 
-      Response response;
-      try {
-        // Backend endpoint expects PATCH
-        response = await _dio.patch(
-          ApiConfig.profile,
-          data: updateData,
-        );
-      } on DioException catch (e) {
-        if (e.response?.statusCode == 405) {
-          // Fallback to PUT if PATCH not supported
-          response = await _dio.put(
-            ApiConfig.profile,
-            data: updateData,
-          );
-        } else {
-          rethrow;
-        }
+      if (updateData.isEmpty) {
+        throw Exception('Please enter at least one field to update.');
       }
+
+      final response = await _dio.patch(
+        ApiConfig.profile,
+        data: updateData,
+      );
 
       if (response.statusCode == 200 && response.data != null) {
         final customer = CustomerModel.fromJson(response.data);
@@ -97,17 +83,7 @@ class ProfileService {
       }
       throw Exception('Failed to update profile information.');
     } catch (e) {
-      // Offline fallback: update local session cache
-      final current = await getProfile();
-      final updated = current.copyWith(
-        name: (name != null && name.trim().isNotEmpty) ? name.trim() : current.name,
-        phone: (phone != null && phone.trim().isNotEmpty) ? phone.trim() : current.phone,
-      );
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_userKey, jsonEncode(updated.toJson()));
-
-      return updated;
+      throw Exception(DioClient.getErrorMessage(e));
     }
   }
 }

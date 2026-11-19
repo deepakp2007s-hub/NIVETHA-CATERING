@@ -16,27 +16,39 @@ void main() {
 }
 
 /// Root Application Widget for NIVETHA Customer App.
-class NivethaCateringApp extends StatelessWidget {
+class NivethaCateringApp extends StatefulWidget {
   const NivethaCateringApp({super.key});
 
   @override
+  State<NivethaCateringApp> createState() => _NivethaCateringAppState();
+}
+
+class _NivethaCateringAppState extends State<NivethaCateringApp> {
+  final AuthService _authService = AuthService();
+  late final Future<bool> _isLoggedInFuture;
+
+  // Primary Brand Palette: Authentic Terracotta Saffron & Amber
+  static const Color _primaryColor = Color(0xFFC85A17);
+  static const Color _primaryDark = Color(0xFF9E3E07);
+  static const Color _secondaryColor = Color(0xFFD97706);
+
+  @override
+  void initState() {
+    super.initState();
+    _isLoggedInFuture = _authService.isLoggedIn();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final AuthService authService = AuthService();
-
-    // Primary Brand Palette: Authentic Terracotta Saffron & Amber
-    const primaryColor = Color(0xFFC85A17);
-    const primaryDark = Color(0xFF9E3E07);
-    const secondaryColor = Color(0xFFD97706);
-
     return MaterialApp(
       title: 'Nivetha Catering',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: primaryColor,
-          primary: primaryColor,
-          secondary: secondaryColor,
+          seedColor: _primaryColor,
+          primary: _primaryColor,
+          secondary: _secondaryColor,
           surface: Colors.white,
         ),
         scaffoldBackgroundColor: const Color(0xFFFAFAFA),
@@ -46,7 +58,7 @@ class NivethaCateringApp extends StatelessWidget {
         appBarTheme: const AppBarTheme(
           elevation: 0,
           centerTitle: false,
-          backgroundColor: primaryColor,
+          backgroundColor: _primaryColor,
           foregroundColor: Colors.white,
           iconTheme: IconThemeData(color: Colors.white),
           titleTextStyle: TextStyle(
@@ -66,7 +78,7 @@ class NivethaCateringApp extends StatelessWidget {
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
+            backgroundColor: _primaryColor,
             foregroundColor: Colors.white,
             elevation: 2,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -77,8 +89,8 @@ class NivethaCateringApp extends StatelessWidget {
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
-            foregroundColor: primaryDark,
-            side: const BorderSide(color: primaryColor, width: 1.2),
+            foregroundColor: _primaryDark,
+            side: const BorderSide(color: _primaryColor, width: 1.2),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -99,19 +111,19 @@ class NivethaCateringApp extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: primaryColor, width: 1.8),
+            borderSide: const BorderSide(color: _primaryColor, width: 1.8),
           ),
         ),
       ),
       home: FutureBuilder<bool>(
-        future: authService.isLoggedIn(),
+        future: _isLoggedInFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(
               backgroundColor: Colors.white,
               body: Center(
                 child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+                  valueColor: AlwaysStoppedAnimation<Color>(_primaryColor),
                 ),
               ),
             );
@@ -125,7 +137,11 @@ class NivethaCateringApp extends StatelessWidget {
       routes: {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
-        '/home': (context) => const MainNavigationShell(),
+        '/home': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments;
+          final initialIndex = args is int ? args.clamp(0, 3) : 0;
+          return MainNavigationShell(initialIndex: initialIndex);
+        },
         '/menu': (context) => const MenuScreen(),
         '/foods': (context) => const FoodsScreen(),
         '/create-booking': (context) => const CreateBookingScreen(),
@@ -158,7 +174,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex;
+    _currentIndex = widget.initialIndex.clamp(0, 3);
   }
 
   @override
