@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
@@ -16,9 +17,9 @@ class DioClient {
     dio = Dio(
       BaseOptions(
         baseUrl: ApiConfig.baseUrl,
-        connectTimeout: const Duration(seconds: 20),
-        receiveTimeout: const Duration(seconds: 20),
-        sendTimeout: const Duration(seconds: 20),
+        connectTimeout: const Duration(seconds: 60),
+        receiveTimeout: const Duration(seconds: 60),
+        sendTimeout: kIsWeb ? null : const Duration(seconds: 60),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -50,7 +51,10 @@ class DioClient {
           return handler.next(options);
         },
         onError: (DioException error, handler) {
-          // Pass formatted error through pipeline
+          debugPrint(
+            '[DioError] ${error.requestOptions.method} '
+            '${error.requestOptions.uri} -> ${error.type}: ${error.message}',
+          );
           return handler.next(error);
         },
       ),

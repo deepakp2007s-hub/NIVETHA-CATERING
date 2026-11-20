@@ -41,7 +41,7 @@ class _NivethaCateringAppState extends State<NivethaCateringApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Nivetha Catering',
+      title: 'NIVETHA CATERING SERVICES',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,

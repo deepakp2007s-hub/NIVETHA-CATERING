@@ -3,9 +3,9 @@
 /// Contains backend base URL and route constants compatible with
 /// both the live Render deployment and local development environments.
 class ApiConfig {
-  // Live Render backend URL (can be swapped to http://10.0.2.2:8000 for local emulator)
+  // Live FastAPI Render backend URL
   static const String baseUrl =
-      'https://nivetha-catering-backend.onrender.com/api/v1';
+      'https://nivetha-fastapi-backend.onrender.com/api/v1';
 
   // Alternative local dev URL if needed
   static const String localBaseUrl = 'http://10.0.2.2:8000/api/v1';
