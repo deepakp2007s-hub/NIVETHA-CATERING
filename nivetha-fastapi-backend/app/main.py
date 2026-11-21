@@ -1,4 +1,3 @@
-
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -7,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.core.cache import clear_cache
 from app.core.config import settings
 from app.db.mongo import (
     connect_to_mongo,
@@ -82,6 +82,7 @@ def get_cors_origins() -> list[str]:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting %s", settings.APP_NAME)
+    clear_cache()
 
     try:
         await connect_to_mongo()
@@ -99,6 +100,7 @@ async def lifespan(app: FastAPI):
 
     finally:
         logger.info("Shutting down %s", settings.APP_NAME)
+        clear_cache()
 
         try:
             await close_mongo_connection()
@@ -248,8 +250,24 @@ async def api_status():
 
 
 # ---------------------------------------------------------------------------
-# NOT FOUND HANDLER
+# RATE LIMIT / NOT FOUND / SERVER ERROR HANDLERS
 # ---------------------------------------------------------------------------
+
+@app.exception_handler(429)
+async def rate_limit_handler(
+    request: Request,
+    exc,
+):
+    detail = getattr(exc, "detail", "Too many requests. Please try again later.")
+    return JSONResponse(
+        status_code=429,
+        content={
+            "success": False,
+            "message": detail,
+            "path": request.url.path,
+        },
+    )
+
 
 @app.exception_handler(404)
 async def not_found_handler(
@@ -265,10 +283,6 @@ async def not_found_handler(
         },
     )
 
-
-# ---------------------------------------------------------------------------
-# GLOBAL SERVER ERROR HANDLER
-# ---------------------------------------------------------------------------
 
 @app.exception_handler(500)
 async def internal_server_error_handler(
@@ -293,10 +307,6 @@ async def internal_server_error_handler(
         },
     )
 
-
-# ---------------------------------------------------------------------------
-# GENERAL UNHANDLED EXCEPTION HANDLER
-# ---------------------------------------------------------------------------
 
 @app.exception_handler(Exception)
 async def general_exception_handler(
