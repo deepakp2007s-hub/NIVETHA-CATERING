@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../data/models/customer_model.dart';
 import '../../../data/models/food_model.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/food_service.dart';
 
-/// Premium home dashboard screen for Nivetha Catering customers.
+/// Premium royal dashboard screen for Nivetha Catering customers.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -66,28 +67,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
-
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: AppTheme.backgroundSandal,
       appBar: AppBar(
+        backgroundColor: AppTheme.primaryCrimson,
         titleSpacing: 16,
         title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(7),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 6,
-                  ),
-                ],
+                color: AppTheme.primaryDeepWine,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppTheme.royalGold, width: 1.4),
+                boxShadow: AppTheme.goldGlowShadow,
               ),
-              child: Icon(Icons.restaurant_rounded, color: primaryColor, size: 22),
+              child: const Icon(
+                Icons.restaurant_rounded,
+                color: AppTheme.royalGold,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -100,21 +99,23 @@ class _HomeScreenState extends State<HomeScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
+                      color: Colors.white,
                       fontWeight: FontWeight.w800,
                       fontSize: 16,
                       letterSpacing: 1.1,
                     ),
                   ),
+                  const SizedBox(height: 1),
                   Text(
                     _customer != null
-                        ? 'Vanakkam, ${_customer!.name.split(' ').first}'
+                        ? 'Vanakkam, ${_customer!.name.split(' ').first} 🙏'
                         : 'Authentic Grand Feasts',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.normal,
-                      color: Colors.white70,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.softChampagne,
                     ),
                   ),
                 ],
@@ -125,18 +126,26 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             tooltip: 'View Food Menu',
-            icon: const Icon(Icons.restaurant_menu_rounded),
+            icon: const Icon(
+              Icons.restaurant_menu_rounded,
+              color: AppTheme.royalGold,
+            ),
             onPressed: () => Navigator.pushNamed(context, '/menu'),
           ),
           IconButton(
             tooltip: 'My Bookings',
-            icon: const Icon(Icons.calendar_month_rounded),
+            icon: const Icon(
+              Icons.calendar_month_rounded,
+              color: AppTheme.royalGold,
+            ),
             onPressed: () => Navigator.pushNamed(context, '/my-bookings'),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
         ],
       ),
       body: RefreshIndicator(
+        color: AppTheme.primaryCrimson,
+        backgroundColor: AppTheme.surfaceWhite,
         onRefresh: () async {
           _loadCustomerInfo();
           _reloadFoods();
@@ -146,30 +155,26 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(18.0),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Hero Event Banner Card
+              // Royal Hero Event Banner Card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(22),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFFC85A17), // Deep warm terracotta
-                      Color(0xFFE65100), // Vibrant amber
-                      Color(0xFFF57C00),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+                  gradient: AppTheme.royalHeaderGradient,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: AppTheme.royalGold.withValues(alpha: 0.65),
+                    width: 1.4,
                   ),
-                  borderRadius: BorderRadius.circular(22),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFC85A17).withValues(alpha: 0.35),
-                      blurRadius: 18,
-                      offset: const Offset(0, 8),
+                      color: AppTheme.primaryCrimson.withValues(alpha: 0.32),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
                     ),
                   ],
                 ),
@@ -178,32 +183,36 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
+                        horizontal: 12,
+                        vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.22),
+                        color: AppTheme.primaryDeepWine.withValues(alpha: 0.7),
                         borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppTheme.royalGold.withValues(alpha: 0.7),
+                          width: 1,
+                        ),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons.stars_rounded,
-                            color: Colors.amberAccent,
-                            size: 16,
+                            Icons.auto_awesome_rounded,
+                            color: AppTheme.royalGold,
+                            size: 14,
                           ),
                           SizedBox(width: 6),
                           Flexible(
                             child: Text(
-                              'PREMIUM CATERING SERVICE',
+                              'ROYAL SOUTH INDIAN FEASTS',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.8,
+                                color: AppTheme.softChampagne,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.9,
                               ),
                             ),
                           ),
@@ -212,45 +221,54 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 14),
                     const Text(
-                      'Traditional Grand Feasts\nFor Your Special Occasion',
+                      'Traditional Grand Feasts\nFor Every Celebration',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
                         height: 1.25,
+                        letterSpacing: -0.2,
                       ),
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Weddings, Engagements, Housewarmings, Corporate Banquets, and Family Celebrations.',
+                      'Weddings, Engagements, Housewarmings, Corporate Banquets & Family Functions.',
                       style: TextStyle(
-                        color: Colors.white70,
+                        color: AppTheme.softChampagne,
                         fontSize: 13,
                         height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 18),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFFC85A17),
-                        elevation: 2,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                    const SizedBox(height: 20),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.goldAccentGradient,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: AppTheme.goldGlowShadow,
                       ),
-                      onPressed: () =>
-                          Navigator.pushNamed(context, '/create-booking'),
-                      icon: const Icon(Icons.calendar_month_rounded, size: 20),
-                      label: const Text(
-                        'Book Catering Event',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: AppTheme.primaryDeepWine,
+                          shadowColor: Colors.transparent,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 13,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        onPressed: () =>
+                            Navigator.pushNamed(context, '/create-booking'),
+                        icon: const Icon(Icons.calendar_month_rounded, size: 20),
+                        label: const Text(
+                          'Book Catering Event',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                            letterSpacing: 0.3,
+                          ),
                         ),
                       ),
                     ),
@@ -266,9 +284,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(
                     child: _buildQuickActionCard(
                       icon: Icons.menu_book_rounded,
-                      title: 'Food Menu',
-                      subtitle: 'Browse our dishes',
-                      color: const Color(0xFF2E7D32),
+                      title: 'Explore Menu',
+                      subtitle: 'Browse signature dishes',
+                      accentColor: AppTheme.bananaLeafGreen,
                       onTap: () => Navigator.pushNamed(context, '/menu'),
                     ),
                   ),
@@ -277,8 +295,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _buildQuickActionCard(
                       icon: Icons.assignment_turned_in_rounded,
                       title: 'My Bookings',
-                      subtitle: 'Track status live',
-                      color: const Color(0xFF1565C0),
+                      subtitle: 'Track event status',
+                      accentColor: AppTheme.primaryCrimson,
                       onTap: () => Navigator.pushNamed(context, '/my-bookings'),
                     ),
                   ),
@@ -290,9 +308,8 @@ class _HomeScreenState extends State<HomeScreen> {
               // Catering Occasions Section
               _buildSectionHeader(
                 title: 'Occasions We Cater',
-                actionLabel: 'Book Now',
+                actionLabel: 'Book Event',
                 onAction: () => Navigator.pushNamed(context, '/create-booking'),
-                primaryColor: primaryColor,
               ),
               const SizedBox(height: 12),
 
@@ -305,31 +322,41 @@ class _HomeScreenState extends State<HomeScreen> {
                       icon: Icons.favorite_rounded,
                       title: 'Weddings',
                       guestRange: '300 - 5000+ Guests',
-                      color: Colors.pink.shade700,
+                      accentColor: AppTheme.primaryCrimson,
+                      onTap: () =>
+                          Navigator.pushNamed(context, '/create-booking'),
                     ),
                     _buildEventChip(
                       icon: Icons.celebration_rounded,
                       title: 'Engagements',
                       guestRange: '100 - 800 Guests',
-                      color: Colors.deepPurple.shade700,
+                      accentColor: AppTheme.warmSaffron,
+                      onTap: () =>
+                          Navigator.pushNamed(context, '/create-booking'),
                     ),
                     _buildEventChip(
                       icon: Icons.cake_rounded,
                       title: 'Birthdays',
                       guestRange: '50 - 300 Guests',
-                      color: Colors.amber.shade800,
+                      accentColor: AppTheme.marigoldAmber,
+                      onTap: () =>
+                          Navigator.pushNamed(context, '/create-booking'),
                     ),
                     _buildEventChip(
                       icon: Icons.home_rounded,
                       title: 'Housewarming',
                       guestRange: '50 - 400 Guests',
-                      color: Colors.teal.shade700,
+                      accentColor: AppTheme.bananaLeafGreen,
+                      onTap: () =>
+                          Navigator.pushNamed(context, '/create-booking'),
                     ),
                     _buildEventChip(
                       icon: Icons.business_center_rounded,
-                      title: 'Corporate Galas',
+                      title: 'Corporate',
                       guestRange: '100 - 1500 Guests',
-                      color: Colors.blueGrey.shade800,
+                      accentColor: AppTheme.royalTeal,
+                      onTap: () =>
+                          Navigator.pushNamed(context, '/create-booking'),
                     ),
                   ],
                 ),
@@ -337,12 +364,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 28),
 
-              // Featured Delicacies Section
+              // Featured Delicacies Section (Photo-rich, Zero Price Display)
               _buildSectionHeader(
-                title: 'Specialty Dishes',
-                actionLabel: 'View All',
+                title: 'Signature Delicacies',
+                actionLabel: 'Full Menu',
                 onAction: () => Navigator.pushNamed(context, '/menu'),
-                primaryColor: primaryColor,
               ),
               const SizedBox(height: 12),
 
@@ -351,8 +377,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const SizedBox(
-                      height: 180,
-                      child: Center(child: CircularProgressIndicator()),
+                      height: 210,
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: AppTheme.primaryCrimson,
+                        ),
+                      ),
                     );
                   }
 
@@ -361,30 +391,33 @@ class _HomeScreenState extends State<HomeScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.red.shade100),
+                        color: AppTheme.surfaceWhite,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: AppTheme.spiceRed.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Column(
                         children: [
                           const Icon(
                             Icons.cloud_off_rounded,
-                            color: Colors.red,
+                            color: AppTheme.spiceRed,
                             size: 32,
                           ),
                           const SizedBox(height: 8),
                           Text(
                             _cleanError(snapshot.error),
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 13,
-                              color: Colors.grey.shade700,
+                              color: AppTheme.textMuted,
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          OutlinedButton(
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
                             onPressed: _reloadFoods,
-                            child: const Text('Retry'),
+                            icon: const Icon(Icons.refresh_rounded, size: 18),
+                            label: const Text('Retry'),
                           ),
                         ],
                       ),
@@ -397,17 +430,21 @@ class _HomeScreenState extends State<HomeScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
+                        color: AppTheme.surfaceWhite,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppTheme.borderChampagne),
                       ),
                       child: const Center(
-                        child: Text('No specialty dishes found.'),
+                        child: Text(
+                          'No signature dishes available right now.',
+                          style: TextStyle(color: AppTheme.textMuted),
+                        ),
                       ),
                     );
                   }
 
                   return SizedBox(
-                    height: 220,
+                    height: 230,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       clipBehavior: Clip.none,
@@ -421,22 +458,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 30),
 
-              // Why Choose Nivetha Catering Card
+              // Why Choose Nivetha Catering Luxury Card
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.orange.shade100),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+                  color: AppTheme.surfaceWhite,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: AppTheme.royalGold.withValues(alpha: 0.55),
+                    width: 1.2,
+                  ),
+                  boxShadow: AppTheme.cardShadow,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -444,53 +478,69 @@ class _HomeScreenState extends State<HomeScreen> {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(9),
                           decoration: BoxDecoration(
-                            color: primaryColor.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(10),
+                            gradient: AppTheme.royalHeaderGradient,
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Icon(
+                          child: const Icon(
                             Icons.verified_rounded,
-                            color: primaryColor,
-                            size: 22,
+                            color: AppTheme.royalGold,
+                            size: 20,
                           ),
                         ),
                         const SizedBox(width: 12),
                         const Expanded(
-                          child: Text(
-                            'The Nivetha Catering Promise',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1F2937),
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'The Nivetha Royal Promise',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.textEspresso,
+                                ),
+                              ),
+                              Text(
+                                'Excellence in every leaf & platter',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: AppTheme.textMuted,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      child: Divider(height: 1),
+                    ),
                     _buildPromiseRow(
                       Icons.eco_rounded,
-                      'Fresh & Pure Ingredients',
-                      'Farm-sourced vegetables and pure cow ghee for authentic flavors.',
+                      AppTheme.bananaLeafGreen,
+                      'Farm-Fresh & Pure Ingredients',
+                      'Handpicked vegetables, aromatic spices & pure cow ghee.',
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     _buildPromiseRow(
                       Icons.groups_rounded,
-                      'Trained Hospitality Crew',
-                      'Courteous serving staff, buffet supervisors, and master chefs.',
+                      AppTheme.primaryCrimson,
+                      'Dedicated Hospitality Crew',
+                      'Courteous serving staff, buffet supervisors & master chefs.',
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     _buildPromiseRow(
                       Icons.alarm_on_rounded,
+                      AppTheme.warmSaffron,
                       'Punctual & Hygienic Setup',
-                      'Timely food delivery, sanitized live counters, and pristine cutlery.',
+                      'On-time venue setup, sanitized live counters & spotless cutlery.',
                     ),
                   ],
                 ),
               ),
-
-              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -502,31 +552,54 @@ class _HomeScreenState extends State<HomeScreen> {
     required String title,
     required String actionLabel,
     required VoidCallback onAction,
-    required Color primaryColor,
   }) {
     return Row(
       children: [
+        Container(
+          width: 4,
+          height: 18,
+          decoration: BoxDecoration(
+            color: AppTheme.royalGold,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(width: 8),
         Expanded(
           child: Text(
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: const Color(0xFF1F2937),
-                ),
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+              color: AppTheme.textEspresso,
+              letterSpacing: -0.2,
+            ),
           ),
         ),
         TextButton(
           onPressed: onAction,
-          child: Text(
-            actionLabel,
-            style: TextStyle(
-              color: primaryColor,
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-            ),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                actionLabel,
+                style: const TextStyle(
+                  color: AppTheme.primaryCrimson,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(width: 2),
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 12,
+                color: AppTheme.primaryCrimson,
+              ),
+            ],
           ),
         ),
       ],
@@ -537,37 +610,31 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     required String title,
     required String subtitle,
-    required Color color,
+    required Color accentColor,
     required VoidCallback onTap,
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          color: AppTheme.surfaceWhite,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppTheme.borderChampagne, width: 1.2),
+          boxShadow: AppTheme.cardShadow,
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
+                color: accentColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: color, size: 24),
+              child: Icon(icon, color: accentColor, size: 22),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 11),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -577,9 +644,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w800,
                       fontSize: 14,
-                      color: Color(0xFF1F2937),
+                      color: AppTheme.textEspresso,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -587,9 +654,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 11,
-                      color: Colors.grey.shade600,
+                      color: AppTheme.textMuted,
                     ),
                   ),
                 ],
@@ -605,98 +672,94 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     required String title,
     required String guestRange,
-    required Color color,
+    required Color accentColor,
+    required VoidCallback onTap,
   }) {
-    return Container(
-      width: 145,
-      margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 150,
+        margin: const EdgeInsets.only(right: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceWhite,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppTheme.borderChampagne, width: 1.1),
+          boxShadow: AppTheme.cardShadow,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: accentColor, size: 20),
             ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-              color: Color(0xFF1F2937),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 14.5,
+                color: AppTheme.textEspresso,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            guestRange,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey.shade600,
+            const SizedBox(height: 4),
+            Text(
+              guestRange,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11.5,
+                color: AppTheme.textMuted,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildFeaturedFoodCard(BuildContext context, FoodModel food) {
+    final dietaryColor =
+        food.isVegetarian ? AppTheme.bananaLeafGreen : AppTheme.spiceRed;
+
     return InkWell(
       onTap: () => Navigator.pushNamed(context, '/menu'),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
-        width: 180,
+        width: 192,
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade200),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          color: AppTheme.surfaceWhite,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.borderChampagne, width: 1.1),
+          boxShadow: AppTheme.cardShadow,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image / Header
+            // HD Food Photo Header (No Price Tag)
             Stack(
               children: [
                 Container(
-                  height: 105,
+                  height: 122,
                   width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(16),
+                  decoration: const BoxDecoration(
+                    color: AppTheme.surfaceTint,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(19),
                     ),
                   ),
-                  child: food.imageUrl != null
+                  child: food.imageUrl != null && food.imageUrl!.isNotEmpty
                       ? ClipRRect(
                           borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(16),
+                            top: Radius.circular(19),
                           ),
                           child: Image.network(
                             food.imageUrl!,
@@ -704,8 +767,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             errorBuilder: (_, __, ___) => Center(
                               child: Icon(
                                 Icons.restaurant_rounded,
-                                size: 36,
-                                color: Colors.orange.shade300,
+                                size: 38,
+                                color: AppTheme.primaryCrimson
+                                    .withValues(alpha: 0.35),
                               ),
                             ),
                           ),
@@ -713,20 +777,40 @@ class _HomeScreenState extends State<HomeScreen> {
                       : Center(
                           child: Icon(
                             Icons.restaurant_rounded,
-                            size: 36,
-                            color: Colors.orange.shade300,
+                            size: 38,
+                            color:
+                                AppTheme.primaryCrimson.withValues(alpha: 0.35),
                           ),
                         ),
                 ),
-                // Dietary Indicator Badge
+                // Subtle bottom vignette for visual depth
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(19),
+                      ),
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.28),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                  ),
+                ),
+                // Authentic Indian Veg / Non-Veg Square Badge
                 Positioned(
-                  top: 8,
-                  left: 8,
+                  top: 10,
+                  left: 10,
                   child: Container(
-                    padding: const EdgeInsets.all(4),
+                    padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(color: dietaryColor, width: 1.5),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.15),
@@ -735,71 +819,78 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     child: Container(
-                      width: 10,
-                      height: 10,
+                      width: 8,
+                      height: 8,
                       decoration: BoxDecoration(
-                        color: food.isVegetarian
-                            ? const Color(0xFF2E7D32)
-                            : const Color(0xFFC62828),
+                        color: dietaryColor,
                         shape: BoxShape.circle,
                       ),
                     ),
                   ),
                 ),
-                // Category Chip
+                // Royal Category Pill
                 Positioned(
-                  top: 8,
-                  right: 8,
+                  top: 10,
+                  right: 10,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
+                      horizontal: 9,
+                      vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.65),
+                      color: AppTheme.primaryDeepWine.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppTheme.royalGold.withValues(alpha: 0.6),
+                        width: 0.8,
+                      ),
                     ),
                     child: Text(
                       food.formattedCategory,
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.softChampagne,
                         fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
                 ),
               ],
             ),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    food.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      color: Color(0xFF1F2937),
-                    ),
-                  ),
-                  if (food.description.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+            // Dish Title & Description
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      food.description,
-                      maxLines: 2,
+                      food.name,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey.shade600,
-                        height: 1.3,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                        color: AppTheme.textEspresso,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Expanded(
+                      child: Text(
+                        food.description.isNotEmpty
+                            ? food.description
+                            : 'Prepared fresh for grand celebrations.',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: AppTheme.textMuted,
+                          height: 1.3,
+                        ),
                       ),
                     ),
                   ],
-                ],
+                ),
               ),
             ),
           ],
@@ -808,12 +899,24 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPromiseRow(IconData icon, String title, String desc) {
+  Widget _buildPromiseRow(
+    IconData icon,
+    Color iconColor,
+    String title,
+    String desc,
+  ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: const Color(0xFFC85A17), size: 20),
-        const SizedBox(width: 10),
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: iconColor, size: 18),
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -821,18 +924,18 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF1F2937),
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textEspresso,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 desc,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: Colors.grey.shade600,
-                  height: 1.3,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textMuted,
+                  height: 1.35,
                 ),
               ),
             ],

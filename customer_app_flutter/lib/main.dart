@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'core/theme/app_theme.dart';
 import 'data/services/auth_service.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/register_screen.dart';
@@ -27,11 +28,6 @@ class _NivethaCateringAppState extends State<NivethaCateringApp> {
   final AuthService _authService = AuthService();
   late final Future<bool> _isLoggedInFuture;
 
-  // Primary Brand Palette: Authentic Terracotta Saffron & Amber
-  static const Color _primaryColor = Color(0xFFC85A17);
-  static const Color _primaryDark = Color(0xFF9E3E07);
-  static const Color _secondaryColor = Color(0xFFD97706);
-
   @override
   void initState() {
     super.initState();
@@ -40,93 +36,19 @@ class _NivethaCateringAppState extends State<NivethaCateringApp> {
 
   @override
   Widget build(BuildContext context) {
+    final baseTheme = AppTheme.lightTheme;
+
     return MaterialApp(
       title: 'NIVETHA CATERING SERVICES',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: _primaryColor,
-          primary: _primaryColor,
-          secondary: _secondaryColor,
-          surface: Colors.white,
-        ),
-        scaffoldBackgroundColor: const Color(0xFFFAFAFA),
-        textTheme: GoogleFonts.plusJakartaSansTextTheme(
-          Theme.of(context).textTheme,
-        ),
-        appBarTheme: const AppBarTheme(
-          elevation: 0,
-          centerTitle: false,
-          backgroundColor: _primaryColor,
-          foregroundColor: Colors.white,
-          iconTheme: IconThemeData(color: Colors.white),
-          titleTextStyle: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        cardTheme: CardThemeData(
-          elevation: 1,
-          color: Colors.white,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: Colors.grey.shade200),
-          ),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _primaryColor,
-            foregroundColor: Colors.white,
-            elevation: 2,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            foregroundColor: _primaryDark,
-            side: const BorderSide(color: _primaryColor, width: 1.2),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: const Color(0xFFF9FAFB),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: _primaryColor, width: 1.8),
-          ),
-        ),
+      theme: baseTheme.copyWith(
+        textTheme: GoogleFonts.plusJakartaSansTextTheme(baseTheme.textTheme),
       ),
       home: FutureBuilder<bool>(
         future: _isLoggedInFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              backgroundColor: Colors.white,
-              body: Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(_primaryColor),
-                ),
-              ),
-            );
+            return const _RoyalSplashLoader();
           }
           if (snapshot.data == true) {
             return const MainNavigationShell();
@@ -152,7 +74,71 @@ class _NivethaCateringAppState extends State<NivethaCateringApp> {
   }
 }
 
-/// Navigation Shell hosting the persistent bottom navigation bar.
+/// Royal Crimson & Temple Gold Splash Loader while checking auth token
+class _RoyalSplashLoader extends StatelessWidget {
+  const _RoyalSplashLoader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: AppTheme.royalHeaderGradient,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.12),
+                border: Border.all(color: AppTheme.royalGold, width: 2),
+                boxShadow: AppTheme.goldGlowShadow,
+              ),
+              child: const Icon(
+                Icons.restaurant_rounded,
+                size: 46,
+                color: AppTheme.royalGold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'NIVETHA CATERING',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.5,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Authentic Feast for Every Celebration',
+              style: TextStyle(
+                color: AppTheme.softChampagne,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 32),
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.8,
+                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.royalGold),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Navigation Shell hosting the persistent luxury bottom navigation bar.
 class MainNavigationShell extends StatefulWidget {
   final int initialIndex;
   const MainNavigationShell({super.key, this.initialIndex = 0});
@@ -179,46 +165,58 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
-
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        backgroundColor: Colors.white,
-        elevation: 8,
-        indicatorColor: primaryColor.withValues(alpha: 0.16),
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded, color: primaryColor),
-            label: 'Home',
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceWhite,
+          border: const Border(
+            top: BorderSide(color: AppTheme.borderChampagne, width: 1),
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.restaurant_menu_outlined),
-            selectedIcon: Icon(Icons.restaurant_menu_rounded, color: primaryColor),
-            label: 'Menu',
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.calendar_month_outlined),
-            selectedIcon: Icon(Icons.calendar_month_rounded, color: primaryColor),
-            label: 'Bookings',
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.person_outline_rounded),
-            selectedIcon: Icon(Icons.person_rounded, color: primaryColor),
-            label: 'Profile',
-          ),
-        ],
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primaryCrimson.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: NavigationBar(
+          selectedIndex: _currentIndex,
+          backgroundColor: AppTheme.surfaceWhite,
+          elevation: 0,
+          indicatorColor: AppTheme.royalGold.withValues(alpha: 0.24),
+          onDestinationSelected: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home_rounded, color: AppTheme.primaryCrimson),
+              label: 'Home',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.restaurant_menu_outlined),
+              selectedIcon: Icon(Icons.restaurant_menu_rounded, color: AppTheme.primaryCrimson),
+              label: 'Menu',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.calendar_month_outlined),
+              selectedIcon: Icon(Icons.calendar_month_rounded, color: AppTheme.primaryCrimson),
+              label: 'Bookings',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline_rounded),
+              selectedIcon: Icon(Icons.person_rounded, color: AppTheme.primaryCrimson),
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
     );
   }
