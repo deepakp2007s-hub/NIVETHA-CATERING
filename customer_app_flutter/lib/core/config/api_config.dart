@@ -5,7 +5,7 @@
 class ApiConfig {
   // Live FastAPI Render backend URL
   static const String baseUrl =
-      'https://nivetha-fastapi-backend.onrender.com/api/v1';
+      'https://nivetha-fastapi-backend-dm9u.onrender.com/api/v1';
 
   // Alternative local dev URL if needed
   static const String localBaseUrl = 'http://10.0.2.2:8000/api/v1';
