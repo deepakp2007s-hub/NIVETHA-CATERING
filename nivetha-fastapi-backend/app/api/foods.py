@@ -142,6 +142,7 @@ def serialize_food(food: dict) -> dict:
 # POST /api/v1/foods/
 # ---------------------------------------------------------------------------
 
+@router.post("", status_code=status.HTTP_201_CREATED)
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def add_food_item(
     data: FoodCreate,
@@ -223,6 +224,7 @@ async def add_food_item(
 # GET /api/v1/foods/
 # ---------------------------------------------------------------------------
 
+@router.get("")
 @router.get("/")
 async def get_all_foods(
     category: Optional[FoodCategory] = None,

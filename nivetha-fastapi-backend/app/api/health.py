@@ -24,6 +24,7 @@ router = APIRouter(
 # GET /api/v1/health/
 # ---------------------------------------------------------------------------
 
+@router.get("")
 @router.get("/")
 async def health_check():
     return {

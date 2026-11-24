@@ -337,6 +337,7 @@ async def preview_booking(
 # CUSTOMER: CREATE BOOKING
 # ---------------------------------------------------------------------------
 
+@router.post("", status_code=status.HTTP_201_CREATED)
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_booking(
     data: BookingCreate,

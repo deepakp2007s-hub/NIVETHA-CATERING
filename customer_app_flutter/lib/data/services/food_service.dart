@@ -77,7 +77,7 @@ class FoodService {
   /// Retrieve a specific food dish by its ID
   Future<FoodModel> getFoodById(String foodId) async {
     try {
-      final response = await _dio.get('${ApiConfig.foods}/$foodId');
+      final response = await _dio.get(ApiConfig.foodById(foodId));
 
       if (response.statusCode == 200 && response.data != null) {
         final data = response.data is Map<String, dynamic>

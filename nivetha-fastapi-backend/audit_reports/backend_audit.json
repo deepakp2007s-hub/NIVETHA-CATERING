@@ -1,59 +1,56 @@
 {
-  "generated_at": "2026-11-03T17:25:48.469763+00:00",
+  "generated_at": "2026-11-24T03:00:30.427833+00:00",
   "project": "nivetha-fastapi-backend",
   "python_version": "3.13.14 (tags/v3.13.14:fd17997, Jun 10 2026, 13:03:48) [MSC v.1944 64 bit (AMD64)]",
   "summary": {
     "CRITICAL": 0,
-    "ERROR": 0,
+    "ERROR": 2,
     "WARNING": 0
   },
   "files": [
     {
       "file": "app\\main.py",
-      "lines": 149,
+      "lines": 316,
       "functions": [
+        "get_cors_origins",
         "lifespan",
-        "custom_http_exception_handler",
-        "validation_exception_handler",
         "root",
-        "health_check",
-        "database_health_check"
+        "api_status",
+        "rate_limit_handler",
+        "not_found_handler",
+        "internal_server_error_handler",
+        "general_exception_handler"
       ],
       "classes": [],
       "imports": [
         "contextlib",
+        "datetime",
         "fastapi",
-        "fastapi.concurrency",
-        "fastapi.exceptions",
         "fastapi.middleware.cors",
         "fastapi.responses",
-        "pymongo.errors",
+        "app.core.cache",
+        "app.core.config",
+        "app.db.mongo",
         "app.api.auth",
         "app.api.bookings",
         "app.api.customers",
         "app.api.foods",
+        "app.api.health",
         "app.api.notifications",
         "app.api.profiles",
         "app.api.reports",
-        "app.api.reviews",
-        "app.core.config",
-        "app.db.mongo"
+        "app.api.reviews"
       ],
       "routes": [
         {
           "method": "GET",
           "handler": "root",
-          "line": 107
+          "line": 205
         },
         {
           "method": "GET",
-          "handler": "health_check",
-          "line": 115
-        },
-        {
-          "method": "GET",
-          "handler": "database_health_check",
-          "line": 123
+          "handler": "api_status",
+          "line": 227
         }
       ]
     },
@@ -67,82 +64,94 @@
     },
     {
       "file": "app\\api\\auth.py",
-      "lines": 354,
+      "lines": 323,
       "functions": [
-        "normalize_email",
-        "customer_response",
-        "enforce_login_rate_limit",
+        "create_user_response",
+        "create_role_token",
+        "verify_staff_credentials",
+        "authenticate_customer",
         "register_customer",
-        "login_customer",
-        "_login_staff",
-        "login_owner",
-        "login_admin",
+        "owner_login",
+        "admin_login",
+        "customer_register",
+        "customer_login",
+        "unified_login",
+        "normalize_email",
         "validate_name",
-        "validate_phone_field"
+        "normalize_email",
+        "validate_phone"
       ],
       "classes": [
-        "RegisterRequest",
         "LoginRequest",
-        "OwnerLoginRequest",
-        "AdminLoginRequest"
+        "CustomerRegisterRequest",
+        "TokenResponse"
       ],
       "imports": [
-        "datetime",
+        "typing",
         "fastapi",
         "pydantic",
-        "pymongo",
         "pymongo.errors",
         "app.core.config",
+        "app.core.rate_limit",
         "app.core.security",
         "app.db.mongo"
       ],
       "routes": [
         {
           "method": "POST",
-          "handler": "register_customer",
-          "line": 168
+          "handler": "owner_login",
+          "line": 195
         },
         {
           "method": "POST",
-          "handler": "login_customer",
-          "line": 227
+          "handler": "admin_login",
+          "line": 220
         },
         {
           "method": "POST",
-          "handler": "login_owner",
-          "line": 338
+          "handler": "customer_register",
+          "line": 246
         },
         {
           "method": "POST",
-          "handler": "login_admin",
-          "line": 348
+          "handler": "customer_login",
+          "line": 263
+        },
+        {
+          "method": "POST",
+          "handler": "unified_login",
+          "line": 289
         }
       ]
     },
     {
       "file": "app\\api\\bookings.py",
-      "lines": 637,
+      "lines": 1020,
       "functions": [
         "get_token_payload",
         "get_customer_id",
         "require_owner_or_admin",
-        "booking_lookup_query",
         "serialize_booking",
+        "serialize_food",
+        "validate_selected_foods",
         "create_notification",
         "notify_safely",
-        "status_filter_for_existing_record",
+        "booking_query_for_customer",
+        "build_booking_data",
+        "preview_booking",
         "create_booking",
         "get_my_bookings",
+        "update_my_booking",
+        "cancel_booking",
+        "get_bookings_for_owner",
         "get_all_bookings",
+        "soft_delete_booking",
         "get_owner_booking",
         "update_booking_status",
-        "get_booking",
-        "cancel_booking",
-        "validate_and_sanitize_text",
-        "clean_requirements",
-        "serialize_datetime"
+        "get_my_booking"
       ],
       "classes": [
+        "SelectedFoodItem",
         "BookingCreate",
         "BookingStatusUpdate"
       ],
@@ -153,6 +162,7 @@
         "fastapi",
         "fastapi.security",
         "pydantic",
+        "pymongo",
         "pymongo.errors",
         "app.core.security",
         "app.db.mongo"
@@ -160,93 +170,80 @@
       "routes": [
         {
           "method": "POST",
+          "handler": "preview_booking",
+          "line": 312
+        },
+        {
+          "method": "POST",
           "handler": "create_booking",
-          "line": 262
+          "line": 342
+        },
+        {
+          "method": "POST",
+          "handler": "create_booking",
+          "line": 342
         },
         {
           "method": "GET",
           "handler": "get_my_bookings",
-          "line": 365
+          "line": 434
         },
         {
-          "method": "GET",
-          "handler": "get_all_bookings",
-          "line": 395
-        },
-        {
-          "method": "GET",
-          "handler": "get_owner_booking",
-          "line": 425
-        },
-        {
-          "method": "PATCH",
-          "handler": "update_booking_status",
-          "line": 454
-        },
-        {
-          "method": "GET",
-          "handler": "get_booking",
-          "line": 534
+          "method": "PUT",
+          "handler": "update_my_booking",
+          "line": 482
         },
         {
           "method": "PATCH",
           "handler": "cancel_booking",
           "line": 566
+        },
+        {
+          "method": "GET",
+          "handler": "get_bookings_for_owner",
+          "line": 646
+        },
+        {
+          "method": "GET",
+          "handler": "get_all_bookings",
+          "line": 702
+        },
+        {
+          "method": "DELETE",
+          "handler": "soft_delete_booking",
+          "line": 751
+        },
+        {
+          "method": "GET",
+          "handler": "get_owner_booking",
+          "line": 833
+        },
+        {
+          "method": "PATCH",
+          "handler": "update_booking_status",
+          "line": 876
+        },
+        {
+          "method": "GET",
+          "handler": "get_my_booking",
+          "line": 981
         }
       ]
     },
     {
       "file": "app\\api\\customers.py",
-      "lines": 117,
-      "functions": [
-        "get_current_customer_details",
-        "get_all_customers",
-        "get_customer_details"
-      ],
-      "classes": [],
-      "imports": [
-        "bson",
-        "fastapi",
-        "pymongo.errors",
-        "app.api.profiles"
-      ],
-      "routes": [
-        {
-          "method": "GET",
-          "handler": "get_current_customer_details",
-          "line": 28
-        },
-        {
-          "method": "GET",
-          "handler": "get_all_customers",
-          "line": 43
-        },
-        {
-          "method": "GET",
-          "handler": "get_customer_details",
-          "line": 83
-        }
-      ]
-    },
-    {
-      "file": "app\\api\\foods.py",
-      "lines": 376,
+      "lines": 442,
       "functions": [
         "require_owner_or_admin",
-        "serialize_food",
-        "get_foods",
-        "get_food",
-        "add_food",
-        "edit_food",
-        "delete_food",
-        "validate_required_text",
-        "clean_text_fields",
-        "validate_optional_text",
-        "clean_optional_text"
+        "serialize_customer",
+        "get_all_customers",
+        "get_customer_stats",
+        "get_customer",
+        "update_customer",
+        "delete_customer"
       ],
       "classes": [
-        "FoodCreate",
-        "FoodUpdate"
+        "CustomerUpdate"
       ],
       "imports": [
         "datetime",
@@ -262,77 +259,170 @@
       "routes": [
         {
           "method": "GET",
-          "handler": "get_foods",
-          "line": 171
+          "handler": "get_all_customers",
+          "line": 108
         },
         {
           "method": "GET",
-          "handler": "get_food",
-          "line": 210
+          "handler": "get_customer_stats",
+          "line": 165
         },
         {
-          "method": "POST",
-          "handler": "add_food",
-          "line": 247
+          "method": "GET",
+          "handler": "get_customer",
+          "line": 200
         },
         {
           "method": "PATCH",
-          "handler": "edit_food",
-          "line": 285
+          "handler": "update_customer",
+          "line": 252
         },
         {
           "method": "DELETE",
-          "handler": "delete_food",
-          "line": 343
+          "handler": "delete_customer",
+          "line": 380
+        }
+      ]
+    },
+    {
+      "file": "app\\api\\foods.py",
+      "lines": 539,
+      "functions": [
+        "get_token_payload",
+        "require_owner_or_admin",
+        "serialize_food",
+        "add_food_item",
+        "get_all_foods",
+        "get_food_categories",
+        "get_food_by_id",
+        "edit_food_item",
+        "update_food_availability",
+        "delete_food_item"
+      ],
+      "classes": [
+        "FoodCategory",
+        "FoodCreate",
+        "FoodUpdate",
+        "FoodAvailabilityUpdate"
+      ],
+      "imports": [
+        "datetime",
+        "enum",
+        "typing",
+        "bson",
+        "fastapi",
+        "fastapi.security",
+        "pydantic",
+        "pymongo.errors",
+        "app.core.security",
+        "app.db.mongo"
+      ],
+      "routes": [
+        {
+          "method": "POST",
+          "handler": "add_food_item",
+          "line": 147
+        },
+        {
+          "method": "POST",
+          "handler": "add_food_item",
+          "line": 147
+        },
+        {
+          "method": "GET",
+          "handler": "get_all_foods",
+          "line": 229
+        },
+        {
+          "method": "GET",
+          "handler": "get_all_foods",
+          "line": 229
+        },
+        {
+          "method": "GET",
+          "handler": "get_food_categories",
+          "line": 280
+        },
+        {
+          "method": "GET",
+          "handler": "get_food_by_id",
+          "line": 299
+        },
+        {
+          "method": "PUT",
+          "handler": "edit_food_item",
+          "line": 338
+        },
+        {
+          "method": "PATCH",
+          "handler": "update_food_availability",
+          "line": 437
+        },
+        {
+          "method": "DELETE",
+          "handler": "delete_food_item",
+          "line": 492
         }
       ]
     },
     {
       "file": "app\\api\\health.py",
-      "lines": 55,
+      "lines": 173,
       "functions": [
         "health_check",
-        "database_health_check"
+        "database_health_check",
+        "database_details",
+        "readiness_check"
       ],
       "classes": [],
       "imports": [
-        "typing",
+        "datetime",
         "fastapi",
+        "fastapi.responses",
         "pymongo.errors",
+        "app.core.config",
         "app.db.mongo"
       ],
       "routes": [
         {
           "method": "GET",
           "handler": "health_check",
-          "line": 15
+          "line": 29
+        },
+        {
+          "method": "GET",
+          "handler": "health_check",
+          "line": 29
         },
         {
           "method": "GET",
           "handler": "database_health_check",
-          "line": 25
+          "line": 45
+        },
+        {
+          "method": "GET",
+          "handler": "database_details",
+          "line": 112
+        },
+        {
+          "method": "GET",
+          "handler": "readiness_check",
+          "line": 150
         }
       ]
     },
     {
       "file": "app\\api\\notifications.py",
-      "lines": 402,
+      "lines": 334,
       "functions": [
-        "get_token_payload",
-        "get_customer_id",
-        "require_owner_or_admin",
-        "recipient_query",
+        "get_current_user",
+        "get_notification_filter",
         "serialize_notification",
-        "list_notifications",
-        "mark_notifications_read",
-        "handle_database_error",
         "get_my_notifications",
-        "mark_all_customer_notifications_as_read",
-        "mark_customer_notification_as_read",
-        "clear_all_customer_notifications",
-        "get_staff_notifications",
-        "mark_all_staff_notifications_as_read",
-        "mark_staff_notification_as_read"
+        "get_unread_count",
+        "mark_notification_as_read",
+        "mark_all_notifications_as_read",
+        "delete_notification"
       ],
       "classes": [],
       "imports": [
@@ -349,67 +439,39 @@
         {
           "method": "GET",
           "handler": "get_my_notifications",
-          "line": 184
+          "line": 147
+        },
+        {
+          "method": "GET",
+          "handler": "get_unread_count",
+          "line": 196
         },
         {
           "method": "PATCH",
-          "handler": "mark_all_customer_notifications_as_read",
-          "line": 207
+          "handler": "mark_notification_as_read",
+          "line": 224
         },
         {
           "method": "PATCH",
-          "handler": "mark_customer_notification_as_read",
-          "line": 234
+          "handler": "mark_all_notifications_as_read",
+          "line": 270
         },
         {
           "method": "DELETE",
-          "handler": "clear_all_customer_notifications",
-          "line": 283
-        },
-        {
-          "method": "GET",
-          "handler": "get_staff_notifications",
-          "line": 315
-        },
-        {
-          "method": "GET",
-          "handler": "get_staff_notifications",
-          "line": 315
-        },
-        {
-          "method": "PATCH",
-          "handler": "mark_all_staff_notifications_as_read",
-          "line": 337
-        },
-        {
-          "method": "PATCH",
-          "handler": "mark_all_staff_notifications_as_read",
-          "line": 337
-        },
-        {
-          "method": "PATCH",
-          "handler": "mark_staff_notification_as_read",
-          "line": 358
-        },
-        {
-          "method": "PATCH",
-          "handler": "mark_staff_notification_as_read",
-          "line": 358
+          "handler": "delete_notification",
+          "line": 307
         }
       ]
     },
     {
       "file": "app\\api\\profiles.py",
-      "lines": 308,
+      "lines": 387,
       "functions": [
-        "get_token_payload",
-        "get_current_customer",
-        "get_current_owner",
-        "serialize_customer",
+        "get_current_user",
+        "serialize_profile",
         "get_my_profile",
         "update_my_profile",
-        "validate_name",
-        "validate_phone"
+        "get_my_booking_history"
       ],
       "classes": [
         "ProfileUpdate"
@@ -423,43 +485,44 @@
         "pydantic",
         "pymongo.errors",
         "app.core.security",
-        "app.db.mongo"
+        "app.db.mongo",
+        "app.core.config",
+        "app.core.config"
       ],
       "routes": [
         {
           "method": "GET",
           "handler": "get_my_profile",
-          "line": 219
+          "line": 145
         },
         {
           "method": "PATCH",
           "handler": "update_my_profile",
-          "line": 235
+          "line": 202
         },
         {
-          "method": "PUT",
-          "handler": "update_my_profile",
-          "line": 235
+          "method": "GET",
+          "handler": "get_my_booking_history",
+          "line": 325
         }
       ]
     },
     {
       "file": "app\\api\\reports.py",
-      "lines": 252,
+      "lines": 486,
       "functions": [
-        "get_authenticated_payload",
-        "get_customer_id",
         "require_owner_or_admin",
-        "serialize_report_booking",
-        "generate_report",
-        "get_my_booking_report",
-        "get_staff_booking_report"
+        "get_dashboard_summary",
+        "get_booking_report",
+        "get_popular_foods",
+        "get_monthly_booking_report",
+        "get_function_type_report",
+        "get_meal_type_report"
       ],
       "classes": [],
       "imports": [
         "datetime",
         "typing",
-        "bson",
         "fastapi",
         "fastapi.security",
         "pymongo.errors",
@@ -469,34 +532,52 @@
       "routes": [
         {
           "method": "GET",
-          "handler": "get_my_booking_report",
-          "line": 187
+          "handler": "get_dashboard_summary",
+          "line": 68
         },
         {
           "method": "GET",
-          "handler": "get_staff_booking_report",
-          "line": 222
+          "handler": "get_booking_report",
+          "line": 129
         },
         {
           "method": "GET",
-          "handler": "get_staff_booking_report",
-          "line": 222
+          "handler": "get_popular_foods",
+          "line": 204
+        },
+        {
+          "method": "GET",
+          "handler": "get_monthly_booking_report",
+          "line": 292
+        },
+        {
+          "method": "GET",
+          "handler": "get_function_type_report",
+          "line": 391
+        },
+        {
+          "method": "GET",
+          "handler": "get_meal_type_report",
+          "line": 443
         }
       ]
     },
     {
       "file": "app\\api\\reviews.py",
-      "lines": 239,
+      "lines": 479,
       "functions": [
-        "get_customer_id",
+        "get_current_customer",
         "serialize_review",
         "get_public_reviews",
+        "get_review_summary",
         "create_review",
         "get_my_reviews",
-        "validate_comment"
+        "update_review",
+        "delete_review"
       ],
       "classes": [
-        "ReviewRequest"
+        "ReviewCreate",
+        "ReviewUpdate"
       ],
       "imports": [
         "datetime",
@@ -513,17 +594,32 @@
         {
           "method": "GET",
           "handler": "get_public_reviews",
-          "line": 120
+          "line": 129
+        },
+        {
+          "method": "GET",
+          "handler": "get_review_summary",
+          "line": 179
         },
         {
           "method": "POST",
           "handler": "create_review",
-          "line": 158
+          "line": 274
         },
         {
           "method": "GET",
           "handler": "get_my_reviews",
-          "line": 206
+          "line": 345
+        },
+        {
+          "method": "PATCH",
+          "handler": "update_review",
+          "line": 381
+        },
+        {
+          "method": "DELETE",
+          "handler": "delete_review",
+          "line": 445
         }
       ]
     },
@@ -536,20 +632,36 @@
       "routes": []
     },
     {
+      "file": "app\\core\\cache.py",
+      "lines": 27,
+      "functions": [
+        "get_cache",
+        "set_cache",
+        "clear_cache"
+      ],
+      "classes": [],
+      "imports": [
+        "typing"
+      ],
+      "routes": []
+    },
+    {
       "file": "app\\core\\config.py",
-      "lines": 147,
+      "lines": 319,
       "functions": [
         "get_settings",
-        "validate_strings",
+        "validate_environment",
+        "validate_api_prefix",
+        "validate_mongodb_uri",
+        "validate_database_name",
+        "validate_jwt_secret",
         "validate_jwt_algorithm",
-        "validate_token_expiry",
-        "validate_rate_limit",
-        "mongodb_uri_value",
-        "jwt_secret_value",
-        "admin_password_value",
-        "owner_password_value",
-        "admin_password_hash_value",
-        "owner_password_hash_value",
+        "normalize_email",
+        "validate_password",
+        "validate_frontend_url",
+        "validate_production_settings",
+        "SECRET_KEY",
+        "ALGORITHM",
         "cors_origins_list"
       ],
       "classes": [
@@ -557,57 +669,81 @@
       ],
       "imports": [
         "functools",
-        "pathlib",
+        "typing",
+        "urllib.parse",
         "pydantic",
         "pydantic_settings"
       ],
       "routes": []
     },
     {
-      "file": "app\\core\\security.py",
-      "lines": 160,
+      "file": "app\\core\\rate_limit.py",
+      "lines": 47,
       "functions": [
-        "_get_jwt_config",
+        "__init__",
+        "_get_client_ip",
+        "__call__"
+      ],
+      "classes": [
+        "SimpleRateLimiter"
+      ],
+      "imports": [
+        "collections",
+        "fastapi",
+        "app.core.config"
+      ],
+      "routes": []
+    },
+    {
+      "file": "app\\core\\security.py",
+      "lines": 277,
+      "functions": [
+        "validate_password",
         "hash_password",
         "verify_password",
-        "needs_rehash",
         "create_access_token",
-        "decode_access_token"
+        "decode_access_token",
+        "get_current_user_id",
+        "get_current_token_payload"
       ],
       "classes": [],
       "imports": [
         "datetime",
         "typing",
-        "pwdlib",
-        "pwdlib.exceptions",
+        "fastapi",
+        "fastapi.security",
+        "jose",
         "app.core.config"
       ],
       "routes": []
     },
     {
       "file": "app\\db\\mongo.py",
-      "lines": 183,
+      "lines": 309,
       "functions": [
-        "get_mongodb_client",
-        "check_mongodb",
-        "create_customer_indexes",
-        "create_application_indexes",
-        "create_login_rate_limit_index",
-        "close_mongodb",
+        "get_client",
+        "get_database",
+        "get_owner_database",
+        "ensure_index",
+        "create_database_indexes",
+        "connect_to_mongo",
+        "close_mongo_connection",
+        "__init__",
         "__init__",
         "__getattr__",
         "__init__",
-        "get_database",
-        "get_collection",
-        "__getitem__"
+        "_get_db",
+        "__getitem__",
+        "__getattr__"
       ],
       "classes": [
+        "DatabaseManager",
         "LazyCollection",
         "LazyDatabase"
       ],
       "imports": [
-        "functools",
-        "pymongo",
+        "typing",
+        "motor.motor_asyncio",
         "pymongo.errors",
         "app.core.config"
       ],
@@ -638,25 +774,36 @@
       "routes": []
     }
   ],
-  "issues": [],
+  "issues": [
+    {
+      "level": "ERROR",
+      "file": "tests\\conftest.py",
+      "message": "Required project file is missing."
+    },
+    {
+      "level": "ERROR",
+      "file": "tests\\test_api.py",
+      "message": "Required project file is missing."
+    }
+  ],
   "static_analysis": {
     "ruff": {
       "command": "C:\\Users\\DEEPAK P\\OneDrive\\Desktop\\deepak project file\\nivetha-fastapi-backend\\venv\\Scripts\\python.exe -m ruff check app tests --output-format json",
-      "returncode": 0,
-      "stdout": "[]",
+      "returncode": 1,
+      "stdout": "rer\\nfrom jose import JWTError, jwt\\n\\nfrom app.core.config import settings\\n\\n\",\n          \"end_location\": {\n            \"column\": 1,\n            \"row\": 15\n          },\n          \"location\": {\n            \"column\": 1,\n            \"row\": 2\n          }\n        }\n      ],\n      \"message\": \"Organize imports\"\n    },\n    \"location\": {\n      \"column\": 1,\n      \"row\": 2\n    },\n    \"message\": \"Import block is un-sorted or un-formatted\",\n    \"name\": \"unsorted-imports\",\n    \"noqa_row\": 2,\n    \"severity\": \"error\",\n    \"url\": \"https://docs.astral.sh/ruff/rules/unsorted-imports\"\n  },\n  {\n    \"cell\": null,\n    \"code\": \"UP045\",\n    \"end_location\": {\n      \"column\": 35,\n      \"row\": 99\n    },\n    \"filename\": \"C:\\\\Users\\\\DEEPAK P\\\\OneDrive\\\\Desktop\\\\deepak project file\\\\nivetha-fastapi-backend\\\\app\\\\core\\\\security.py\",\n    \"fix\": {\n      \"applicability\": \"safe\",\n      \"edits\": [\n        {\n          \"content\": \"dict[str, Any] | None\",\n          \"end_location\": {\n            \"column\": 35,\n            \"row\": 99\n          },\n          \"location\": {\n            \"column\": 11,\n            \"row\": 99\n          }\n        }\n      ],\n      \"message\": \"Convert to `X | None`\"\n    },\n    \"location\": {\n      \"column\": 11,\n      \"row\": 99\n    },\n    \"message\": \"Use `X | None` for type annotations\",\n    \"name\": \"non-pep604-annotation-optional\",\n    \"noqa_row\": 99,\n    \"severity\": \"error\",\n    \"url\": \"https://docs.astral.sh/ruff/rules/non-pep604-annotation-optional\"\n  },\n  {\n    \"cell\": null,\n    \"code\": \"UP045\",\n    \"end_location\": {\n      \"column\": 27,\n      \"row\": 100\n    },\n    \"filename\": \"C:\\\\Users\\\\DEEPAK P\\\\OneDrive\\\\Desktop\\\\deepak project file\\\\nivetha-fastapi-backend\\\\app\\\\core\\\\security.py\",\n    \"fix\": {\n      \"applicability\": \"safe\",\n      \"edits\": [\n        {\n          \"content\": \"str | None\",\n          \"end_location\": {\n            \"column\": 27,\n            \"row\": 100\n          },\n          \"location\": {\n            \"column\": 14,\n            \"row\": 100\n          }\n        }\n      ],\n      \"message\": \"Convert to `X | None`\"\n    },\n    \"location\": {\n      \"column\": 14,\n      \"row\": 100\n    },\n    \"message\": \"Use `X | None` for type annotations\",\n    \"name\": \"non-pep604-annotation-optional\",\n    \"noqa_row\": 100,\n    \"severity\": \"error\",\n    \"url\": \"https://docs.astral.sh/ruff/rules/non-pep604-annotation-optional\"\n  },\n  {\n    \"cell\": null,\n    \"code\": \"UP045\",\n    \"end_location\": {\n      \"column\": 39,\n      \"row\": 101\n    },\n    \"filename\": \"C:\\\\Users\\\\DEEPAK P\\\\OneDrive\\\\Desktop\\\\deepak project file\\\\nivetha-fastapi-backend\\\\app\\\\core\\\\security.py\",\n    \"fix\": {\n      \"applicability\": \"safe\",\n      \"edits\": [\n        {\n          \"content\": \"timedelta | None\",\n          \"end_location\": {\n            \"column\": 39,\n            \"row\": 101\n          },\n          \"location\": {\n            \"column\": 20,\n            \"row\": 101\n          }\n        }\n      ],\n      \"message\": \"Convert to `X | None`\"\n    },\n    \"location\": {\n      \"column\": 20,\n      \"row\": 101\n    },\n    \"message\": \"Use `X | None` for type annotations\",\n    \"name\": \"non-pep604-annotation-optional\",\n    \"noqa_row\": 101,\n    \"severity\": \"error\",\n    \"url\": \"https://docs.astral.sh/ruff/rules/non-pep604-annotation-optional\"\n  },\n  {\n    \"cell\": null,\n    \"code\": \"UP017\",\n    \"end_location\": {\n      \"column\": 36,\n      \"row\": 114\n    },\n    \"filename\": \"C:\\\\Users\\\\DEEPAK P\\\\OneDrive\\\\Desktop\\\\deepak project file\\\\nivetha-fastapi-backend\\\\app\\\\core\\\\security.py\",\n    \"fix\": {\n      \"applicability\": \"safe\",\n      \"edits\": [\n        {\n          \"content\": \"from datetime import datetime, timedelta, timezone, UTC\",\n          \"end_location\": {\n            \"column\": 51,\n            \"row\": 4\n          },\n          \"location\": {\n            \"column\": 1,\n            \"row\": 4\n          }\n        },\n        {\n          \"content\": \"UTC\",\n          \"end_location\": {\n            \"column\": 36,\n            \"row\": 114\n          },\n          \"location\": {\n            \"column\": 24,\n            \"row\": 114\n          }\n        }\n      ],\n      \"message\": \"Convert to `datetime.UTC` alias\"\n    },\n    \"location\": {\n      \"column\": 24,\n      \"row\": 114\n    },\n    \"message\": \"Use `datetime.UTC` alias\",\n    \"name\": \"datetime-timezone-utc\",\n    \"noqa_row\": 114,\n    \"severity\": \"error\",\n    \"url\": \"https://docs.astral.sh/ruff/rules/datetime-timezone-utc\"\n  },\n  {\n    \"cell\": null,\n    \"code\": \"UP045\",\n    \"end_location\": {\n      \"column\": 56,\n      \"row\": 206\n    },\n    \"filename\": \"C:\\\\Users\\\\DEEPAK P\\\\OneDrive\\\\Desktop\\\\deepak project file\\\\nivetha-fastapi-backend\\\\app\\\\core\\\\security.py\",\n    \"fix\": {\n      \"applicability\": \"safe\",\n      \"edits\": [\n        {\n          \"content\": \"HTTPAuthorizationCredentials | None\",\n          \"end_location\": {\n            \"column\": 56,\n            \"row\": 206\n          },\n          \"location\": {\n            \"column\": 18,\n            \"row\": 206\n          }\n        }\n      ],\n      \"message\": \"Convert to `X | None`\"\n    },\n    \"location\": {\n      \"column\": 18,\n      \"row\": 206\n    },\n    \"message\": \"Use `X | None` for type annotations\",\n    \"name\": \"non-pep604-annotation-optional\",\n    \"noqa_row\": 206,\n    \"severity\": \"error\",\n    \"url\": \"https://docs.astral.sh/ruff/rules/non-pep604-annotation-optional\"\n  },\n  {\n    \"cell\": null,\n    \"code\": \"UP045\",\n    \"end_location\": {\n      \"column\": 56,\n      \"row\": 251\n    },\n    \"filename\": \"C:\\\\Users\\\\DEEPAK P\\\\OneDrive\\\\Desktop\\\\deepak project file\\\\nivetha-fastapi-backend\\\\app\\\\core\\\\security.py\",\n    \"fix\": {\n      \"applicability\": \"safe\",\n      \"edits\": [\n        {\n          \"content\": \"HTTPAuthorizationCredentials | None\",\n          \"end_location\": {\n            \"column\": 56,\n            \"row\": 251\n          },\n          \"location\": {\n            \"column\": 18,\n            \"row\": 251\n          }\n        }\n      ],\n      \"message\": \"Convert to `X | None`\"\n    },\n    \"location\": {\n      \"column\": 18,\n      \"row\": 251\n    },\n    \"message\": \"Use `X | None` for type annotations\",\n    \"name\": \"non-pep604-annotation-optional\",\n    \"noqa_row\": 251,\n    \"severity\": \"error\",\n    \"url\": \"https://docs.astral.sh/ruff/rules/non-pep604-annotation-optional\"\n  },\n  {\n    \"cell\": null,\n    \"code\": \"I001\",\n    \"end_location\": {\n      \"column\": 37,\n      \"row\": 11\n    },\n    \"filename\": \"C:\\\\Users\\\\DEEPAK P\\\\OneDrive\\\\Desktop\\\\deepak project file\\\\nivetha-fastapi-backend\\\\app\\\\db\\\\mongo.py\",\n    \"fix\": {\n      \"applicability\": \"safe\",\n      \"edits\": [\n        {\n          \"content\": \"import logging\\nfrom typing import Any, Optional\\n\\nfrom motor.motor_asyncio import (\\n    AsyncIOMotorClient,\\n    AsyncIOMotorDatabase,\\n)\\nfrom pymongo.errors import OperationFailure, PyMongoError\\n\\nfrom app.core.config import settings\\n\\n\",\n          \"end_location\": {\n            \"column\": 1,\n            \"row\": 14\n          },\n          \"location\": {\n            \"column\": 1,\n            \"row\": 2\n          }\n        }\n      ],\n      \"message\": \"Organize imports\"\n    },\n    \"location\": {\n      \"column\": 1,\n      \"row\": 2\n    },\n    \"message\": \"Import block is un-sorted or un-formatted\",\n    \"name\": \"unsorted-imports\",\n    \"noqa_row\": 2,\n    \"severity\": \"error\",\n    \"url\": \"https://docs.astral.sh/ruff/rules/unsorted-imports\"\n  },\n  {\n    \"cell\": null,\n    \"code\": \"UP045\",\n    \"end_location\": {\n      \"column\": 50,\n      \"row\": 23\n    },\n    \"filename\": \"C:\\\\Users\\\\DEEPAK P\\\\OneDrive\\\\Desktop\\\\deepak project file\\\\nivetha-fastapi-backend\\\\app\\\\db\\\\mongo.py\",\n    \"fix\": {\n      \"applicability\": \"safe\",\n      \"edits\": [\n        {\n          \"content\": \"AsyncIOMotorClient | None\",\n          \"end_location\": {\n            \"column\": 50,\n            \"row\": 23\n          },\n          \"location\": {\n            \"column\": 22,\n            \"row\": 23\n          }\n        }\n      ],\n      \"message\": \"Convert to `X | None`\"\n    },\n    \"location\": {\n      \"column\": 22,\n      \"row\": 23\n    },\n    \"message\": \"Use `X | None` for type annotations\",\n    \"name\": \"non-pep604-annotation-optional\",\n    \"noqa_row\": 23,\n    \"severity\": \"error\",\n    \"url\": \"https://docs.astral.sh/ruff/rules/non-pep604-annotation-optional\"\n  },\n  {\n    \"cell\": null,\n    \"code\": \"I001\",\n    \"end_location\": {\n      \"column\": 53,\n      \"row\": 24\n    },\n    \"filename\": \"C:\\\\Users\\\\DEEPAK P\\\\OneDrive\\\\Desktop\\\\deepak project file\\\\nivetha-fastapi-backend\\\\app\\\\main.py\",\n    \"fix\": {\n      \"applicability\": \"safe\",\n      \"edits\": [\n        {\n          \"content\": \"import logging\\nfrom contextlib import asynccontextmanager\\nfrom datetime import datetime, timezone\\n\\nfrom fastapi import FastAPI, Request\\nfrom fastapi.middleware.cors import CORSMiddleware\\nfrom fastapi.responses import JSONResponse\\n\\nfrom app.api.auth import router as auth_router\\nfrom app.api.bookings import router as bookings_router\\nfrom app.api.customers import router as customers_router\\nfrom app.api.foods import router as foods_router\\nfrom app.api.health import router as health_router\\nfrom app.api.notifications import router as notifications_router\\nfrom app.api.profiles import router as profiles_router\\nfrom app.api.reports import router as reports_router\\nfrom app.api.reviews import router as reviews_router\\nfrom app.core.cache import clear_cache\\nfrom app.core.config import settings\\nfrom app.db.mongo import (\\n    close_mongo_connection,\\n    connect_to_mongo,\\n)\\n\\n\",\n          \"end_location\": {\n            \"column\": 1,\n            \"row\": 27\n          },\n          \"location\": {\n            \"column\": 1,\n            \"row\": 1\n          }\n        }\n      ],\n      \"message\": \"Organize imports\"\n    },\n    \"location\": {\n      \"column\": 1,\n      \"row\": 1\n    },\n    \"message\": \"Import block is un-sorted or un-formatted\",\n    \"name\": \"unsorted-imports\",\n    \"noqa_row\": 1,\n    \"severity\": \"error\",\n    \"url\": \"https://docs.astral.sh/ruff/rules/unsorted-imports\"\n  },\n  {\n    \"cell\": null,\n    \"code\": \"UP017\",\n    \"end_location\": {\n      \"column\": 47,\n      \"row\": 214\n    },\n    \"filename\": \"C:\\\\Users\\\\DEEPAK P\\\\OneDrive\\\\Desktop\\\\deepak project file\\\\nivetha-fastapi-backend\\\\app\\\\main.py\",\n    \"fix\": {\n      \"applicability\": \"safe\",\n      \"edits\": [\n        {\n          \"content\": \"from datetime import datetime, timezone, UTC\",\n          \"end_location\": {\n            \"column\": 40,\n            \"row\": 3\n          },\n          \"location\": {\n            \"column\": 1,\n            \"row\": 3\n          }\n        },\n        {\n          \"content\": \"UTC\",\n          \"end_location\": {\n            \"column\": 47,\n            \"row\": 214\n          },\n          \"location\": {\n            \"column\": 35,\n            \"row\": 214\n          }\n        }\n      ],\n      \"message\": \"Convert to `datetime.UTC` alias\"\n    },\n    \"location\": {\n      \"column\": 35,\n      \"row\": 214\n    },\n    \"message\": \"Use `datetime.UTC` alias\",\n    \"name\": \"datetime-timezone-utc\",\n    \"noqa_row\": 214,\n    \"severity\": \"error\",\n    \"url\": \"https://docs.astral.sh/ruff/rules/datetime-timezone-utc\"\n  },\n  {\n    \"cell\": null,\n    \"code\": \"UP017\",\n    \"end_location\": {\n      \"column\": 47,\n      \"row\": 232\n    },\n    \"filename\": \"C:\\\\Users\\\\DEEPAK P\\\\OneDrive\\\\Desktop\\\\deepak project file\\\\nivetha-fastapi-backend\\\\app\\\\main.py\",\n    \"fix\": {\n      \"applicability\": \"safe\",\n      \"edits\": [\n        {\n          \"content\": \"from datetime import datetime, timezone, UTC\",\n          \"end_location\": {\n            \"column\": 40,\n            \"row\": 3\n          },\n          \"location\": {\n            \"column\": 1,\n            \"row\": 3\n          }\n        },\n        {\n          \"content\": \"UTC\",\n          \"end_location\": {\n            \"column\": 47,\n            \"row\": 232\n          },\n          \"location\": {\n            \"column\": 35,\n            \"row\": 232\n          }\n        }\n      ],\n      \"message\": \"Convert to `datetime.UTC` alias\"\n    },\n    \"location\": {\n      \"column\": 35,\n      \"row\": 232\n    },\n    \"message\": \"Use `datetime.UTC` alias\",\n    \"name\": \"datetime-timezone-utc\",\n    \"noqa_row\": 232,\n    \"severity\": \"error\",\n    \"url\": \"https://docs.astral.sh/ruff/rules/datetime-timezone-utc\"\n  }\n]",
       "stderr": ""
     },
     "bandit": {
       "command": "C:\\Users\\DEEPAK P\\OneDrive\\Desktop\\deepak project file\\nivetha-fastapi-backend\\venv\\Scripts\\python.exe -m bandit -r app -f json -q",
       "returncode": 0,
-      "stdout": "{\n  \"errors\": [],\n  \"generated_at\": \"2026-11-03T17:25:45Z\",\n  \"metrics\": {\n    \"_totals\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 2616,\n      \"nosec\": 0,\n      \"skipped_tests\": 8\n    },\n    \"app\\\\__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 1,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 1,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\auth.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 284,\n      \"nosec\": 0,\n      \"skipped_tests\": 3\n    },\n    \"app\\\\api\\\\bookings.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 506,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\customers.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 84,\n      \"nosec\": 0,\n      \"skipped_tests\": 2\n    },\n    \"app\\\\api\\\\foods.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 290,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\health.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 43,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\notifications.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 319,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\profiles.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 213,\n      \"nosec\": 0,\n      \"skipped_tests\": 2\n    },\n    \"app\\\\api\\\\reports.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 197,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\reviews.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 179,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\core\\\\config.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 117,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\core\\\\security.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 115,\n      \"nosec\": 0,\n      \"skipped_tests\": 1\n    },\n    \"app\\\\db\\\\mongo.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 138,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\main.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 126,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\models\\\\__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 1,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\schemas\\\\__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 1,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\services\\\\__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 1,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    }\n  },\n  \"results\": []\n}",
-      "stderr": "[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\auth.py:204\n[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\auth.py:205\n[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\auth.py:206\n[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\auth.py:208\n[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\auth.py:205\n[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\auth.py:207\n[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\auth.py:257\n[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\auth.py:258\n[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\auth.py:259\n[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\auth.py:261\n[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\auth.py:258\n[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\auth.py:260\n[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\auth.py:325\n[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\auth.py:326\n[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\auth.py:327\n[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\auth.py:328\n[tester]\tWARNING\tnosec encountered (B105), but no failed test on file app\\api\\customers.py:54\n"
+      "stdout": "{\n  \"errors\": [],\n  \"generated_at\": \"2026-11-24T03:00:26Z\",\n  \"metrics\": {\n    \"_totals\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 4028,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 1,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 1,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\auth.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 256,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\bookings.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 785,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\customers.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 329,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\foods.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 395,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\health.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 122,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\notifications.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 238,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\profiles.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 290,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\reports.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 392,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\api\\\\reviews.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 363,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\core\\\\cache.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 20,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\core\\\\config.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 183,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\core\\\\rate_limit.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 33,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\core\\\\security.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 187,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\db\\\\mongo.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 210,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\main.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 220,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\models\\\\__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 1,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\schemas\\\\__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 1,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"app\\\\services\\\\__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 1,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    }\n  },\n  \"results\": []\n}",
+      "stderr": ""
     }
   },
   "pytest": {
     "command": "C:\\Users\\DEEPAK P\\OneDrive\\Desktop\\deepak project file\\nivetha-fastapi-backend\\venv\\Scripts\\python.exe -m pytest -v",
-    "returncode": 0,
-    "stdout": "============================= test session starts =============================\nplatform win32 -- Python 3.13.14, pytest-9.2.0, pluggy-1.7.0 -- C:\\Users\\DEEPAK P\\OneDrive\\Desktop\\deepak project file\\nivetha-fastapi-backend\\venv\\Scripts\\python.exe\ncachedir: .pytest_cache\nrootdir: C:\\Users\\DEEPAK P\\OneDrive\\Desktop\\deepak project file\\nivetha-fastapi-backend\nconfigfile: pyproject.toml\nplugins: anyio-4.16.0, asyncio-1.4.1.post1\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 64 items\n\ntests/test_api.py::test_root_endpoint PASSED                             [  1%]\ntests/test_api.py::test_health_endpoint PASSED                           [  3%]\ntests/test_api.py::test_database_health_endpoint PASSED                  [  4%]\ntests/test_api.py::test_api_routes_are_registered PASSED                 [  6%]\ntests/test_api.py::test_admin_login_route_is_registered PASSED           [  7%]\ntests/test_api.py::test_admin_report_route_is_registered PASSED          [  9%]\ntests/test_api.py::test_customer_profile_requires_login PASSED           [ 10%]\ntests/test_api.py::test_owner_report_requires_login PASSED               [ 12%]\ntests/test_api.py::test_admin_report_requires_login PASSED               [ 14%]\ntests/test_api.py::test_customer_reviews_require_login PASSED            [ 15%]\ntests/test_api.py::test_customer_notifications_require_login PASSED      [ 17%]\ntests/test_api.py::test_staff_notifications_require_login PASSED         [ 18%]\ntests/test_api.py::test_customer_register_success PASSED                 [ 20%]\ntests/test_api.py::test_customer_register_duplicate_email PASSED         [ 21%]\ntests/test_api.py::test_customer_register_duplicate_phone PASSED         [ 23%]\ntests/test_api.py::test_customer_login_success PASSED                    [ 25%]\ntests/test_api.py::test_customer_login_wrong_password PASSED             [ 26%]\ntests/test_api.py::test_customer_login_unknown_email PASSED              [ 28%]\ntests/test_api.py::test_owner_login_success PASSED                       [ 29%]\ntests/test_api.py::test_owner_login_invalid_password PASSED              [ 31%]\ntests/test_api.py::test_admin_login_success PASSED                       [ 32%]\ntests/test_api.py::test_admin_login_invalid_password PASSED              [ 34%]\ntests/test_api.py::test_unknown_endpoint_returns_404 PASSED              [ 35%]\ntests/test_api.py::test_all_registered_routes[POST-_api_v1_auth_register] PASSED [ 37%]\ntests/test_api.py::test_all_registered_routes[POST-_api_v1_auth_login] PASSED [ 39%]\ntests/test_api.py::test_all_registered_routes[POST-_api_v1_auth_owner_login] PASSED [ 40%]\ntests/test_api.py::test_all_registered_routes[POST-_api_v1_auth_admin_login] PASSED [ 42%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_customers_me] PASSED [ 43%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_customers_] PASSED [ 45%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_customers_{customer_id}] PASSED [ 46%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_profile_me] PASSED [ 48%]\ntests/test_api.py::test_all_registered_routes[PUT-_api_v1_profile_me] PASSED [ 50%]\ntests/test_api.py::test_all_registered_routes[PATCH-_api_v1_profile_me] PASSED [ 51%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_foods_] PASSED [ 53%]\ntests/test_api.py::test_all_registered_routes[POST-_api_v1_foods_] PASSED [ 54%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_foods_{food_id}] PASSED [ 56%]\ntests/test_api.py::test_all_registered_routes[PATCH-_api_v1_foods_{food_id}] PASSED [ 57%]\ntests/test_api.py::test_all_registered_routes[DELETE-_api_v1_foods_{food_id}] PASSED [ 59%]\ntests/test_api.py::test_all_registered_routes[POST-_api_v1_bookings_] PASSED [ 60%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_bookings_my-bookings] PASSED [ 62%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_bookings_owner_all] PASSED [ 64%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_bookings_owner_{booking_id}] PASSED [ 65%]\ntests/test_api.py::test_all_registered_routes[PATCH-_api_v1_bookings_owner_{booking_id}_status] PASSED [ 67%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_bookings_{booking_id}] PASSED [ 68%]\ntests/test_api.py::test_all_registered_routes[PATCH-_api_v1_bookings_{booking_id}_cancel] PASSED [ 70%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_reviews_] PASSED [ 71%]\ntests/test_api.py::test_all_registered_routes[POST-_api_v1_reviews_] PASSED [ 73%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_reviews_my-reviews] PASSED [ 75%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_reports_my-bookings] PASSED [ 76%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_reports_admin_summary] PASSED [ 78%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_reports_owner_summary] PASSED [ 79%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_notifications_] PASSED [ 81%]\ntests/test_api.py::test_all_registered_routes[DELETE-_api_v1_notifications_] PASSED [ 82%]\ntests/test_api.py::test_all_registered_routes[PATCH-_api_v1_notifications_read-all] PASSED [ 84%]\ntests/test_api.py::test_all_registered_routes[PATCH-_api_v1_notifications_{notification_id}_read] PASSED [ 85%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_notifications_admin] PASSED [ 87%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_notifications_owner] PASSED [ 89%]\ntests/test_api.py::test_all_registered_routes[PATCH-_api_v1_notifications_admin_read-all] PASSED [ 90%]\ntests/test_api.py::test_all_registered_routes[PATCH-_api_v1_notifications_owner_read-all] PASSED [ 92%]\ntests/test_api.py::test_all_registered_routes[PATCH-_api_v1_notifications_admin_{notification_id}_read] PASSED [ 93%]\ntests/test_api.py::test_all_registered_routes[PATCH-_api_v1_notifications_owner_{notification_id}_read] PASSED [ 95%]\ntests/test_api.py::test_all_registered_routes[GET-_] PASSED              [ 96%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_health] PASSED [ 98%]\ntests/test_api.py::test_all_registered_routes[GET-_api_v1_health_database] PASSED [100%]\n\n============================== warnings summary ===============================\nvenv\\Lib\\site-packages\\fastapi\\testclient.py:1\n  C:\\Users\\DEEPAK P\\OneDrive\\Desktop\\deepak project file\\nivetha-fastapi-backend\\venv\\Lib\\site-packages\\fastapi\\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\ntests/test_api.py::test_all_registered_routes[POST-_api_v1_auth_register]\ntests/test_api.py::test_all_registered_routes[POST-_api_v1_auth_login]\ntests/test_api.py::test_all_registered_routes[POST-_api_v1_auth_owner_login]\ntests/test_api.py::test_all_registered_routes[POST-_api_v1_auth_admin_login]\n  C:\\Users\\DEEPAK P\\OneDrive\\Desktop\\deepak project file\\nivetha-fastapi-backend\\venv\\Lib\\site-packages\\starlette\\_exception_handler.py:59: StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.\n    response = await handler(conn, exc)  # type: ignore[arg-type]\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n======================= 64 passed, 5 warnings in 1.82s ========================\n",
+    "returncode": 5,
+    "stdout": "============================= test session starts =============================\nplatform win32 -- Python 3.13.14, pytest-9.2.0, pluggy-1.7.0 -- C:\\Users\\DEEPAK P\\OneDrive\\Desktop\\deepak project file\\nivetha-fastapi-backend\\venv\\Scripts\\python.exe\ncachedir: .pytest_cache\nrootdir: C:\\Users\\DEEPAK P\\OneDrive\\Desktop\\deepak project file\\nivetha-fastapi-backend\nconfigfile: pyproject.toml\nplugins: anyio-4.16.0, asyncio-1.4.1.post1\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 0 items\n\n============================ no tests ran in 0.05s ============================\n",
     "stderr": "C:\\Users\\DEEPAK P\\OneDrive\\Desktop\\deepak project file\\nivetha-fastapi-backend\\venv\\Lib\\site-packages\\pytest_asyncio\\plugin.py:300: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n"
   }
 }

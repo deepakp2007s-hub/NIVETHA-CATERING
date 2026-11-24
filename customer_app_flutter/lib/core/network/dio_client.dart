@@ -61,54 +61,89 @@ class DioClient {
     );
   }
 
-  /// Helper to extract clean human-readable error messages from DioExceptions
+  /// Helper to extract clean human-readable error messages from DioExceptions,
+  /// preserving backend validation details and HTTP status context.
   static String getErrorMessage(dynamic error) {
     if (error is DioException) {
+      final statusCode = error.response?.statusCode;
+      debugPrint(
+        '[DioClient Error] ${error.requestOptions.method} ${error.requestOptions.path} '
+        'Status: $statusCode, Type: ${error.type}, Data: ${error.response?.data}',
+      );
+
+      // 1. Extract backend-provided detail or validation messages
       if (error.response?.data != null) {
         final data = error.response!.data;
         if (data is Map<String, dynamic>) {
           if (data.containsKey('detail')) {
             final detail = data['detail'];
-            if (detail is String) return detail;
+            if (detail is String && detail.trim().isNotEmpty) {
+              return statusCode != null
+                  ? '$detail (HTTP $statusCode)'
+                  : detail;
+            }
             if (detail is List && detail.isNotEmpty) {
-              final first = detail.first;
-              if (first is Map && first.containsKey('msg')) {
-                return first['msg'].toString();
+              final messages = <String>[];
+              for (final item in detail) {
+                if (item is Map) {
+                  final loc = item['loc'];
+                  final field = (loc is List && loc.isNotEmpty)
+                      ? loc.where((part) => part != 'body').join('.')
+                      : '';
+                  final msg = item['msg']?.toString() ?? 'Invalid value';
+                  messages.add(field.isNotEmpty ? '$field: $msg' : msg);
+                } else {
+                  messages.add(item.toString());
+                }
               }
-              return detail.join(', ');
+              final joined = messages.join('\n');
+              return statusCode != null
+                  ? '$joined (HTTP $statusCode)'
+                  : joined;
             }
           }
           if (data.containsKey('message')) {
-            return data['message'].toString();
+            final message = data['message'].toString();
+            return statusCode != null
+                ? '$message (HTTP $statusCode)'
+                : message;
+          }
+        } else if (data is String && data.trim().isNotEmpty) {
+          final cleanStr = data.trim();
+          if (!cleanStr.startsWith('<')) {
+            return statusCode != null
+                ? '$cleanStr (HTTP $statusCode)'
+                : cleanStr;
           }
         }
       }
 
+      // 2. Fallbacks based on DioExceptionType & HTTP Status Codes
       switch (error.type) {
         case DioExceptionType.connectionTimeout:
         case DioExceptionType.sendTimeout:
         case DioExceptionType.receiveTimeout:
-          return 'Connection timed out. Please check your internet connection.';
+          return 'Connection timed out. Server took too long to respond. [Timeout]';
         case DioExceptionType.badResponse:
-          final code = error.response?.statusCode;
+          final code = statusCode;
           if (code == 401) {
-            return 'Session expired or invalid credentials. Please log in again.';
+            return 'Invalid credentials or session expired. Please log in again (HTTP 401).';
           } else if (code == 403) {
-            return 'Access denied. You do not have permission for this action.';
+            return 'Access denied. You do not have permission for this action (HTTP 403).';
           } else if (code == 404) {
-            return 'Requested resource not found.';
+            return 'Requested resource not found on server (HTTP 404).';
           } else if (code == 409) {
-            return 'Resource conflict or duplicate record found.';
+            return 'Resource conflict or duplicate record found (HTTP 409).';
           } else if (code == 422) {
-            return 'Please review the entered details and try again.';
+            return 'Validation error. Please check your entered details (HTTP 422).';
           } else if (code == 429) {
-            return 'Too many attempts. Please wait a minute and try again.';
+            return 'Too many requests. Please wait a moment and try again (HTTP 429).';
           } else if (code != null && code >= 500) {
-            return 'Server is temporarily unavailable. Please try again later.';
+            return 'Server error (HTTP $code). Service is temporarily unavailable. Please try again.';
           }
-          return 'Request failed with status code ${code ?? 'unknown'}.';
+          return 'Server returned error status ${code ?? 'unknown'}.';
         case DioExceptionType.connectionError:
-          return 'Could not connect to the catering server. Please check your network.';
+          return 'Unable to connect to the catering server. Please check your internet connection or server availability [Connection Error].';
         case DioExceptionType.cancel:
           return 'Request was cancelled.';
         default:
