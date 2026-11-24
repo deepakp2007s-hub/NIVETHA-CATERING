@@ -5,7 +5,7 @@ import '../../../data/models/food_model.dart';
 import '../../../data/services/food_service.dart';
 import '../../booking/screens/create_booking_screen.dart';
 
-/// Comprehensive food catalog screen displaying all dishes available for catering.
+/// Comprehensive food catalog screen displaying dishes added by the owner.
 class FoodsScreen extends StatefulWidget {
   const FoodsScreen({super.key});
 
@@ -49,7 +49,6 @@ class _FoodsScreenState extends State<FoodsScreen> {
       category: _selectedCategory == 'All' ? null : _selectedCategory,
       search: _searchQuery.isEmpty ? null : _searchQuery,
       vegetarianOnly: _vegetarianOnly ? true : null,
-      // Customers should only see dishes they can actually book.
       availableOnly: true,
     );
   }
@@ -61,7 +60,6 @@ class _FoodsScreenState extends State<FoodsScreen> {
   }
 
   void _onSearchChanged(String value) {
-    // Update the clear (x) button immediately, hit the API after typing pauses.
     setState(() => _searchQuery = value.trim());
 
     _searchDebounce?.cancel();
@@ -173,6 +171,25 @@ class _FoodsScreenState extends State<FoodsScreen> {
                           ),
                         ),
                       ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFDF6E7),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Curated for Your Event',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            fontStyle: FontStyle.italic,
+                            color: Color(0xFF8A5A12),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -211,7 +228,6 @@ class _FoodsScreenState extends State<FoodsScreen> {
                       onPressed: () {
                         Navigator.pop(sheetContext);
                         if (!outerContext.mounted) return;
-                        // Carry the tapped dish into the booking form.
                         Navigator.push(
                           outerContext,
                           MaterialPageRoute(
@@ -245,7 +261,6 @@ class _FoodsScreenState extends State<FoodsScreen> {
     Color? titleColor,
     Widget? action,
   }) {
-    // Scrollable so pull-to-refresh still works on empty / error states.
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(24.0),
@@ -306,7 +321,6 @@ class _FoodsScreenState extends State<FoodsScreen> {
       ),
       body: Column(
         children: [
-          // Filter & Search Header
           Container(
             padding: const EdgeInsets.all(16.0),
             color: Colors.white,
@@ -373,8 +387,6 @@ class _FoodsScreenState extends State<FoodsScreen> {
               ],
             ),
           ),
-
-          // Dishes List
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
@@ -410,8 +422,9 @@ class _FoodsScreenState extends State<FoodsScreen> {
                     return _buildMessageState(
                       icon: Icons.restaurant_outlined,
                       iconColor: Colors.grey.shade400,
-                      title: 'No dishes found.',
-                      subtitle: 'Try changing your search or category filter.',
+                      title: 'No dishes added yet.',
+                      subtitle:
+                          'Dishes added by Nivetha Catering will appear here.',
                     );
                   }
 
@@ -501,24 +514,39 @@ class _FoodsScreenState extends State<FoodsScreen> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.orange.shade50,
-                                          borderRadius:
-                                              BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          item.formattedCategory,
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.orange.shade900,
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange.shade50,
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              item.formattedCategory,
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.orange.shade900,
+                                              ),
+                                            ),
                                           ),
-                                        ),
+                                          const Text(
+                                            'Event Special',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                              fontStyle: FontStyle.italic,
+                                              color: Color(0xFF9A6B1F),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                       const SizedBox(height: 4),
                                       Text(

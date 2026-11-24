@@ -5,8 +5,9 @@ import '../../../data/models/food_model.dart';
 import '../../../data/services/food_service.dart';
 import '../../booking/screens/create_booking_screen.dart';
 
-/// Interactive Food Menu Catalog screen with searching, category filtering,
-/// vegetarian filter, dish details modal, and multi-dish selection for catering orders.
+/// Interactive Food Menu Catalog screen displaying dishes added by the owner,
+/// with searching, category filtering, vegetarian filter, dish details modal,
+/// and multi-dish selection for catering orders (no prices displayed).
 class MenuScreen extends StatefulWidget {
   final bool selectionMode;
   final List<String>? initialSelectedIds;
@@ -68,7 +69,6 @@ class _MenuScreenState extends State<MenuScreen> {
       category: _selectedCategory == 'All' ? null : _selectedCategory,
       search: _searchQuery.isEmpty ? null : _searchQuery,
       vegetarianOnly: _vegOnly ? true : null,
-      // Only dishes a customer can actually book.
       availableOnly: true,
     );
     for (final food in foods) {
@@ -113,8 +113,6 @@ class _MenuScreenState extends State<MenuScreen> {
         .replaceAll('Exception: ', '');
   }
 
-  /// Turn the selected IDs into FoodModels. IDs that came from the booking
-  /// screen may not be in the cache yet, so load the full catalog once.
   Future<List<FoodModel>> _resolveSelectedFoods() async {
     final missing =
         _selectedFoodIds.where((id) => !_foodCache.containsKey(id)).toList();
@@ -201,6 +199,19 @@ class _MenuScreenState extends State<MenuScreen> {
                       ),
                     ),
                     const SizedBox(height: 18),
+                    if (food.imageUrl != null) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.network(
+                          food.imageUrl!,
+                          height: 170,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -264,6 +275,25 @@ class _MenuScreenState extends State<MenuScreen> {
                             ),
                           ),
                         ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFDF6E7),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'Curated for Your Event',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              fontStyle: FontStyle.italic,
+                              color: Color(0xFF8A5A12),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -276,7 +306,7 @@ class _MenuScreenState extends State<MenuScreen> {
                       ),
                     ),
                     if (food.description.isNotEmpty) ...[
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 12),
                       Text(
                         food.description,
                         style: TextStyle(
@@ -335,7 +365,6 @@ class _MenuScreenState extends State<MenuScreen> {
     Color? titleColor,
     Widget? action,
   }) {
-    // Scrollable so pull-to-refresh still works on empty / error states.
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(24.0),
@@ -372,9 +401,6 @@ class _MenuScreenState extends State<MenuScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
-
-    // In selection mode the bar is always shown so the user can confirm
-    // (or clear) their choice; otherwise only when something is selected.
     final showActionBar = widget.selectionMode || _selectedFoodIds.isNotEmpty;
 
     return Scaffold(
@@ -400,7 +426,6 @@ class _MenuScreenState extends State<MenuScreen> {
       ),
       body: Column(
         children: [
-          // Search & Filter Header Container
           Container(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
             color: Colors.white,
@@ -411,7 +436,7 @@ class _MenuScreenState extends State<MenuScreen> {
                   onChanged: _onSearchChanged,
                   textInputAction: TextInputAction.search,
                   decoration: InputDecoration(
-                    hintText: 'Search dishes (e.g. Biryani, Meals, Payasam)...',
+                    hintText: 'Search dishes added by Nivetha Catering...',
                     hintStyle: TextStyle(
                       fontSize: 13,
                       color: Colors.grey.shade500,
@@ -436,8 +461,6 @@ class _MenuScreenState extends State<MenuScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-
-                // Horizontal Categories Selector
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -476,8 +499,6 @@ class _MenuScreenState extends State<MenuScreen> {
               ],
             ),
           ),
-
-          // Dishes List
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
@@ -511,11 +532,11 @@ class _MenuScreenState extends State<MenuScreen> {
 
                   if (foods.isEmpty) {
                     return _buildMessageState(
-                      icon: Icons.search_off_rounded,
+                      icon: Icons.restaurant_menu_rounded,
                       iconColor: Colors.grey.shade400,
-                      title: 'No dishes found matching your search.',
+                      title: 'No dishes added yet.',
                       subtitle:
-                          'Try adjusting your search terms or category filters.',
+                          'Dishes added by Nivetha Catering will appear here automatically.',
                     );
                   }
 
@@ -542,7 +563,6 @@ class _MenuScreenState extends State<MenuScreen> {
           ),
         ],
       ),
-      // Bottom action bar
       bottomSheet: showActionBar
           ? Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -657,7 +677,6 @@ class _MenuScreenState extends State<MenuScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Food Image Thumbnail
             Stack(
               children: [
                 ClipRRect(
@@ -717,8 +736,6 @@ class _MenuScreenState extends State<MenuScreen> {
               ],
             ),
             const SizedBox(width: 14),
-
-            // Food Details
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -745,6 +762,18 @@ class _MenuScreenState extends State<MenuScreen> {
                               color: Colors.grey.shade700,
                             ),
                           ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Event Special',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          fontStyle: FontStyle.italic,
+                          color: Color(0xFF9A6B1F),
                         ),
                       ),
                       const Spacer(),

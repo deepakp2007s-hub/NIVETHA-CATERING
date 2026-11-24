@@ -1,10 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../data/services/auth_service.dart';
 
-/// Premium royal customer registration screen for Nivetha Catering.
+/// Customer registration screen for Nivetha Catering styled in the
+/// Forest Emerald & Warm Champagne Gold theme.
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -13,6 +13,18 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  // Forest Emerald & Warm Champagne Gold Palette
+  static const Color _forestEmerald = Color(0xFF144536);
+  static const Color _deepForest = Color(0xFF0C2E24);
+  static const Color _emeraldMid = Color(0xFF1E634D);
+  static const Color _champagneGold = Color(0xFFD9A441);
+  static const Color _softChampagne = Color(0xFFF6E7C1);
+  static const Color _softIvory = Color(0xFFFBF9F5);
+  static const Color _warmSandBorder = Color(0xFFE5DEC9);
+  static const Color _inkDark = Color(0xFF1A2421);
+  static const Color _inkMuted = Color(0xFF5A6863);
+  static const Color _errorRed = Color(0xFFC62828);
+
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -43,7 +55,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Please accept the Terms of Service to continue.'),
-          backgroundColor: AppTheme.spiceRed,
+          backgroundColor: _errorRed,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -63,60 +75,52 @@ class _RegisterScreenState extends State<RegisterScreen> {
         password: _passwordController.text,
       );
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.check_circle_rounded, color: AppTheme.royalGold),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text('Account created! Welcome to Nivetha Catering.'),
-                ),
-              ],
-            ),
-            backgroundColor: AppTheme.bananaLeafGreen,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
+      if (!mounted) return;
 
-        final loggedIn = await _authService.isLoggedIn();
-        if (mounted) {
-          if (loggedIn) {
-            Navigator.pushNamedAndRemoveUntil(
-              context,
-              '/home',
-              (route) => false,
-            );
-          } else {
-            Navigator.pop(context);
-          }
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline_rounded, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(e.toString().replaceAll('Exception: ', '')),
-                ),
-              ],
-            ),
-            backgroundColor: AppTheme.spiceRed,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.check_circle_rounded, color: _champagneGold),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text('Account created! Welcome to Nivetha Catering.'),
+              ),
+            ],
           ),
-        );
-      }
+          backgroundColor: _forestEmerald,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/home',
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline_rounded, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(e.toString().replaceAll('Exception: ', '')),
+              ),
+            ],
+          ),
+          backgroundColor: _errorRed,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -129,29 +133,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }) {
     return InputDecoration(
       hintText: hint,
-      prefixIcon: Icon(icon, color: AppTheme.primaryCrimson, size: 21),
+      hintStyle: const TextStyle(fontSize: 13, color: _inkMuted),
+      prefixIcon: Icon(icon, color: _forestEmerald, size: 21),
       suffixIcon: suffixIcon,
       filled: true,
-      fillColor: AppTheme.backgroundSandal,
+      fillColor: _softIvory,
       contentPadding: const EdgeInsets.symmetric(
         horizontal: 16,
         vertical: 15,
       ),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: AppTheme.borderChampagne),
+        borderSide: const BorderSide(color: _warmSandBorder),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(
-          color: AppTheme.borderChampagne,
+          color: _warmSandBorder,
           width: 1.3,
         ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(
-          color: AppTheme.primaryCrimson,
+          color: _forestEmerald,
           width: 2.0,
         ),
       ),
@@ -164,7 +169,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       style: const TextStyle(
         fontSize: 13,
         fontWeight: FontWeight.w700,
-        color: AppTheme.textEspresso,
+        color: _inkDark,
       ),
     );
   }
@@ -172,35 +177,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundSandal,
+      backgroundColor: _softIvory,
       appBar: AppBar(
-        backgroundColor: AppTheme.primaryCrimson,
+        backgroundColor: _forestEmerald,
         foregroundColor: Colors.white,
         elevation: 0,
         title: const Text(
-          'Create Account',
+          'NIVETHA CATERING',
           style: TextStyle(
             fontWeight: FontWeight.w800,
-            fontSize: 18,
+            fontSize: 17,
+            letterSpacing: 0.8,
             color: Colors.white,
           ),
         ),
-        iconTheme: const IconThemeData(color: AppTheme.royalGold),
+        iconTheme: const IconThemeData(color: _champagneGold),
       ),
       body: Stack(
         children: [
-          // Top Royal Crimson Curved Backdrop
+          // Top Forest Emerald Curved Backdrop
           Container(
-            height: 170,
+            height: 175,
             width: double.infinity,
             decoration: BoxDecoration(
-              gradient: AppTheme.royalHeaderGradient,
+              gradient: const LinearGradient(
+                colors: [_forestEmerald, _emeraldMid],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: const BorderRadius.vertical(
                 bottom: Radius.circular(36),
               ),
               border: Border(
                 bottom: BorderSide(
-                  color: AppTheme.royalGold.withValues(alpha: 0.75),
+                  color: _champagneGold.withValues(alpha: 0.75),
                   width: 2,
                 ),
               ),
@@ -222,38 +232,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Header Title inside Crimson Banner
+                        // Header Title inside Emerald Banner
                         const Text(
-                          'Join Nivetha Catering',
+                          'Welcome to Nivetha Catering',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w800,
                             color: Colors.white,
-                            letterSpacing: 0.4,
+                            letterSpacing: 0.3,
                           ),
                         ),
                         const SizedBox(height: 6),
                         const Text(
-                          'Create your account to customize event menus and track bookings effortlessly.',
+                          'Register to explore event dishes, plan feasts, and track your bookings.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 13,
-                            color: AppTheme.softChampagne,
+                            color: _softChampagne,
                             height: 1.35,
                           ),
                         ),
                         const SizedBox(height: 22),
 
-                        // Luxury Elevated Card Container
+                        // Elevated Form Card
                         Container(
                           padding: const EdgeInsets.all(24.0),
                           decoration: BoxDecoration(
-                            color: AppTheme.surfaceWhite,
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(24),
-                            boxShadow: AppTheme.cardShadow,
+                            boxShadow: [
+                              BoxShadow(
+                                color: _deepForest.withValues(alpha: 0.08),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
                             border: Border.all(
-                              color: AppTheme.royalGold.withValues(alpha: 0.45),
+                              color: _champagneGold.withValues(alpha: 0.55),
                               width: 1.2,
                             ),
                           ),
@@ -266,18 +282,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     width: 4,
                                     height: 20,
                                     decoration: BoxDecoration(
-                                      color: AppTheme.royalGold,
+                                      color: _champagneGold,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                   ),
                                   const SizedBox(width: 10),
                                   const Expanded(
                                     child: Text(
-                                      'Customer Details',
+                                      'Customer Registration',
                                       style: TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.w800,
-                                        color: AppTheme.textEspresso,
+                                        color: _inkDark,
                                       ),
                                     ),
                                   ),
@@ -386,7 +402,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       _obscurePassword
                                           ? Icons.visibility_off_outlined
                                           : Icons.visibility_outlined,
-                                      color: AppTheme.textMuted,
+                                      color: _inkMuted,
                                       size: 20,
                                     ),
                                     onPressed: () {
@@ -427,7 +443,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       _obscureConfirmPassword
                                           ? Icons.visibility_off_outlined
                                           : Icons.visibility_outlined,
-                                      color: AppTheme.textMuted,
+                                      color: _inkMuted,
                                       size: 20,
                                     ),
                                     onPressed: () {
@@ -464,8 +480,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       width: 24,
                                       child: Checkbox(
                                         value: _agreeTerms,
-                                        activeColor: AppTheme.primaryCrimson,
-                                        checkColor: AppTheme.royalGold,
+                                        activeColor: _forestEmerald,
+                                        checkColor: _champagneGold,
                                         shape: RoundedRectangleBorder(
                                           borderRadius:
                                               BorderRadius.circular(5),
@@ -483,7 +499,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         'I agree to the Catering Terms of Service & Privacy Policy',
                                         style: TextStyle(
                                           fontSize: 12.5,
-                                          color: AppTheme.textMuted,
+                                          color: _inkMuted,
                                           height: 1.3,
                                         ),
                                       ),
@@ -493,21 +509,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                               const SizedBox(height: 22),
 
-                              // Royal Crimson & Gold Register Button
+                              // Forest Emerald & Champagne Gold Register Button
                               Container(
                                 height: 54,
                                 decoration: BoxDecoration(
-                                  gradient: AppTheme.royalHeaderGradient,
+                                  gradient: const LinearGradient(
+                                    colors: [_forestEmerald, _emeraldMid],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
                                   borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
-                                    color: AppTheme.royalGold
-                                        .withValues(alpha: 0.75),
+                                    color: _champagneGold
+                                        .withValues(alpha: 0.8),
                                     width: 1.2,
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: AppTheme.primaryCrimson
-                                          .withValues(alpha: 0.35),
+                                      color: _deepForest.withValues(alpha: 0.28),
                                       blurRadius: 14,
                                       offset: const Offset(0, 6),
                                     ),
@@ -531,7 +550,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                             strokeWidth: 2.5,
                                             valueColor:
                                                 AlwaysStoppedAnimation<Color>(
-                                              AppTheme.royalGold,
+                                              _champagneGold,
                                             ),
                                           ),
                                         )
@@ -552,56 +571,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                               Icon(
                                                 Icons.arrow_forward_rounded,
                                                 size: 20,
-                                                color: AppTheme.royalGold,
+                                                color: _champagneGold,
                                               ),
                                             ],
                                           ),
                                         ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-
-                        // Sign In Link
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 16,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppTheme.surfaceTint,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: AppTheme.borderChampagne,
-                            ),
-                          ),
-                          child: Wrap(
-                            alignment: WrapAlignment.center,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              const Text(
-                                'Already registered? ',
-                                style: TextStyle(
-                                  color: AppTheme.textMuted,
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: () {
-                                  Navigator.pop(context);
-                                },
-                                child: const Text(
-                                  'Sign In Here',
-                                  style: TextStyle(
-                                    color: AppTheme.primaryCrimson,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13.5,
-                                    decoration: TextDecoration.underline,
-                                    decorationColor: AppTheme.royalGold,
-                                  ),
                                 ),
                               ),
                             ],

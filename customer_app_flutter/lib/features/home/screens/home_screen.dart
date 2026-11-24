@@ -5,7 +5,7 @@ import '../../../data/models/food_model.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/food_service.dart';
 
-/// Premium royal dashboard screen for Nivetha Catering customers.
+/// Fresh emerald & champagne gold dashboard screen for Nivetha Catering customers.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -15,6 +15,15 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   static const int _featuredLimit = 10;
+
+  // Fresh Emerald & Warm Champagne Gold Palette
+  static const Color _forestEmerald = Color(0xFF144536);
+  static const Color _deepForest = Color(0xFF0C2E24);
+  static const Color _champagneGold = Color(0xFFD9A441);
+  static const Color _softIvory = Color(0xFFFBF9F5);
+  static const Color _warmSandBorder = Color(0xFFE5DEC9);
+  static const Color _inkDark = Color(0xFF1A2421);
+  static const Color _inkMuted = Color(0xFF5A6863);
 
   final FoodService _foodService = FoodService();
   final AuthService _authService = AuthService();
@@ -68,23 +77,24 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundSandal,
+      backgroundColor: _softIvory,
       appBar: AppBar(
-        backgroundColor: AppTheme.primaryCrimson,
+        backgroundColor: _forestEmerald,
+        foregroundColor: Colors.white,
+        elevation: 0,
         titleSpacing: 16,
         title: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppTheme.primaryDeepWine,
+                color: _deepForest,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.royalGold, width: 1.4),
-                boxShadow: AppTheme.goldGlowShadow,
+                border: Border.all(color: _champagneGold, width: 1.4),
               ),
               child: const Icon(
                 Icons.restaurant_rounded,
-                color: AppTheme.royalGold,
+                color: _champagneGold,
                 size: 20,
               ),
             ),
@@ -102,20 +112,20 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
                       fontSize: 16,
-                      letterSpacing: 1.1,
+                      letterSpacing: 1.0,
                     ),
                   ),
                   const SizedBox(height: 1),
                   Text(
                     _customer != null
-                        ? 'Vanakkam, ${_customer!.name.split(' ').first} 🙏'
-                        : 'Authentic Grand Feasts',
+                        ? 'Vanakkam, ${_customer!.name.split(' ').first}'
+                        : 'Bespoke Event Catering',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: AppTheme.softChampagne,
+                      color: Color(0xFFF6E7C1),
                     ),
                   ),
                 ],
@@ -128,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
             tooltip: 'View Food Menu',
             icon: const Icon(
               Icons.restaurant_menu_rounded,
-              color: AppTheme.royalGold,
+              color: _champagneGold,
             ),
             onPressed: () => Navigator.pushNamed(context, '/menu'),
           ),
@@ -136,7 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
             tooltip: 'My Bookings',
             icon: const Icon(
               Icons.calendar_month_rounded,
-              color: AppTheme.royalGold,
+              color: _champagneGold,
             ),
             onPressed: () => Navigator.pushNamed(context, '/my-bookings'),
           ),
@@ -144,8 +154,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       body: RefreshIndicator(
-        color: AppTheme.primaryCrimson,
-        backgroundColor: AppTheme.surfaceWhite,
+        color: _forestEmerald,
+        backgroundColor: Colors.white,
         onRefresh: () async {
           _loadCustomerInfo();
           _reloadFoods();
@@ -159,20 +169,24 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Royal Hero Event Banner Card
+              // Emerald & Gold Invitation Hero Card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(22),
                 decoration: BoxDecoration(
-                  gradient: AppTheme.royalHeaderGradient,
+                  gradient: const LinearGradient(
+                    colors: [_forestEmerald, Color(0xFF1E634D)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: AppTheme.royalGold.withValues(alpha: 0.65),
+                    color: _champagneGold.withValues(alpha: 0.75),
                     width: 1.4,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.primaryCrimson.withValues(alpha: 0.32),
+                      color: _deepForest.withValues(alpha: 0.25),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),
@@ -187,10 +201,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: AppTheme.primaryDeepWine.withValues(alpha: 0.7),
+                        color: _deepForest.withValues(alpha: 0.75),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: AppTheme.royalGold.withValues(alpha: 0.7),
+                          color: _champagneGold.withValues(alpha: 0.7),
                           width: 1,
                         ),
                       ),
@@ -199,17 +213,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           Icon(
                             Icons.auto_awesome_rounded,
-                            color: AppTheme.royalGold,
+                            color: _champagneGold,
                             size: 14,
                           ),
                           SizedBox(width: 6),
                           Flexible(
                             child: Text(
-                              'ROYAL SOUTH INDIAN FEASTS',
+                              'BANANA LEAF HOSPITALITY',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: AppTheme.softChampagne,
+                                color: Color(0xFFF6E7C1),
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 0.9,
@@ -221,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 14),
                     const Text(
-                      'Traditional Grand Feasts\nFor Every Celebration',
+                      'Warm Feasts Crafted\nFor Your Special Day',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 22,
@@ -234,41 +248,34 @@ class _HomeScreenState extends State<HomeScreen> {
                     const Text(
                       'Weddings, Engagements, Housewarmings, Corporate Banquets & Family Functions.',
                       style: TextStyle(
-                        color: AppTheme.softChampagne,
+                        color: Color(0xFFE6F0EC),
                         fontSize: 13,
                         height: 1.4,
                       ),
                     ),
                     const SizedBox(height: 20),
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.goldAccentGradient,
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: AppTheme.goldGlowShadow,
-                      ),
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          foregroundColor: AppTheme.primaryDeepWine,
-                          shadowColor: Colors.transparent,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 13,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _champagneGold,
+                        foregroundColor: _deepForest,
+                        elevation: 4,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 13,
                         ),
-                        onPressed: () =>
-                            Navigator.pushNamed(context, '/create-booking'),
-                        icon: const Icon(Icons.calendar_month_rounded, size: 20),
-                        label: const Text(
-                          'Book Catering Event',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14,
-                            letterSpacing: 0.3,
-                          ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: () =>
+                          Navigator.pushNamed(context, '/create-booking'),
+                      icon: const Icon(Icons.calendar_month_rounded, size: 20),
+                      label: const Text(
+                        'Book Catering Event',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          letterSpacing: 0.3,
                         ),
                       ),
                     ),
@@ -285,8 +292,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _buildQuickActionCard(
                       icon: Icons.menu_book_rounded,
                       title: 'Explore Menu',
-                      subtitle: 'Browse signature dishes',
-                      accentColor: AppTheme.bananaLeafGreen,
+                      subtitle: 'Browse dishes',
+                      accentColor: _forestEmerald,
                       onTap: () => Navigator.pushNamed(context, '/menu'),
                     ),
                   ),
@@ -296,7 +303,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       icon: Icons.assignment_turned_in_rounded,
                       title: 'My Bookings',
                       subtitle: 'Track event status',
-                      accentColor: AppTheme.primaryCrimson,
+                      accentColor: const Color(0xFFB46916),
                       onTap: () => Navigator.pushNamed(context, '/my-bookings'),
                     ),
                   ),
@@ -322,7 +329,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       icon: Icons.favorite_rounded,
                       title: 'Weddings',
                       guestRange: '300 - 5000+ Guests',
-                      accentColor: AppTheme.primaryCrimson,
+                      accentColor: _forestEmerald,
                       onTap: () =>
                           Navigator.pushNamed(context, '/create-booking'),
                     ),
@@ -330,7 +337,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       icon: Icons.celebration_rounded,
                       title: 'Engagements',
                       guestRange: '100 - 800 Guests',
-                      accentColor: AppTheme.warmSaffron,
+                      accentColor: const Color(0xFFB46916),
                       onTap: () =>
                           Navigator.pushNamed(context, '/create-booking'),
                     ),
@@ -338,7 +345,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       icon: Icons.cake_rounded,
                       title: 'Birthdays',
                       guestRange: '50 - 300 Guests',
-                      accentColor: AppTheme.marigoldAmber,
+                      accentColor: const Color(0xFF9C4221),
                       onTap: () =>
                           Navigator.pushNamed(context, '/create-booking'),
                     ),
@@ -346,7 +353,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       icon: Icons.home_rounded,
                       title: 'Housewarming',
                       guestRange: '50 - 400 Guests',
-                      accentColor: AppTheme.bananaLeafGreen,
+                      accentColor: const Color(0xFF1E634D),
                       onTap: () =>
                           Navigator.pushNamed(context, '/create-booking'),
                     ),
@@ -354,7 +361,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       icon: Icons.business_center_rounded,
                       title: 'Corporate',
                       guestRange: '100 - 1500 Guests',
-                      accentColor: AppTheme.royalTeal,
+                      accentColor: const Color(0xFF1D4E56),
                       onTap: () =>
                           Navigator.pushNamed(context, '/create-booking'),
                     ),
@@ -364,7 +371,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 28),
 
-              // Featured Delicacies Section (Photo-rich, Zero Price Display)
+              // Featured Delicacies Section (Live Owner Items Only, Zero Price Display)
               _buildSectionHeader(
                 title: 'Signature Delicacies',
                 actionLabel: 'Full Menu',
@@ -380,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       height: 210,
                       child: Center(
                         child: CircularProgressIndicator(
-                          color: AppTheme.primaryCrimson,
+                          color: _forestEmerald,
                         ),
                       ),
                     );
@@ -391,10 +398,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: AppTheme.surfaceWhite,
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(
-                          color: AppTheme.spiceRed.withValues(alpha: 0.3),
+                          color: AppTheme.spiceRed.withValues(alpha: 0.35),
                         ),
                       ),
                       child: Column(
@@ -410,7 +417,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               fontSize: 13,
-                              color: AppTheme.textMuted,
+                              color: _inkMuted,
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -430,14 +437,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: AppTheme.surfaceWhite,
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: AppTheme.borderChampagne),
+                        border: Border.all(color: _warmSandBorder),
                       ),
                       child: const Center(
                         child: Text(
-                          'No signature dishes available right now.',
-                          style: TextStyle(color: AppTheme.textMuted),
+                          'No dishes added yet. Items added by Nivetha Catering will appear here.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: _inkMuted),
                         ),
                       ),
                     );
@@ -460,17 +468,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 30),
 
-              // Why Choose Nivetha Catering Luxury Card
+              // Why Choose Nivetha Catering Card
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppTheme.surfaceWhite,
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(
-                    color: AppTheme.royalGold.withValues(alpha: 0.55),
+                    color: _champagneGold.withValues(alpha: 0.65),
                     width: 1.2,
                   ),
-                  boxShadow: AppTheme.cardShadow,
+                  boxShadow: [
+                    BoxShadow(
+                      color: _deepForest.withValues(alpha: 0.05),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -480,12 +494,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         Container(
                           padding: const EdgeInsets.all(9),
                           decoration: BoxDecoration(
-                            gradient: AppTheme.royalHeaderGradient,
+                            color: _forestEmerald,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(
                             Icons.verified_rounded,
-                            color: AppTheme.royalGold,
+                            color: _champagneGold,
                             size: 20,
                           ),
                         ),
@@ -495,18 +509,18 @@ class _HomeScreenState extends State<HomeScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'The Nivetha Royal Promise',
+                                'The Nivetha Promise',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
-                                  color: AppTheme.textEspresso,
+                                  color: _inkDark,
                                 ),
                               ),
                               Text(
-                                'Excellence in every leaf & platter',
+                                'Warmth & care in every serving',
                                 style: TextStyle(
                                   fontSize: 11.5,
-                                  color: AppTheme.textMuted,
+                                  color: _inkMuted,
                                 ),
                               ),
                             ],
@@ -516,25 +530,25 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 14),
-                      child: Divider(height: 1),
+                      child: Divider(height: 1, color: _warmSandBorder),
                     ),
                     _buildPromiseRow(
                       Icons.eco_rounded,
-                      AppTheme.bananaLeafGreen,
+                      _forestEmerald,
                       'Farm-Fresh & Pure Ingredients',
                       'Handpicked vegetables, aromatic spices & pure cow ghee.',
                     ),
                     const SizedBox(height: 14),
                     _buildPromiseRow(
                       Icons.groups_rounded,
-                      AppTheme.primaryCrimson,
+                      const Color(0xFFB46916),
                       'Dedicated Hospitality Crew',
                       'Courteous serving staff, buffet supervisors & master chefs.',
                     ),
                     const SizedBox(height: 14),
                     _buildPromiseRow(
                       Icons.alarm_on_rounded,
-                      AppTheme.warmSaffron,
+                      const Color(0xFF1D4E56),
                       'Punctual & Hygienic Setup',
                       'On-time venue setup, sanitized live counters & spotless cutlery.',
                     ),
@@ -559,7 +573,7 @@ class _HomeScreenState extends State<HomeScreen> {
           width: 4,
           height: 18,
           decoration: BoxDecoration(
-            color: AppTheme.royalGold,
+            color: _champagneGold,
             borderRadius: BorderRadius.circular(4),
           ),
         ),
@@ -572,7 +586,7 @@ class _HomeScreenState extends State<HomeScreen> {
             style: const TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 18,
-              color: AppTheme.textEspresso,
+              color: _inkDark,
               letterSpacing: -0.2,
             ),
           ),
@@ -588,7 +602,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 actionLabel,
                 style: const TextStyle(
-                  color: AppTheme.primaryCrimson,
+                  color: _forestEmerald,
                   fontWeight: FontWeight.w700,
                   fontSize: 13,
                 ),
@@ -597,7 +611,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const Icon(
                 Icons.arrow_forward_ios_rounded,
                 size: 12,
-                color: AppTheme.primaryCrimson,
+                color: _forestEmerald,
               ),
             ],
           ),
@@ -619,10 +633,16 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
         decoration: BoxDecoration(
-          color: AppTheme.surfaceWhite,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppTheme.borderChampagne, width: 1.2),
-          boxShadow: AppTheme.cardShadow,
+          border: Border.all(color: _warmSandBorder, width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: _deepForest.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           children: [
@@ -646,7 +666,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: const TextStyle(
                       fontWeight: FontWeight.w800,
                       fontSize: 14,
-                      color: AppTheme.textEspresso,
+                      color: _inkDark,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -656,7 +676,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 11,
-                      color: AppTheme.textMuted,
+                      color: _inkMuted,
                     ),
                   ),
                 ],
@@ -682,10 +702,16 @@ class _HomeScreenState extends State<HomeScreen> {
         margin: const EdgeInsets.only(right: 12),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppTheme.surfaceWhite,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppTheme.borderChampagne, width: 1.1),
-          boxShadow: AppTheme.cardShadow,
+          border: Border.all(color: _warmSandBorder, width: 1.1),
+          boxShadow: [
+            BoxShadow(
+              color: _deepForest.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -706,7 +732,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: const TextStyle(
                 fontWeight: FontWeight.w800,
                 fontSize: 14.5,
-                color: AppTheme.textEspresso,
+                color: _inkDark,
               ),
             ),
             const SizedBox(height: 4),
@@ -716,7 +742,7 @@ class _HomeScreenState extends State<HomeScreen> {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 11.5,
-                color: AppTheme.textMuted,
+                color: _inkMuted,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -728,7 +754,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildFeaturedFoodCard(BuildContext context, FoodModel food) {
     final dietaryColor =
-        food.isVegetarian ? AppTheme.bananaLeafGreen : AppTheme.spiceRed;
+        food.isVegetarian ? const Color(0xFF1E7E48) : const Color(0xFFC62828);
 
     return InkWell(
       onTap: () => Navigator.pushNamed(context, '/menu'),
@@ -736,22 +762,28 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         width: 192,
         decoration: BoxDecoration(
-          color: AppTheme.surfaceWhite,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppTheme.borderChampagne, width: 1.1),
-          boxShadow: AppTheme.cardShadow,
+          border: Border.all(color: _warmSandBorder, width: 1.1),
+          boxShadow: [
+            BoxShadow(
+              color: _deepForest.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // HD Food Photo Header (No Price Tag)
+            // Food Photo Header (No Price Tag)
             Stack(
               children: [
                 Container(
                   height: 122,
                   width: double.infinity,
                   decoration: const BoxDecoration(
-                    color: AppTheme.surfaceTint,
+                    color: _softIvory,
                     borderRadius: BorderRadius.vertical(
                       top: Radius.circular(19),
                     ),
@@ -768,8 +800,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Icon(
                                 Icons.restaurant_rounded,
                                 size: 38,
-                                color: AppTheme.primaryCrimson
-                                    .withValues(alpha: 0.35),
+                                color: _forestEmerald.withValues(alpha: 0.35),
                               ),
                             ),
                           ),
@@ -778,12 +809,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Icon(
                             Icons.restaurant_rounded,
                             size: 38,
-                            color:
-                                AppTheme.primaryCrimson.withValues(alpha: 0.35),
+                            color: _forestEmerald.withValues(alpha: 0.35),
                           ),
                         ),
                 ),
-                // Subtle bottom vignette for visual depth
                 Positioned.fill(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -793,7 +822,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       gradient: LinearGradient(
                         colors: [
                           Colors.transparent,
-                          Colors.black.withValues(alpha: 0.28),
+                          Colors.black.withValues(alpha: 0.25),
                         ],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
@@ -801,7 +830,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-                // Authentic Indian Veg / Non-Veg Square Badge
                 Positioned(
                   top: 10,
                   left: 10,
@@ -828,7 +856,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-                // Royal Category Pill
                 Positioned(
                   top: 10,
                   right: 10,
@@ -838,17 +865,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryDeepWine.withValues(alpha: 0.85),
+                      color: _deepForest.withValues(alpha: 0.88),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: AppTheme.royalGold.withValues(alpha: 0.6),
+                        color: _champagneGold.withValues(alpha: 0.65),
                         width: 0.8,
                       ),
                     ),
                     child: Text(
                       food.formattedCategory,
                       style: const TextStyle(
-                        color: AppTheme.softChampagne,
+                        color: Color(0xFFF6E7C1),
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                       ),
@@ -857,7 +884,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            // Dish Title & Description
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
@@ -871,7 +897,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: const TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 14,
-                        color: AppTheme.textEspresso,
+                        color: _inkDark,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -879,12 +905,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Text(
                         food.description.isNotEmpty
                             ? food.description
-                            : 'Prepared fresh for grand celebrations.',
+                            : 'Event Special • Prepared fresh for celebrations.',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 11.5,
-                          color: AppTheme.textMuted,
+                          color: _inkMuted,
                           height: 1.3,
                         ),
                       ),
@@ -926,7 +952,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: const TextStyle(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textEspresso,
+                  color: _inkDark,
                 ),
               ),
               const SizedBox(height: 2),
@@ -934,7 +960,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 desc,
                 style: const TextStyle(
                   fontSize: 12,
-                  color: AppTheme.textMuted,
+                  color: _inkMuted,
                   height: 1.35,
                 ),
               ),

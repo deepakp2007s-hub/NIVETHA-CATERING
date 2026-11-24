@@ -4,7 +4,8 @@ import '../../../data/models/food_model.dart';
 import '../../../data/services/booking_service.dart';
 import '../../menu/screens/menu_screen.dart';
 
-/// Comprehensive event catering booking creation screen.
+/// Comprehensive event catering booking creation screen with warm royal maroon &
+/// saffron gold catering design.
 class CreateBookingScreen extends StatefulWidget {
   final List<FoodModel>? preSelectedFoods;
 
@@ -15,6 +16,14 @@ class CreateBookingScreen extends StatefulWidget {
 }
 
 class _CreateBookingScreenState extends State<CreateBookingScreen> {
+  static const Color _maroon = Color(0xFF6B1D2F);
+  static const Color _maroonLight = Color(0xFF8E2940);
+  static const Color _gold = Color(0xFFD49A3A);
+  static const Color _cream = Color(0xFFFAF7F2);
+  static const Color _cardTint = Color(0xFFFDFBF7);
+  static const Color _borderTone = Color(0xFFE8DFD3);
+  static const Color _charcoal = Color(0xFF1E1E1E);
+
   final _formKey = GlobalKey<FormState>();
   final _bookingService = BookingService();
 
@@ -88,6 +97,19 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
       initialDate: _eventDate.isBefore(today) ? today : _eventDate,
       firstDate: today,
       lastDate: today.add(const Duration(days: 730)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: _maroon,
+              onPrimary: Colors.white,
+              secondary: _gold,
+              surface: _cream,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
 
     if (picked != null) {
@@ -99,6 +121,19 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
     final picked = await showTimePicker(
       context: context,
       initialTime: _eventTime,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: _maroon,
+              onPrimary: Colors.white,
+              secondary: _gold,
+              surface: _cream,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
 
     if (picked != null) {
@@ -143,7 +178,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: const Color(0xFFC62828),
+        backgroundColor: const Color(0xFF9E1B24),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -203,8 +238,10 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(22),
+            side: const BorderSide(color: _borderTone),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -212,13 +249,13 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFE8F5E9),
+                  decoration: BoxDecoration(
+                    color: _gold.withValues(alpha: 0.16),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.check_circle_rounded,
-                    color: Color(0xFF2E7D32),
+                    Icons.verified_rounded,
+                    color: _maroon,
                     size: 48,
                   ),
                 ),
@@ -228,33 +265,37 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1F2937),
+                    fontWeight: FontWeight.w800,
+                    color: _charcoal,
                   ),
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Your request for ${_functionType.toLowerCase()} catering on ${created.formattedDate} has been registered. Our culinary manager will review and confirm shortly.',
+                  'Your request for ${_functionType.toLowerCase()} catering on ${created.formattedDate} has been registered. Our culinary team will review and confirm shortly.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.grey.shade600,
-                    height: 1.4,
+                    color: Colors.grey.shade700,
+                    height: 1.45,
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 22),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      backgroundColor: _maroon,
                       foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     onPressed: () => Navigator.pop(ctx),
-                    child: const Text('View My Bookings'),
+                    child: const Text(
+                      'View My Bookings',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
               ],
@@ -275,11 +316,70 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
     }
   }
 
+  Widget _buildHeaderBanner() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [_maroon, _maroonLight],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: _maroon.withValues(alpha: 0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: _gold.withValues(alpha: 0.22),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _gold, width: 0.8),
+            ),
+            child: const Text(
+              'NIVETHA CATERING INVITATION',
+              style: TextStyle(
+                color: Color(0xFFFFE5B4),
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Plan Your Celebration Feast',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Share your event details and dishes for our team to prepare.',
+            style: TextStyle(
+              color: Color(0xFFF6E6E9),
+              fontSize: 12.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _pickerBox({
     required IconData icon,
     required String text,
     required VoidCallback onTap,
-    required Color primaryColor,
   }) {
     return InkWell(
       onTap: onTap,
@@ -287,20 +387,23 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFFF9FAFB),
+          color: _cardTint,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(color: _borderTone),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: primaryColor),
+            Icon(icon, size: 18, color: _maroon),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 text,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: _charcoal,
+                ),
               ),
             ),
           ],
@@ -311,15 +414,15 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
-
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: _cream,
       appBar: AppBar(
+        backgroundColor: _maroon,
+        foregroundColor: Colors.white,
+        elevation: 0,
         title: const Text(
           'Book Catering Event',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
       body: SafeArea(
@@ -330,6 +433,9 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _buildHeaderBanner(),
+                const SizedBox(height: 20),
+
                 // Section 1: Event Information
                 _buildSectionCard(
                   title: '1. Event & Occasion Details',
@@ -337,12 +443,17 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                   children: [
                     const Text(
                       'Function / Celebration Type',
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: _charcoal,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
                       isExpanded: true,
                       initialValue: _functionType,
+                      dropdownColor: Colors.white,
                       decoration: _inputDecoration('Select function type'),
                       items: _functionTypes.map((type) {
                         return DropdownMenuItem(
@@ -369,6 +480,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                                 style: TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
+                                  color: _charcoal,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -376,7 +488,6 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                                 icon: Icons.calendar_today_rounded,
                                 text: _formatDate(_eventDate),
                                 onTap: _pickDate,
-                                primaryColor: primaryColor,
                               ),
                             ],
                           ),
@@ -391,6 +502,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                                 style: TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
+                                  color: _charcoal,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -398,7 +510,6 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                                 icon: Icons.access_time_rounded,
                                 text: _formatTimeOfDay(_eventTime),
                                 onTap: _pickTime,
-                                primaryColor: primaryColor,
                               ),
                             ],
                           ),
@@ -409,7 +520,11 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
 
                     const Text(
                       'Venue Address / Location',
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: _charcoal,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     TextFormField(
@@ -443,7 +558,11 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                   children: [
                     const Text(
                       'Expected Number of Guests (Persons)',
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: _charcoal,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     TextFormField(
@@ -472,10 +591,27 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [50, 100, 200, 350, 500, 1000].map((count) {
+                          final isSelected =
+                              _guestCountController.text.trim() ==
+                                  count.toString();
                           return Padding(
                             padding: const EdgeInsets.only(right: 8.0),
                             child: ActionChip(
-                              label: Text('$count guests'),
+                              backgroundColor: isSelected
+                                  ? _maroon.withValues(alpha: 0.12)
+                                  : _cardTint,
+                              side: BorderSide(
+                                color: isSelected ? _maroon : _borderTone,
+                              ),
+                              label: Text(
+                                '$count guests',
+                                style: TextStyle(
+                                  color: isSelected ? _maroon : _charcoal,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                ),
+                              ),
                               onPressed: () {
                                 setState(() {
                                   _guestCountController.text = count.toString();
@@ -501,12 +637,14 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                                 style: TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
+                                  color: _charcoal,
                                 ),
                               ),
                               const SizedBox(height: 8),
                               DropdownButtonFormField<String>(
                                 isExpanded: true,
                                 initialValue: _mealType,
+                                dropdownColor: Colors.white,
                                 decoration: _inputDecoration(''),
                                 items: _mealTypes.map((type) {
                                   return DropdownMenuItem(
@@ -536,12 +674,14 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                                 style: TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
+                                  color: _charcoal,
                                 ),
                               ),
                               const SizedBox(height: 8),
                               DropdownButtonFormField<String>(
                                 isExpanded: true,
                                 initialValue: _foodPreference,
+                                dropdownColor: Colors.white,
                                 decoration: _inputDecoration(''),
                                 items: _foodPreferences.map((pref) {
                                   return DropdownMenuItem(
@@ -567,7 +707,11 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
 
                     const Text(
                       'Services Required',
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: _charcoal,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     SwitchListTile(
@@ -575,18 +719,24 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                       contentPadding: EdgeInsets.zero,
                       title: const Text(
                         'Full Catering Service (Setup, Tables, Vessels)',
+                        style: TextStyle(fontSize: 13.5, color: _charcoal),
                       ),
                       value: _cateringServiceRequired,
-                      activeThumbColor: primaryColor,
+                      activeThumbColor: _maroon,
+                      activeTrackColor: _gold.withValues(alpha: 0.45),
                       onChanged: (val) =>
                           setState(() => _cateringServiceRequired = val),
                     ),
                     SwitchListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Live Cooking Service at Venue'),
+                      title: const Text(
+                        'Live Cooking Service at Venue',
+                        style: TextStyle(fontSize: 13.5, color: _charcoal),
+                      ),
                       value: _cookingService,
-                      activeThumbColor: primaryColor,
+                      activeThumbColor: _maroon,
+                      activeTrackColor: _gold.withValues(alpha: 0.45),
                       onChanged: (val) => setState(() => _cookingService = val),
                     ),
                     SwitchListTile(
@@ -594,9 +744,11 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                       contentPadding: EdgeInsets.zero,
                       title: const Text(
                         'Uniformed Serving Staff & Buffet Captains',
+                        style: TextStyle(fontSize: 13.5, color: _charcoal),
                       ),
                       value: _servingStaffRequired,
-                      activeThumbColor: primaryColor,
+                      activeThumbColor: _maroon,
+                      activeTrackColor: _gold.withValues(alpha: 0.45),
                       onChanged: (val) =>
                           setState(() => _servingStaffRequired = val),
                     ),
@@ -619,12 +771,17 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 13,
+                            color: _charcoal,
                           ),
                         ),
                         TextButton.icon(
                           onPressed: _openMenuSelector,
+                          style: TextButton.styleFrom(foregroundColor: _maroon),
                           icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Pick from Menu'),
+                          label: const Text(
+                            'Pick from Menu',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
                         ),
                       ],
                     ),
@@ -633,30 +790,33 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF7ED),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.orange.shade200),
+                          color: _cream,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: _gold.withValues(alpha: 0.6)),
                         ),
                         child: Center(
                           child: Column(
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.restaurant_outlined,
-                                color: primaryColor,
+                                color: _maroon,
                                 size: 36,
                               ),
                               const SizedBox(height: 8),
                               const Text(
                                 'No dishes selected yet',
-                                style: TextStyle(fontWeight: FontWeight.bold),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: _charcoal,
+                                ),
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Tap "Pick from Menu" above to choose authentic dishes.',
+                                'Tap "Pick from Menu" above to choose dishes added by Nivetha Catering.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey.shade600,
+                                  color: Colors.grey.shade700,
                                 ),
                               ),
                             ],
@@ -669,6 +829,8 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                         runSpacing: 8,
                         children: _selectedFoods.map((food) {
                           return Chip(
+                            backgroundColor: _cream,
+                            side: const BorderSide(color: _borderTone),
                             avatar: Icon(
                               Icons.circle,
                               size: 10,
@@ -678,8 +840,13 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                             ),
                             label: Text(
                               food.name,
-                              style: const TextStyle(fontSize: 12),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: _charcoal,
+                              ),
                             ),
+                            deleteIconColor: _maroon,
                             onDeleted: () {
                               setState(() {
                                 _selectedFoods.removeWhere((f) => f.id == food.id);
@@ -716,7 +883,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                   height: 54,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
+                      backgroundColor: _maroon,
                       foregroundColor: Colors.white,
                       elevation: 4,
                       shape: RoundedRectangleBorder(
@@ -743,14 +910,15 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                                 Icon(
                                   Icons.check_circle_outline_rounded,
                                   size: 22,
+                                  color: _gold,
                                 ),
                                 SizedBox(width: 10),
                                 Text(
                                   'Submit Catering Request',
                                   style: TextStyle(
                                     fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.4,
                                   ),
                                 ),
                               ],
@@ -777,10 +945,10 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: _borderTone),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: _maroon.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -791,21 +959,28 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
-              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: _maroon.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(icon, color: _maroon, size: 19),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   title,
                   style: const TextStyle(
                     fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1F2937),
+                    fontWeight: FontWeight.w800,
+                    color: _charcoal,
                   ),
                 ),
               ),
             ],
           ),
-          const Divider(height: 24),
+          const Divider(height: 24, color: _borderTone),
           ...children,
         ],
       ),
@@ -815,24 +990,24 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
   InputDecoration _inputDecoration(String hint, {IconData? prefixIcon}) {
     return InputDecoration(
       hintText: hint,
-      prefixIcon: prefixIcon != null
-          ? Icon(prefixIcon, color: Theme.of(context).colorScheme.primary)
-          : null,
+      hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+      prefixIcon:
+          prefixIcon != null ? Icon(prefixIcon, color: _maroon) : null,
       filled: true,
-      fillColor: const Color(0xFFF9FAFB),
+      fillColor: _cardTint,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
+        borderSide: const BorderSide(color: _borderTone),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
+        borderSide: const BorderSide(color: _borderTone),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(
-          color: Theme.of(context).colorScheme.primary,
+        borderSide: const BorderSide(
+          color: _maroon,
           width: 1.8,
         ),
       ),
