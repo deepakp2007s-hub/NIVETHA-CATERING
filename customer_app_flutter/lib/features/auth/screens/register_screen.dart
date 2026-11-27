@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../data/services/auth_service.dart';
 
 /// Customer registration screen for Nivetha Catering styled in the
@@ -25,6 +26,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   static const Color _inkMuted = Color(0xFF5A6863);
   static const Color _errorRed = Color(0xFFC62828);
 
+  static const String _supportPhoneDisplay = '+91 88076 69855';
+  static const String _supportPhoneNumber = '918807669855';
+
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -46,6 +50,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _messageSupport() async {
+    const prefilledText =
+        'Hello Nivetha Catering, I need help with registration / event booking.';
+    final smsUri = Uri(
+      scheme: 'sms',
+      path: '+$_supportPhoneNumber',
+      queryParameters: {'body': prefilledText},
+    );
+
+    if (await canLaunchUrl(smsUri)) {
+      await launchUrl(smsUri);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Message us at: $_supportPhoneDisplay'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _handleRegister() async {
@@ -170,6 +195,98 @@ class _RegisterScreenState extends State<RegisterScreen> {
         fontSize: 13,
         fontWeight: FontWeight.w700,
         color: _inkDark,
+      ),
+    );
+  }
+
+  Widget _buildCustomerSupportCard() {
+    return InkWell(
+      onTap: _messageSupport,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _champagneGold.withValues(alpha: 0.65),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _deepForest.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _forestEmerald.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.support_agent_rounded,
+                color: _forestEmerald,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Customer Service (Message Only)',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: _inkMuted,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    _supportPhoneDisplay,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: _inkDark,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: _forestEmerald,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.message_rounded,
+                    size: 15,
+                    color: _champagneGold,
+                  ),
+                  SizedBox(width: 5),
+                  Text(
+                    'Message',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -581,6 +698,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ],
                           ),
                         ),
+
+                        const SizedBox(height: 16),
+
+                        // Customer Service Card below Register Card
+                        _buildCustomerSupportCard(),
                       ],
                     ),
                   ),

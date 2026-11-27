@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/customer_model.dart';
-import '../../../data/services/auth_service.dart';
 import '../../../data/services/profile_service.dart';
 
-/// Customer profile screen showing personal details, catering contact, and logout workflow
-/// styled in the Forest Emerald & Warm Champagne Gold theme.
+/// Customer profile screen showing personal details, catering navigation,
+/// and message-only support styled in the Forest Emerald & Warm Champagne Gold theme.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -23,8 +23,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const Color _inkMuted = Color(0xFF5A6863);
   static const Color _warmAmber = Color(0xFFB46916);
 
+  static const String _supportPhoneDisplay = '+91 88076 69855';
+  static const String _supportPhoneNumber = '918807669855';
+
   final ProfileService _profileService = ProfileService();
-  final AuthService _authService = AuthService();
 
   late Future<CustomerModel> _profileFuture;
 
@@ -38,6 +40,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() {
       _profileFuture = _profileService.getProfile();
     });
+  }
+
+  Future<void> _messageSupport() async {
+    const prefilledText =
+        'Hello Nivetha Catering, I need help with my profile / event booking.';
+    final smsUri = Uri(
+      scheme: 'sms',
+      path: '+$_supportPhoneNumber',
+      queryParameters: {'body': prefilledText},
+    );
+
+    if (await canLaunchUrl(smsUri)) {
+      await launchUrl(smsUri);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Message us at: $_supportPhoneDisplay'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _showEditProfileDialog(CustomerModel customer) async {
@@ -232,54 +255,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Future<void> _handleLogout() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: _warmSandBorder),
-        ),
-        title: const Text(
-          'Sign Out',
-          style: TextStyle(fontWeight: FontWeight.w800, color: _inkDark),
-        ),
-        content: const Text(
-          'Are you sure you want to log out of your Nivetha Catering account?',
-          style: TextStyle(color: _inkMuted, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: _forestEmerald, fontWeight: FontWeight.w700),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: const Text('Sign Out'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    await _authService.logout();
-    if (mounted) {
-      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -297,11 +272,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             tooltip: 'Refresh',
             icon: const Icon(Icons.refresh_rounded, color: _champagneGold),
             onPressed: _loadProfile,
-          ),
-          IconButton(
-            tooltip: 'Sign Out',
-            icon: const Icon(Icons.logout_rounded, color: _champagneGold),
-            onPressed: _handleLogout,
           ),
         ],
       ),
@@ -354,7 +324,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 id: '',
                 name: 'Valued Customer',
                 email: 'customer@example.com',
-                phone: '+91 98765 43210',
+                phone: _supportPhoneDisplay,
               );
 
           return RefreshIndicator(
@@ -544,20 +514,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Column(
                       children: [
                         _buildProfileTile(
-                          icon: Icons.support_agent_rounded,
+                          icon: Icons.message_rounded,
                           iconColor: _warmAmber,
-                          title: 'Customer Support Helpline',
-                          subtitle: '+91 98765 43210 (Event Assistance)',
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Support line: +91 98765 43210',
-                                ),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          },
+                          title: 'Customer Support (Message Only)',
+                          subtitle: '$_supportPhoneDisplay (Send SMS)',
+                          onTap: _messageSupport,
                         ),
                         const Divider(height: 1, color: _warmSandBorder),
                         _buildProfileTile(
@@ -587,34 +548,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                   ),
-
-                  const SizedBox(height: 24),
-
-                  // Sign Out Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: TextButton.icon(
-                      style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFFC62828),
-                        backgroundColor: Colors.white,
-                        side: const BorderSide(color: _warmSandBorder),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      onPressed: _handleLogout,
-                      icon: const Icon(Icons.logout_rounded),
-                      label: const Text(
-                        'Log Out of Customer App',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
