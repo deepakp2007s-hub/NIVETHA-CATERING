@@ -1,6 +1,9 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'core/theme/app_theme.dart';
+import 'data/services/notification_service.dart';
 import 'data/services/auth_service.dart';
 import 'features/auth/screens/register_screen.dart';
 import 'features/booking/screens/create_booking_screen.dart';
@@ -10,8 +13,13 @@ import 'features/menu/screens/menu_screen.dart';
 import 'features/my_bookings/screens/my_bookings_screen.dart';
 import 'features/profile/screens/profile_screen.dart';
 
-void main() {
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  await NotificationService.instance.initialize(rootNavigatorKey);
   runApp(const NivethaCateringApp());
 }
 
@@ -41,6 +49,7 @@ class _NivethaCateringAppState extends State<NivethaCateringApp> {
     final baseTheme = AppTheme.lightTheme;
 
     return MaterialApp(
+      navigatorKey: rootNavigatorKey,
       title: 'NIVETHA CATERING SERVICES',
       debugShowCheckedModeBanner: false,
       theme: baseTheme.copyWith(

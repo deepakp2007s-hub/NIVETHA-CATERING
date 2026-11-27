@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "587544029763",
+    "project_id": "nivetha-catering",
+    "storage_bucket": "nivetha-catering.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:587544029763:android:8c3e5e7a883b696f9242f6",
+        "android_client_info": {
+          "package_name": "com.example.customer_app_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCtn91VG17cz0BQ61x3kVcn0HrbHeix6S0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
