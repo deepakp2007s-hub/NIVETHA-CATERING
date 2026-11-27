@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import date, datetime, timezone
 from typing import Literal, Optional
@@ -10,7 +11,8 @@ from pymongo import ReturnDocument
 from pymongo.errors import PyMongoError
 
 from app.core.security import decode_access_token
-from app.db.mongo import customer_db
+from app.db.mongo import customer_db, owner_db
+from app.services.fcm_service import send_fcm_notification
 
 
 logger = logging.getLogger(__name__)
@@ -262,6 +264,85 @@ async def notify_safely(**kwargs) -> None:
         logger.exception("Failed to create booking notification")
 
 
+
+async def notify_owner_fcm_safely(
+    title: str,
+    body: str,
+    customer_id: str,
+    booking_id: str,
+) -> None:
+    """Push a new-booking alert to every registered owner/admin device."""
+    try:
+        cursor = owner_db["fcm_tokens"].find({
+            "role": {"$in": ["owner", "admin"]},
+            "fcm_token": {"$exists": True, "$ne": ""},
+        })
+
+        async for token_record in cursor:
+            token = token_record.get("fcm_token")
+            if not token:
+                continue
+
+            try:
+                await asyncio.to_thread(
+                    send_fcm_notification,
+                    token,
+                    title,
+                    body,
+                    {
+                        "type": "new_booking",
+                        "booking_id": booking_id,
+                        "customer_id": customer_id,
+                    },
+                )
+            except Exception:
+                logger.exception("FCM delivery failed for an owner/admin device")
+
+    except Exception:
+        # Push delivery must never change the booking API result.
+        logger.exception("Unable to load owner/admin FCM tokens")
+
+
+async def notify_customer_fcm_safely(
+    customer_id: str,
+    title: str,
+    body: str,
+    booking_id: str,
+) -> None:
+    """Push a booking-status update to the booking customer's device."""
+    try:
+        if not ObjectId.is_valid(customer_id):
+            logger.warning("Skipping customer FCM push for invalid customer ID")
+            return
+
+        customer = await customers.find_one(
+            {"_id": ObjectId(customer_id)},
+            {"fcm_token": 1},
+        )
+        token = customer.get("fcm_token") if customer else None
+        if not token:
+            return
+
+        try:
+            await asyncio.to_thread(
+                send_fcm_notification,
+                token,
+                title,
+                body,
+                {
+                    "type": "booking_status",
+                    "booking_id": booking_id,
+                    "status": title.removeprefix("Booking ").lower(),
+                },
+            )
+        except Exception:
+            logger.exception("FCM delivery failed for booking customer")
+
+    except Exception:
+        # Push delivery must never change the booking API result.
+        logger.exception("Unable to load booking customer's FCM token")
+
+
 def booking_query_for_customer(
     booking_id: str,
     customer_id: str,
@@ -391,6 +472,16 @@ async def create_booking(
             recipient_role="owner",
             title="New Catering Booking",
             message=(
+                f"{booking_data['customer_name']} submitted a new "
+                f"{booking_data['function_type']} booking."
+            ),
+            customer_id=customer_id,
+            booking_id=booking_id,
+        )
+
+        await notify_owner_fcm_safely(
+            title="New Catering Booking",
+            body=(
                 f"{booking_data['customer_name']} submitted a new "
                 f"{booking_data['function_type']} booking."
             ),
@@ -953,6 +1044,16 @@ async def update_booking_status(
                 or f"Your catering booking has been {data.status}."
             ),
             customer_id=customer_id,
+            booking_id=booking_id,
+        )
+
+        await notify_customer_fcm_safely(
+            customer_id=customer_id,
+            title=f"Booking {data.status.title()}",
+            body=(
+                data.owner_note
+                or f"Your catering booking has been {data.status}."
+            ),
             booking_id=booking_id,
         )
 
