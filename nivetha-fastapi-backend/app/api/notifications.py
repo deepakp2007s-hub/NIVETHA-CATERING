@@ -198,6 +198,7 @@ async def register_fcm_token(
                 {
                     "user_id": user_id,
                     "role": role,
+                    "platform": payload.platform,
                 },
                 {
                     "$set": {
