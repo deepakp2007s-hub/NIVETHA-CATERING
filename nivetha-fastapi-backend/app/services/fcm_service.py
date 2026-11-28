@@ -2,7 +2,7 @@ import logging
 import os
 from pathlib import Path
 from threading import Lock
-from typing import Optional
+from typing import Iterable, Optional
 
 import firebase_admin
 from firebase_admin import credentials, messaging
@@ -10,6 +10,9 @@ from firebase_admin import credentials, messaging
 
 logger = logging.getLogger("nivetha_catering.fcm")
 _INITIALIZATION_LOCK = Lock()
+DEFAULT_CREDENTIALS_FILENAME = (
+    "nivetha-catering-firebase-adminsdk-fbsvc-14ada43752.json"
+)
 
 
 def _resolve_credentials_path() -> Optional[str]:
@@ -29,15 +32,13 @@ def _resolve_credentials_path() -> Optional[str]:
             if candidate.is_file():
                 return str(candidate.resolve())
 
-    exact_filename = "nivetha-catering-firebase-adminsdk-fbsvc-14ada43752.json"
     for root in search_roots:
-        exact_candidate = root / exact_filename
+        exact_candidate = root / DEFAULT_CREDENTIALS_FILENAME
         if exact_candidate.is_file():
             return str(exact_candidate.resolve())
 
     for root in search_roots:
-        matches = sorted(root.glob("*firebase-adminsdk*.json"))
-        for match in matches:
+        for match in sorted(root.glob("*firebase-adminsdk*.json")):
             if match.is_file():
                 return str(match.resolve())
 
@@ -64,7 +65,7 @@ def _init_firebase() -> bool:
             firebase_admin.initialize_app(
                 credentials.Certificate(credential_path)
             )
-            logger.info("Firebase Admin initialized successfully.")
+            logger.info("Firebase Admin initialized using %s", credential_path)
             return True
         except Exception:
             logger.exception("Firebase Admin initialization failed.")
@@ -110,3 +111,27 @@ def send_fcm_notification(
     except Exception:
         logger.exception("Failed to send FCM push notification.")
         return None
+
+
+def send_fcm_to_tokens(
+    tokens: Iterable[Optional[str]],
+    title: str,
+    body: str,
+    data: Optional[dict[str, str]] = None,
+) -> int:
+    """Send a push notification to unique non-empty tokens and return sent count."""
+    sent_count = 0
+    seen_tokens: set[str] = set()
+
+    for raw_token in tokens:
+        if not isinstance(raw_token, str):
+            continue
+        token = raw_token.strip()
+        if not token or token in seen_tokens:
+            continue
+        seen_tokens.add(token)
+
+        if send_fcm_notification(token=token, title=title, body=body, data=data):
+            sent_count += 1
+
+    return sent_count

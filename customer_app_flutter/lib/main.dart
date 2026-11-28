@@ -41,7 +41,12 @@ class _NivethaCateringAppState extends State<NivethaCateringApp> {
   @override
   void initState() {
     super.initState();
-    _isLoggedInFuture = _authService.isLoggedIn();
+    _isLoggedInFuture = _authService.isLoggedIn().then((loggedIn) {
+      if (loggedIn) {
+        NotificationService.instance.syncTokenWithBackend();
+      }
+      return loggedIn;
+    });
   }
 
   @override

@@ -8,38 +8,17 @@ firebase.initializeApp({
   storageBucket: "nivetha-catering.firebasestorage.app",
   messagingSenderId: "587544029763",
   appId: "1:587544029763:web:c563187feed892419242f6",
-  measurementId: "G-0S9LQZZNTG"
+  measurementId: "G-0S9LQZZNTG",
 });
 
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || "Nivetha Catering";
+  const title = payload?.notification?.title || "Nivetha Catering";
   const options = {
-    body: payload.notification?.body || "புதிய அப்டேட் வந்துள்ளது",
+    body: payload?.notification?.body || "New catering booking alert",
     icon: "/vite.svg",
-    data: payload.data || {}
+    data: payload?.data || {},
   };
   self.registration.showNotification(title, options);
-});
-
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-  const targetUrl = event.notification.data?.url || "/";
-  event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if ("focus" in client) {
-          client.focus();
-          if (event.notification.data?.url) {
-            client.navigate(targetUrl);
-          }
-          return;
-        }
-      }
-      if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
-      }
-    })
-  );
 });

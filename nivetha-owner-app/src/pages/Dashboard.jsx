@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -16,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import api from "../services/api";
+import { listenForegroundNotifications } from "../firebase/notifications";
 import "./Dashboard.css";
 
 const getBookingList = (response) => {
@@ -79,18 +79,6 @@ const formatDate = (value) => {
   });
 };
 
-const formatCurrency = (value) => {
-  const amount = Number(value);
-
-  if (!Number.isFinite(amount)) return "—";
-
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
-
 const getErrorMessage = (error) => {
   const detail = error?.response?.data?.detail;
 
@@ -125,6 +113,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [liveAlert, setLiveAlert] = useState(null);
 
   const loadBookings = useCallback(async (isRefresh = false) => {
     try {
@@ -149,6 +138,23 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadBookings();
+  }, [loadBookings]);
+
+  useEffect(() => {
+    const unsubscribe = listenForegroundNotifications((payload) => {
+      const title = payload?.notification?.title || "New Booking Update";
+      const body =
+        payload?.notification?.body ||
+        "A new catering booking activity arrived.";
+      setLiveAlert({ title, body });
+      loadBookings(true);
+    });
+
+    return () => {
+      if (typeof unsubscribe === "function") {
+        unsubscribe();
+      }
+    };
   }, [loadBookings]);
 
   const stats = useMemo(() => {
@@ -291,6 +297,19 @@ export default function Dashboard() {
             {refreshing ? "Refreshing..." : "Refresh"}
           </button>
         </div>
+
+        {liveAlert && (
+          <div className="dashboard-live-banner" role="status">
+            <Sparkles size={18} />
+            <div>
+              <strong>{liveAlert.title}</strong>
+              <p>{liveAlert.body}</p>
+            </div>
+            <button type="button" onClick={() => setLiveAlert(null)}>
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {error && (
           <div className="dashboard-error" role="alert">

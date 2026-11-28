@@ -12,7 +12,7 @@ from pymongo.errors import PyMongoError
 
 from app.core.security import decode_access_token
 from app.db.mongo import customer_db, owner_db
-from app.services.fcm_service import send_fcm_notification
+from app.services.fcm_service import send_fcm_notification, send_fcm_to_tokens
 
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,7 @@ bookings = customer_db["bookings"]
 customers = customer_db["customers"]
 foods = customer_db["foods"]
 notifications = customer_db["notifications"]
+owner_fcm_tokens = owner_db["fcm_tokens"]
 
 customer_oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/api/v1/auth/customer/login"
@@ -257,90 +258,84 @@ async def create_notification(
     await notifications.insert_one(notification)
 
 
-async def notify_safely(**kwargs) -> None:
+async def dispatch_fcm_push(
+    recipient_role: str,
+    title: str,
+    message: str,
+    customer_id: Optional[str] = None,
+    booking_id: Optional[str] = None,
+    booking_status: Optional[str] = None,
+) -> None:
     try:
-        await create_notification(**kwargs)
+        payload_data = {
+            "type": "booking_status" if recipient_role == "customer" else "booking_alert",
+            "screen": "bookings",
+            "booking_id": booking_id or "",
+            "status": booking_status or "",
+        }
+
+        if recipient_role in {"owner", "admin"}:
+            cursor = owner_fcm_tokens.find(
+                {
+                    "role": {"$in": ["owner", "admin"]},
+                    "fcm_token": {"$exists": True, "$ne": ""},
+                },
+                {"fcm_token": 1},
+            )
+            tokens = [doc.get("fcm_token") async for doc in cursor]
+            await asyncio.to_thread(
+                send_fcm_to_tokens,
+                tokens=tokens,
+                title=title,
+                body=message,
+                data=payload_data,
+            )
+
+        elif recipient_role == "customer" and customer_id and ObjectId.is_valid(customer_id):
+            customer_doc = await customers.find_one(
+                {"_id": ObjectId(customer_id)},
+                {"fcm_token": 1},
+            )
+            token = (customer_doc or {}).get("fcm_token")
+            if token:
+                await asyncio.to_thread(
+                    send_fcm_notification,
+                    token=token,
+                    title=title,
+                    body=message,
+                    data=payload_data,
+                )
+    except Exception:
+        logger.exception("Failed to send FCM push notification")
+
+
+async def notify_safely(
+    recipient_role: str,
+    title: str,
+    message: str,
+    customer_id: Optional[str] = None,
+    booking_id: Optional[str] = None,
+    booking_status: Optional[str] = None,
+) -> None:
+    try:
+        await create_notification(
+            recipient_role=recipient_role,
+            title=title,
+            message=message,
+            customer_id=customer_id,
+            booking_id=booking_id,
+        )
     except Exception:
         logger.exception("Failed to create booking notification")
 
-
-
-async def notify_owner_fcm_safely(
-    title: str,
-    body: str,
-    customer_id: str,
-    booking_id: str,
-) -> None:
-    """Push a new-booking alert to every registered owner/admin device."""
-    try:
-        cursor = owner_db["fcm_tokens"].find({
-            "role": {"$in": ["owner", "admin"]},
-            "fcm_token": {"$exists": True, "$ne": ""},
-        })
-
-        async for token_record in cursor:
-            token = token_record.get("fcm_token")
-            if not token:
-                continue
-
-            try:
-                await asyncio.to_thread(
-                    send_fcm_notification,
-                    token,
-                    title,
-                    body,
-                    {
-                        "type": "new_booking",
-                        "booking_id": booking_id,
-                        "customer_id": customer_id,
-                    },
-                )
-            except Exception:
-                logger.exception("FCM delivery failed for an owner/admin device")
-
-    except Exception:
-        # Push delivery must never change the booking API result.
-        logger.exception("Unable to load owner/admin FCM tokens")
-
-
-async def notify_customer_fcm_safely(
-    customer_id: str,
-    title: str,
-    body: str,
-    booking_id: str,
-) -> None:
-    """Push a booking-status update to the booking customer's device."""
-    try:
-        if not ObjectId.is_valid(customer_id):
-            logger.warning("Skipping customer FCM push for invalid customer ID")
-            return
-
-        customer = await customers.find_one(
-            {"_id": ObjectId(customer_id)},
-            {"fcm_token": 1},
-        )
-        token = customer.get("fcm_token") if customer else None
-        if not token:
-            return
-
-        try:
-            await asyncio.to_thread(
-                send_fcm_notification,
-                token,
-                title,
-                body,
-                {
-                    "type": "booking_status",
-                    "booking_id": booking_id,
-                    "status": title.removeprefix("Booking ").lower(),
-                },
-            )
-        except Exception:
-            logger.exception("FCM delivery failed for booking customer")
-
-    except Exception:
-        # Push delivery must never change the booking API result.
-        logger.exception("Unable to load booking customer's FCM token")
+    await dispatch_fcm_push(
+        recipient_role=recipient_role,
+        title=title,
+        message=message,
+        customer_id=customer_id,
+        booking_id=booking_id,
+        booking_status=booking_status,
+    )
 
 
 def booking_query_for_customer(
@@ -477,16 +472,7 @@ async def create_booking(
             ),
             customer_id=customer_id,
             booking_id=booking_id,
-        )
-
-        await notify_owner_fcm_safely(
-            title="New Catering Booking",
-            body=(
-                f"{booking_data['customer_name']} submitted a new "
-                f"{booking_data['function_type']} booking."
-            ),
-            customer_id=customer_id,
-            booking_id=booking_id,
+            booking_status="pending",
         )
 
         saved_booking = await bookings.find_one({
@@ -630,6 +616,7 @@ async def update_my_booking(
             ),
             customer_id=customer_id,
             booking_id=booking_id,
+            booking_status="pending",
         )
 
         return {
@@ -710,6 +697,7 @@ async def cancel_booking(
             ),
             customer_id=customer_id,
             booking_id=booking_id,
+            booking_status="cancelled",
         )
 
         return {
@@ -1045,16 +1033,7 @@ async def update_booking_status(
             ),
             customer_id=customer_id,
             booking_id=booking_id,
-        )
-
-        await notify_customer_fcm_safely(
-            customer_id=customer_id,
-            title=f"Booking {data.status.title()}",
-            body=(
-                data.owner_note
-                or f"Your catering booking has been {data.status}."
-            ),
-            booking_id=booking_id,
+            booking_status=data.status,
         )
 
         return {

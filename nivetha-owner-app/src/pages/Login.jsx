@@ -1,8 +1,41 @@
-
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { registerOwnerFcmTokenWithBackend } from "../firebase/notifications";
 import "./Login.css";
+
+function resolveAuthToken(loginResult) {
+  if (typeof loginResult === "string" && loginResult.trim()) {
+    return loginResult.trim();
+  }
+  if (loginResult && typeof loginResult === "object") {
+    const direct =
+      loginResult.access_token ||
+      loginResult.token ||
+      loginResult.authToken ||
+      loginResult?.data?.access_token ||
+      loginResult?.data?.token;
+    if (typeof direct === "string" && direct.trim()) {
+      return direct.trim();
+    }
+  }
+
+  for (const key of [
+    "access_token",
+    "owner_token",
+    "staff_token",
+    "token",
+    "auth_token",
+  ]) {
+    const localVal = window.localStorage?.getItem(key);
+    if (localVal && localVal.trim()) return localVal.trim();
+
+    const sessionVal = window.sessionStorage?.getItem(key);
+    if (sessionVal && sessionVal.trim()) return sessionVal.trim();
+  }
+
+  return null;
+}
 
 export default function Login() {
   const { login, isAuthenticated } = useAuth();
@@ -40,14 +73,23 @@ export default function Login() {
     try {
       setLoading(true);
 
-      await login(email, password, role);
+      const loginResult = await login(email, password, role);
+      const authToken = resolveAuthToken(loginResult);
+
+      if (authToken) {
+        try {
+          await registerOwnerFcmTokenWithBackend(authToken);
+        } catch (pushErr) {
+          console.warn("Owner FCM token registration skipped/failed:", pushErr);
+        }
+      }
 
       navigate("/dashboard", { replace: true });
     } catch (err) {
       setError(
         err.response?.data?.detail ||
-        err.message ||
-        "Login failed. Please try again."
+          err.message ||
+          "Login failed. Please try again."
       );
     } finally {
       setLoading(false);

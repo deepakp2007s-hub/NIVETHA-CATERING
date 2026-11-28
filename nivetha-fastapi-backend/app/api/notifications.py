@@ -1,4 +1,3 @@
-
 import logging
 from datetime import datetime, timezone
 from typing import Literal, Optional
@@ -25,6 +24,21 @@ oauth2_scheme = OAuth2PasswordBearer(
 )
 
 notifications = customer_db["notifications"]
+customers_collection = customer_db["customers"]
+owner_tokens_collection = owner_db["fcm_tokens"]
+
+
+class RegisterTokenRequest(BaseModel):
+    fcm_token: str = Field(min_length=1, max_length=4096)
+    platform: Literal["android", "web", "ios"] = Field(default="android")
+
+    @field_validator("fcm_token")
+    @classmethod
+    def normalize_fcm_token(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("FCM token cannot be empty")
+        return normalized
 
 
 # ---------------------------------------------------------------------------
@@ -58,14 +72,14 @@ async def get_current_user(
                 detail="Invalid user account",
             )
 
-        if role == "customer" and not ObjectId.is_valid(user_id):
+        if role == "customer" and not ObjectId.is_valid(str(user_id)):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid customer ID",
             )
 
         return {
-            "user_id": user_id,
+            "user_id": str(user_id),
             "role": role,
         }
 
@@ -75,6 +89,79 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication failed",
+        )
+
+
+# ---------------------------------------------------------------------------
+# REGISTER DEVICE FCM TOKEN
+# POST /api/v1/notifications/register-token
+# ---------------------------------------------------------------------------
+
+@router.post("/register-token")
+async def register_fcm_token(
+    payload: RegisterTokenRequest,
+    user: dict = Depends(get_current_user),
+):
+    now = datetime.now(timezone.utc)
+    role = user["role"]
+    user_id = str(user["user_id"])
+
+    try:
+        if role == "customer":
+            if not ObjectId.is_valid(user_id):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid customer account",
+                )
+
+            result = await customers_collection.update_one(
+                {"_id": ObjectId(user_id)},
+                {
+                    "$set": {
+                        "fcm_token": payload.fcm_token,
+                        "fcm_platform": payload.platform,
+                        "fcm_updated_at": now,
+                    }
+                },
+            )
+
+            if result.matched_count == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Customer account not found",
+                )
+
+        else:
+            await owner_tokens_collection.update_one(
+                {
+                    "user_id": user_id,
+                    "role": role,
+                    "platform": payload.platform,
+                },
+                {
+                    "$set": {
+                        "user_id": user_id,
+                        "role": role,
+                        "fcm_token": payload.fcm_token,
+                        "platform": payload.platform,
+                        "updated_at": now,
+                    }
+                },
+                upsert=True,
+            )
+
+        return {
+            "success": True,
+            "message": "FCM token registered successfully",
+        }
+
+    except HTTPException:
+        raise
+    except PyMongoError:
+        logger.exception("Failed to register FCM token for role %s", role)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to register notification token",
         )
 
 
@@ -137,94 +224,6 @@ def serialize_notification(notification: dict) -> dict:
             else created_at
         ),
     }
-
-
-
-
-class RegisterTokenRequest(BaseModel):
-    fcm_token: str = Field(min_length=1, max_length=4096)
-    platform: Literal["android", "web"]
-
-    @field_validator("fcm_token")
-    @classmethod
-    def normalize_fcm_token(cls, value: str) -> str:
-        value = value.strip()
-        if not value:
-            raise ValueError("FCM token cannot be empty")
-        return value
-
-
-# ---------------------------------------------------------------------------
-# REGISTER DEVICE FCM TOKEN
-# POST /api/v1/notifications/register-token
-# ---------------------------------------------------------------------------
-
-@router.post("/register-token")
-async def register_fcm_token(
-    payload: RegisterTokenRequest,
-    user: dict = Depends(get_current_user),
-):
-    now = datetime.now(timezone.utc)
-    role = user["role"]
-    user_id = str(user["user_id"])
-
-    try:
-        if role == "customer":
-            if not ObjectId.is_valid(user_id):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid customer account",
-                )
-
-            result = await customer_db["customers"].update_one(
-                {"_id": ObjectId(user_id)},
-                {
-                    "$set": {
-                        "fcm_token": payload.fcm_token,
-                        "fcm_platform": payload.platform,
-                        "fcm_updated_at": now,
-                    }
-                },
-            )
-
-            if result.matched_count == 0:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Customer account not found",
-                )
-
-        else:
-            await owner_db["fcm_tokens"].update_one(
-                {
-                    "user_id": user_id,
-                    "role": role,
-                    "platform": payload.platform,
-                },
-                {
-                    "$set": {
-                        "user_id": user_id,
-                        "role": role,
-                        "fcm_token": payload.fcm_token,
-                        "platform": payload.platform,
-                        "updated_at": now,
-                    }
-                },
-                upsert=True,
-            )
-
-        return {
-            "success": True,
-            "message": "FCM token registered successfully",
-        }
-
-    except HTTPException:
-        raise
-    except PyMongoError:
-        logger.exception("Failed to register FCM token for role %s", role)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to register notification token",
-        )
 
 
 # ---------------------------------------------------------------------------

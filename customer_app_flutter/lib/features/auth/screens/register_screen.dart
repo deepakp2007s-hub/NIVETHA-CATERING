@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../data/services/auth_service.dart';
+import '../../../data/services/notification_service.dart';
 
 /// Customer registration screen for Nivetha Catering styled in the
 /// Forest Emerald & Warm Champagne Gold theme.
@@ -99,6 +100,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         phone: _phoneController.text.trim(),
         password: _passwordController.text,
       );
+
+      await NotificationService.instance.syncTokenWithBackend();
 
       if (!mounted) return;
 
