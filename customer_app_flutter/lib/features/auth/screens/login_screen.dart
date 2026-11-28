@@ -17,7 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   static const Color _warmCream = Color(0xFFFAF7F0);
 
   final _formKey = GlobalKey<FormState>();
-  final _identifierController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final AuthService _authService = AuthService();
 
@@ -27,7 +27,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _identifierController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -41,25 +41,18 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final identifier = _identifierController.text.trim();
+      final email = _emailController.text.trim().toLowerCase();
       final password = _passwordController.text;
 
-      // AuthService-ல் login method பேர் உன் service ஃபைலில் வேறு பெயரில்
-      // இருந்தால் (எ.கா. loginCustomer / signIn), அந்த method-க்கு மாத்திக்கோ.
-      final dynamic response = await (_authService as dynamic).login(
-        identifier,
-        password,
+      final Map<String, dynamic> response = await _authService.login(
+        email: email,
+        password: password,
       );
 
-      String? token;
-      if (response is String && response.isNotEmpty) {
-        token = response;
-      } else if (response is Map) {
-        token = (response['access_token'] ??
-                response['token'] ??
-                response['auth_token'])
-            ?.toString();
-      }
+      final String? token = (response['access_token'] ??
+              response['token'] ??
+              response['auth_token'])
+          ?.toString();
 
       await NotificationService.instance.syncTokenWithBackend(authToken: token);
 
@@ -67,11 +60,8 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
     } catch (e) {
       if (!mounted) return;
-      final rawError = e.toString();
       setState(() {
-        _errorMessage = rawError.contains('401')
-            ? 'Invalid email/phone or password.'
-            : 'Unable to sign in right now. Please check your details and try again.';
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
       });
     } finally {
       if (mounted) {
@@ -128,7 +118,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       SizedBox(height: 4),
                       Text(
-                        'Login with your registered email or phone number.',
+                        'Login with your registered email address and password.',
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 13,
@@ -139,15 +129,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
                 TextFormField(
-                  controller: _identifierController,
+                  controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
-                    labelText: 'Email or Phone Number',
+                    labelText: 'Email Address',
                     filled: true,
                     fillColor: Colors.white,
                     prefixIcon: const Icon(
-                      Icons.person_outline_rounded,
+                      Icons.email_outlined,
                       color: _forestEmerald,
                     ),
                     border: OutlineInputBorder(
@@ -155,8 +145,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your email or phone number';
+                    final v = value?.trim() ?? '';
+                    if (v.isEmpty) {
+                      return 'Please enter your email address';
+                    }
+                    if (!RegExp(r'^[\w\.\-]+@[\w\-]+\.[\w]+').hasMatch(v)) {
+                      return 'Please enter a valid email address';
                     }
                     return null;
                   },
