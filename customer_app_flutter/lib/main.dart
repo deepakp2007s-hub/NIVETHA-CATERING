@@ -2,9 +2,11 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'core/theme/app_theme.dart';
-import 'data/services/notification_service.dart';
 import 'data/services/auth_service.dart';
+import 'data/services/notification_service.dart';
+import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/register_screen.dart';
 import 'features/booking/screens/create_booking_screen.dart';
 import 'features/foods/screens/foods_screen.dart';
@@ -17,10 +19,20 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  await NotificationService.instance.initialize(rootNavigatorKey);
+  try {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    await NotificationService.instance.initialize(rootNavigatorKey);
+  } catch (e) {
+    debugPrint('FIREBASE_OR_NOTIFICATION_INIT_ERROR: $e');
+  }
   runApp(const NivethaCateringApp());
+}
+
+enum _StartDestination {
+  home,
+  register,
+  login,
 }
 
 /// Root Application Widget for NIVETHA Customer App.
@@ -32,21 +44,35 @@ class NivethaCateringApp extends StatefulWidget {
 }
 
 class _NivethaCateringAppState extends State<NivethaCateringApp> {
+  static const String _installedFlagKey = 'has_installed_before';
   static const Color _forestEmerald = Color(0xFF144536);
   static const Color _champagneGold = Color(0xFFD9A441);
 
   final AuthService _authService = AuthService();
-  late final Future<bool> _isLoggedInFuture;
+  late final Future<_StartDestination> _startDestinationFuture;
 
   @override
   void initState() {
     super.initState();
-    _isLoggedInFuture = _authService.isLoggedIn().then((loggedIn) {
-      if (loggedIn) {
-        NotificationService.instance.syncTokenWithBackend();
-      }
-      return loggedIn;
-    });
+    _startDestinationFuture = _resolveStartDestination();
+  }
+
+  Future<_StartDestination> _resolveStartDestination() async {
+    final isLoggedIn = await _authService.isLoggedIn();
+    if (isLoggedIn) {
+      await NotificationService.instance.syncTokenWithBackend();
+      return _StartDestination.home;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final hasInstalledBefore = prefs.getBool(_installedFlagKey) ?? false;
+
+    if (!hasInstalledBefore) {
+      await prefs.setBool(_installedFlagKey, true);
+      return _StartDestination.register;
+    }
+
+    return _StartDestination.login;
   }
 
   @override
@@ -64,20 +90,26 @@ class _NivethaCateringAppState extends State<NivethaCateringApp> {
         ),
         textTheme: GoogleFonts.plusJakartaSansTextTheme(baseTheme.textTheme),
       ),
-      home: FutureBuilder<bool>(
-        future: _isLoggedInFuture,
+      home: FutureBuilder<_StartDestination>(
+        future: _startDestinationFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const _EmeraldSplashLoader();
           }
-          if (snapshot.data == true) {
-            return const MainNavigationShell();
+          switch (snapshot.data) {
+            case _StartDestination.home:
+              return const MainNavigationShell();
+            case _StartDestination.login:
+              return const LoginScreen();
+            case _StartDestination.register:
+            default:
+              return const RegisterScreen();
           }
-          return const RegisterScreen();
         },
       ),
       routes: {
         '/register': (context) => const RegisterScreen(),
+        '/login': (context) => const LoginScreen(),
         '/home': (context) {
           final args = ModalRoute.of(context)?.settings.arguments;
           final initialIndex = args is int ? args.clamp(0, 3) : 0;
