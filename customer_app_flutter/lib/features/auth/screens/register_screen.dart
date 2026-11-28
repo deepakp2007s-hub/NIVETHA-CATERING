@@ -698,6 +698,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         ),
                                 ),
                               ),
+
+                              const SizedBox(height: 12),
+
+                              TextButton(
+                                onPressed: _isLoading
+                                    ? null
+                                    : () {
+                                        Navigator.pushReplacementNamed(
+                                          context,
+                                          '/login',
+                                        );
+                                      },
+                                child: const Text(
+                                  'Already have an account? Login',
+                                  style: TextStyle(
+                                    color: _forestEmerald,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ),
